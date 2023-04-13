@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Hibernate. Showcase how to hibernate the an instance
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "EC2-Hibernate"
+    Description: Showcase how to hibernate the an instance
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "EC2" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Lambda
+        Parameters:
+          - Subnets
+          - ImageId
+          - FlaskPort
+
+Parameters:
+
+  Subnets:
+    Description: "The subnet in which to start the instances"
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581"
+
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+  FlaskPort:
+    Description: "The Port on which the Flask app is listening on"
+    Type: Number
+    Default: 80
+
+
+Resources:
+
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/SimpleFlaskApp/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        CanHibernate: true
+        ImageId: 
+          Ref: ImageId
+        SubnetId: 
+          Fn::Select: [ 0, Ref: Subnets ]
+        FlaskPort:
+          Ref: FlaskPort
+        DefRenderIndex: |
+          def render_index():
+            import threading, time, string, random
+            class BackgroundTask(threading.Thread):
+              def run(self,*args,**kwargs):
+                id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
+                while True:
+                  tmstmp = datetime.datetime.utcnow().strftime("%Y-%m-%d'T'%H:%M:%S")
+                  with open('/tmp/gunicorn-background-task-%s' % id, 'w') as f:
+                    f.write(tmstmp)
+                  time.sleep(10)
+            BackgroundTask().start()
+            headers = list(map(lambda i: {i[0]:i[1]}, flask.request.headers ))
+            created_at = datetime.datetime.utcnow().strftime("%Y-%m-%d'T'%H:%M:%S")
+            return json.dumps({ "created_at": created_at, "headers": headers })
+
+Outputs:
+
+  EC2Instance:
+    Description: The Instance PublicDnsName
+    Value: 
+      Fn::Sub: ${EC2Instance.Outputs.InstancePublicDnsName}
+
+  InstanceId:
+    Description: The InstanceId
+    Value: 
+      Fn::Sub: ${EC2Instance.Outputs.InstanceId}

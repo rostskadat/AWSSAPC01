@@ -1,0 +1,148 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+  - Yaml2Json
+Description: >
+  StackSets. Create a stack set to be deployed in all Linked Accounts of the organizations to allow a Monitoring Account read-only acess 
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Account Ids
+        Parameters:
+          - MonitoringUsername
+          - DeploymentTargetOu
+Parameters:
+
+  MonitoringUsername:
+    Type: String
+    Description: The monitoring user that will be allowed to assume the monitoring role
+    Default: "n090536"
+
+  DeploymentTargetOu:
+    Type: String
+    Description: The OrganizationalUnit where the stacks should be deployed. ONLY ARCHITECTURE LABS
+    Default: "ou-qr7v-1z3zetl8"
+
+Resources:
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  LinkedAccountStack:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: Bucket
+        Key: LinkedAccountStack.yaml
+        ContentType: application/yaml
+      Body: |
+        AWSTemplateFormatVersion: 2010-09-09
+        Description: Create a Monitoring Role with read only access.
+        Parameters:
+          MonitoringAccountId:
+            Type: Number
+            Description: The Monitoring Account Id
+        Resources:
+          # Create a Monitoring Role with the required Permission and the 
+          # necessary trust relationship. Please 
+          MonitoringRole:
+            Type: AWS::IAM::Role
+            Properties: 
+              AssumeRolePolicyDocument:
+                Version: "2012-10-17"
+                Statement: 
+                  - Effect: "Allow"
+                    Action: "sts:AssumeRole"
+                    Principal: 
+                      AWS: 
+                        - Fn::Sub: "arn:aws:iam::${MonitoringAccountId}:root"
+              Description: 
+                Fn::Sub: Allows the Monitoring Account (${MonitoringAccountId}) ReadOnly access to this Account (${AWS::AccountId})
+              ManagedPolicyArns: 
+                - arn:aws:iam::aws:policy/job-function/ViewOnlyAccess
+                - arn:aws:iam::aws:policy/SecurityAudit
+              Path: /
+              RoleName: 
+                Fn::Sub: "MonitoringRole-${AWS::Region}"
+
+  #
+  # This policy is necessary in order to allow a specific user to actually 
+  # assume the role created in the linked accouts. To actually implement 
+  # the scenario, this policy should be created in the Monitoring account
+  # not the master account. But for simplicity sake, it is created in the 
+  # master account instead :s
+  #
+  AccountBaselineAssociationPolicy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyDocument: 
+        Fn::Sub: 
+          Fn::Yaml2Json:
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: "Allow"
+                Action: "sts:AssumeRole"
+                Resource: "arn:aws:iam::${AWS::AccountId}:user/*"
+      PolicyName: 
+        Fn::Sub: "AllowToAssumeRoleInAccount${AWS::AccountId}"
+      Users: 
+        - Ref: MonitoringUsername                
+
+  # This is the actual stack set that should be deployed to all new stacks 
+  # but also to the OrganizationalUnit
+  AllowMonitoringByMonitoringAccount:
+    Type: AWS::CloudFormation::StackSet
+    Properties: 
+      AutoDeployment: 
+        Enabled: true
+        RetainStacksOnAccountRemoval: true
+      Capabilities: 
+        - CAPABILITY_IAM 
+        - CAPABILITY_NAMED_IAM
+      Description: This StackSet deploys a Monitoring Role in all Linked Account.
+      OperationPreferences: 
+        FailureTolerancePercentage: 100
+      Parameters: 
+        - ParameterKey: MonitoringAccountId
+          ParameterValue: 
+            Ref: AWS::AccountId
+      PermissionModel:  SERVICE_MANAGED  
+      StackInstancesGroup: 
+        - DeploymentTargets: 
+            OrganizationalUnitIds:
+              - Ref: DeploymentTargetOu
+          Regions: 
+            - Ref: AWS::Region
+      StackSetName: SECURITY-MONITORING
+      TemplateURL: 
+        Fn::Sub: "https://${LinkedAccountStack.Bucket}.s3-${AWS::Region}.amazonaws.com/${LinkedAccountStack.Key}"
+
+Outputs:
+  TemplateURL:
+    Description: The Template Url
+    Value: 
+      Fn::Sub: "https://${LinkedAccountStack.Bucket}.s3-${AWS::Region}.amazonaws.com/${LinkedAccountStack.Key}"
+
+  MonitoringRoleArn:
+    Description: The monitoring role that can be assumed in the linked accounts
+    Value:
+      Fn::Sub: "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/MonitoringRole-${AWS::Region}"
+
+  DeploymentTargetOu:
+    Description: The Organizational Unit where the stack was deployed
+    Value:
+      Ref: DeploymentTargetOu
+
+  MonitoringUsername:
+    Description: The IAM username that can monitor account
+    Value:
+      Ref: MonitoringUsername

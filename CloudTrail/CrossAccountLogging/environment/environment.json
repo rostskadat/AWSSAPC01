@@ -1,0 +1,6 @@
+{
+    "CrossAccountLoggingFunction" : {
+        "FILTER_S3_OBJECT" : "s3://sapc01-crossaccountlogging-configbucket-j4gzzbdhrio5/EventsFilter.json",
+        "ALERT_TOPIC" : "arn:aws:sns:eu-west-1:123456789012:CrossAccountAlert"
+    }
+}

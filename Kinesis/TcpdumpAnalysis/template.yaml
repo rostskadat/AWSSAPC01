@@ -1,0 +1,233 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+Description: >
+  TcpdumpAnalysis. Showcase the use of Kinesis services and KPL/KCL libraries
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "Kinesis-TcpdumpAnalysis"
+    Description: Showcase the use of Kinesis services and KPL/KCL libraries
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "Kinesis" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to EC2
+        Parameters:
+          - SourcePublicIp
+
+Parameters:
+
+  SourcePublicIp:
+    Description: Your public IP for which the Kinesis Analytics Alert should be sent
+    Type: String
+    Default: "90.162.185.145"
+
+  EC2InstanceManagedPolicyArns:
+    Description: The list of Policies to attach to the EC2Instance Profile
+    Type: List<String>
+    Default: "arn:aws:iam::aws:policy/AmazonKinesisFullAccess,arn:aws:iam::aws:policy/CloudWatchFullAccess"
+
+  KinesisAppPrefix:
+    Description: The prefix used to create in-application prefixes
+    Type: String
+    Default: "TcpdumpFromInstance"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    DependsOn: DeliveryStream
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ManagedPolicyArns: "arn:aws:iam::aws:policy/AmazonKinesisFullAccess,arn:aws:iam::aws:policy/AmazonKinesisFirehoseFullAccess,arn:aws:iam::aws:policy/CloudWatchFullAccess"
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            # This instance is used to generate the Kinesis Data Firehose Stream content
+            yum-config-manager --enable epel ; yum update -y ; yum install -y aws-kinesis-agent python3
+            tcpdump -n -i eth0 src ${SourcePublicIp} > /var/log/tcpdump.log &
+            cat > /etc/aws-kinesis/agent.json <<EOF
+            { "firehose.endpoint": "firehose.${AWS::Region}.amazonaws.com", "flows": [{  "filePattern": "/var/log/tcpdump.log", "deliveryStream": "${DeliveryStream}" }]  } 
+            EOF
+            systemctl enable aws-kinesis-agent
+            systemctl start aws-kinesis-agent
+            systemctl status aws-kinesis-agent
+            echo "Instance initialization... Done"  
+
+  Stream: 
+    Type: AWS::Kinesis::Stream 
+    Properties: 
+      ShardCount: 1
+      Tags: 
+        - Key: PLATFORM 
+          Value: SAPC01
+
+  ApplicationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: kinesisanalytics.amazonaws.com
+            Action: 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                'sts:ExternalId': 
+                  Ref: 'AWS::AccountId'
+      Policies:
+        - KinesisStreamReadPolicy:
+            StreamName: 
+              Ref: Stream
+
+  Application:
+    Type: AWS::KinesisAnalytics::Application
+    Properties:
+      ApplicationCode: 
+        Fn::Sub: |
+          -- ** Aggregate (COUNT, AVG, etc.) + Tumbling Time Window **
+          -- Performs function on the aggregate rows over a 10 second tumbling window for a specified column. 
+          --          .----------.   .----------.   .----------.              
+          --          |  SOURCE  |   |  INSERT  |   |  DESTIN. |              
+          -- Source-->|  STREAM  |-->| & SELECT |-->|  STREAM  |-->Destination
+          --          |          |   |  (PUMP)  |   |          |              
+          --          '----------'   '----------'   '----------'               
+          -- STREAM (in-application): a continuously updated entity that you can SELECT from and INSERT into like a TABLE
+          -- PUMP: an entity used to continuously 'SELECT ... FROM' a source STREAM, and INSERT SQL results into an output STREAM
+          -- Create output stream, which can be used to send to a destination
+          CREATE OR REPLACE STREAM "DESTINATION_SQL_STREAM" (SRC VARCHAR(256), PACKET_COUNT INTEGER);
+          -- Create a pump which continuously selects from a source stream (${KinesisAppPrefix}_001)
+          -- performs an aggregate count that is grouped by columns ticker over a 10-second tumbling window
+          -- and inserts into output stream (DESTINATION_SQL_STREAM)
+          CREATE OR REPLACE  PUMP "STREAM_PUMP" AS INSERT INTO "DESTINATION_SQL_STREAM"
+          -- Aggregate function COUNT|AVG|MAX|MIN|SUM|STDDEV_POP|STDDEV_SAMP|VAR_POP|VAR_SAMP)
+          SELECT STREAM SRC, COUNT(*) AS SRC_count
+          FROM "${KinesisAppPrefix}_001"
+          -- Uses a 10-second tumbling time window
+          GROUP BY SRC, FLOOR(("${KinesisAppPrefix}_001".ROWTIME - TIMESTAMP '1970-01-01 00:00:00') SECOND / 10 TO SECOND);
+      ApplicationDescription: "Sample App to Query stream generated from tcpdump output"
+      Inputs: 
+        - NamePrefix: 
+            Ref: KinesisAppPrefix
+          InputSchema:
+            RecordColumns: 
+              - Name: TMSTMP
+                SqlType: VARCHAR(16)
+              - Name: PROTOCOL
+                SqlType: VARCHAR(8)
+              - Name: SRC
+                SqlType: VARCHAR(256)
+              - Name: DST
+                SqlType: VARCHAR(256)
+              - Name: DETAILS
+                SqlType: VARCHAR(1024)
+            RecordEncoding: UTF-8
+            RecordFormat: 
+              RecordFormatType: CSV
+              MappingParameters:
+                CSVMappingParameters: 
+                  RecordColumnDelimiter: ","
+                  RecordRowDelimiter: "\n"
+          KinesisStreamsInput: 
+            ResourceARN: 
+              Fn::GetAtt: Stream.Arn
+            RoleARN: 
+              Fn::GetAtt: ApplicationRole.Arn
+
+  DeliveryStreamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: firehose.amazonaws.com
+            Action: 'sts:AssumeRole'
+            Condition:
+              StringEquals:
+                'sts:ExternalId': 
+                  Ref: 'AWS::AccountId'
+      Policies:
+        - CloudWatchPutMetricPolicy: {}
+        - PolicyName: ExtendedS3CrudPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: 
+                  - s3:AbortMultipartUpload
+                  - s3:GetBucketLocation
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:ListBucketMultipartUploads
+                  - s3:PutObject
+                Resource:
+                  - Fn::Sub: "${Bucket.Arn}"
+                  - Fn::Sub: "${Bucket.Arn}/*"
+
+  DeliveryStream:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamType: DirectPut
+      S3DestinationConfiguration:
+        BucketARN: 
+          Fn::GetAtt: Bucket.Arn
+        CompressionFormat: UNCOMPRESSED
+        ErrorOutputPrefix: "records_in_error/"
+        Prefix: "records/"
+        RoleARN: 
+          Fn::GetAtt: DeliveryStreamRole.Arn
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+
+Outputs:
+
+  EC2Instance:
+    Description: The EC2Instance
+    Value: 
+      Fn::GetAtt: EC2Instance.Outputs.InstancePublicDnsName
+
+  Stream:
+    Description: The Stream
+    Value: 
+      Ref: Stream
+
+  Application:
+    Description: The Application
+    Value: 
+      Ref: Application
+
+
+  Bucket:
+    Description: The Bucket
+    Value: 
+      Ref: Bucket
+

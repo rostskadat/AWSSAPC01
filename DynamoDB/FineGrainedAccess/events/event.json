@@ -1,0 +1,73 @@
+{
+  "resource": "/GameScores",
+  "path": "/GameScores",
+  "httpMethod": "GET",
+  "headers": {
+    "accept": "*/*",
+    "Host": "sapc01-ddb-finegrainedaccess.domain.com",
+    "User-Agent": "curl/7.58.0",
+    "X-Amzn-Trace-Id": "Root=1-600c4d54-4a25373039e5b9a94e0408c5",
+    "X-Forwarded-For": "92.56.134.93",
+    "X-Forwarded-Port": "443",
+    "X-Forwarded-Proto": "https"
+  },
+  "multiValueHeaders": {
+    "accept": [
+      "*/*"
+    ],
+    "Host": [
+      "sapc01-ddb-finegrainedaccess.domain.com"
+    ],
+    "User-Agent": [
+      "curl/7.58.0"
+    ],
+    "X-Amzn-Trace-Id": [
+      "Root=1-600c4d54-4a25373039e5b9a94e0408c5"
+    ],
+    "X-Forwarded-For": [
+      "92.56.134.93"
+    ],
+    "X-Forwarded-Port": [
+      "443"
+    ],
+    "X-Forwarded-Proto": [
+      "https"
+    ]
+  },
+  "queryStringParameters": null,
+  "multiValueQueryStringParameters": null,
+  "pathParameters": null,
+  "stageVariables": null,
+  "requestContext": {
+    "resourceId": "fi89x9",
+    "resourcePath": "/GameScores",
+    "httpMethod": "GET",
+    "extendedRequestId": "ZnEFKHB5DoEFkpw=",
+    "requestTime": "23/Jan/2021:16:22:44 +0000",
+    "path": "/GameScores",
+    "accountId": "123456789012",
+    "protocol": "HTTP/1.1",
+    "stage": "Prod",
+    "domainPrefix": "sapc01-ddb-finegrainedaccess",
+    "requestTimeEpoch": 1611418964181,
+    "requestId": "35f7f36c-b212-43e8-9e80-4849e91a39b0",
+    "identity": {
+      "cognitoIdentityPoolId": null,
+      "accountId": null,
+      "cognitoIdentityId": null,
+      "caller": null,
+      "sourceIp": "92.56.134.93",
+      "principalOrgId": null,
+      "accessKey": null,
+      "cognitoAuthenticationType": null,
+      "cognitoAuthenticationProvider": null,
+      "userArn": null,
+      "userAgent": "curl/7.58.0",
+      "user": null
+    },
+    "domainName": "sapc01-ddb-finegrainedaccess.domain.com",
+    "apiId": "xn7ra6isa6"
+  },
+  "body": null,
+  "isBase64Encoded": false
+}

@@ -1,0 +1,89 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  SendBillingReport. Showcase how to send billing report periodically
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "Costs-SendBillingReport"
+    Description: Showcase how to send billing report periodically
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01", "Costs"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Budget
+        Parameters:
+          - NotificationEmail
+
+Parameters:
+
+  NotificationEmail:
+    Description: "The email that should be notified in case we reach the budget threshold"
+    Type: String
+    Default: rostskadat@gmail.com
+
+  S3Bucket:
+    Description: "The S3 bucket where the report will be stored"
+    Type: String
+    Default: billing-eu-west-1-123456789012
+
+Resources:
+
+  Budget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetLimit:
+          Amount: 7500
+          Unit: Hrs
+        BudgetName: Monthly EC2 Budget
+        BudgetType: USAGE
+        TimeUnit: MONTHLY
+        TimePeriod:
+          Start: 1612092453
+          End: 2524608000
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 95
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address:
+                Ref: NotificationEmail
+
+  # However it seems to fail with: Failed to create resource. Could not connect to the endpoint URL: "https://cur.eu-west-1.amazonaws.com/"
+  CostAndUsageReport:
+    Type: Custom::CfCostAndUsageReport
+    Version: "1.0"
+    Properties:
+      ServiceToken:
+        Fn::Sub: "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:CfCostAndUsageReport"
+      # As per: https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/cur.html#CostandUsageReportService.Client.put_report_definition
+      ReportDefinition:
+        ReportName: INFRASTRUCTURE
+        TimeUnit: DAILY
+        Format: textORcsv
+        Compression: ZIP
+        AdditionalSchemaElements: 
+          - 'RESOURCES'
+        S3Bucket: 
+          Ref: S3Bucket
+        S3Prefix: "INFRASTRUCTURE/DAILY"
+        S3Region: 
+          Ref: AWS::Region
+        RefreshClosedReports: true
+        ReportVersioning: CREATE_NEW_REPORT
+
+Outputs:
+  Budget:
+    Description: The Budget
+    Value:
+      Ref: Budget

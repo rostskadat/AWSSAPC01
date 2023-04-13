@@ -1,0 +1,196 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - PolicyGenerator
+  - S3Objects
+  - Yaml2Json
+Description: >
+  CrossAccountLogging.
+
+Parameters:
+  OperatorEmail:
+    Type: String
+    Description: The email of the operator the will receive the alerts
+    Default: "rostskadat@gmail.com"
+
+  OrganizationId:
+    Type: String
+    Description: The OrganizationId under which the Trail is logging
+    Default: "o-abcdefghij"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: CommonLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  LogsBucket: 
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      # The bucket name is specified here in order to break the circular 
+      # dependency with the Lambda function
+      BucketName: 
+        Fn::Sub: "sapc01-crossaccountlogging-${AWS::AccountId}-${AWS::Region}-logs"
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  BucketPolicy: 
+    Type: AWS::S3::BucketPolicy
+    Properties: 
+      Bucket: 
+        Ref: LogsBucket
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Sid: "AWSCloudTrailAclCheck20150319"
+            Effect: "Allow"
+            Principal: 
+              Service: cloudtrail.amazonaws.com
+            Action: "s3:GetBucketAcl"
+            Resource: 
+              Fn::GetAtt: LogsBucket.Arn
+          - Sid: "AWSCloudTrailWrite20150319"
+            Effect: "Allow"
+            Principal: 
+              Service: cloudtrail.amazonaws.com
+            Action: "s3:PutObject"
+            Resource: 
+              Fn::Sub: "${LogsBucket.Arn}/AWSLogs/${AWS::AccountId}/*"
+            Condition: 
+              StringEquals: 
+                "s3:x-amz-acl": "bucket-owner-full-control"
+          - Sid: "AWSOrganizationWrite20150319"
+            Effect: "Allow"
+            Principal: 
+              Service: cloudtrail.amazonaws.com
+            Action: "s3:PutObject"
+            Resource: 
+                Fn::Sub: "${LogsBucket.Arn}/AWSLogs/${OrganizationId}/*"
+            Condition:
+              StringEquals:
+                "s3:x-amz-acl": "bucket-owner-full-control"
+          - Sid: "AWSAllowLambda"
+            Effect: "Allow"
+            Principal: 
+              Service: lambda.amazonaws.com
+            Action: 
+              - "s3:GetObject"
+              - "s3:ListBucket"
+              - "s3:GetBucketLocation"
+              - "s3:GetObjectVersion"
+              - "s3:GetLifecycleConfiguration"
+            Resource: 
+              - Fn::Sub: "${LogsBucket.Arn}"
+              - Fn::Sub: "${LogsBucket.Arn}/*"
+
+  ConfigBucket: 
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      # The bucket name is specified here in order to break the circular 
+      # dependency with the Lambda function
+      BucketName: 
+        Fn::Sub: "sapc01-crossaccountlogging-${AWS::AccountId}-${AWS::Region}-config"
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  EventsFilter:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: ConfigBucket
+        Key: "EventsFilter.json"
+        ContentType: application/json
+      Body: 
+        Fn::Yaml2Json:
+          Filters:
+            - eventSource: elasticmapreduce.amazonaws.com
+              eventName: ListClusters
+
+  Trail: 
+    Type: AWS::CloudTrail::Trail
+    Properties: 
+      S3BucketName: 
+        Ref: LogsBucket
+      IsLogging: false
+      # IsMultiRegionTrail: true
+      # IsOrganizationTrail: true
+
+  CommonLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/CommonLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: "CrossAccountAlert"
+      Subscription:
+        - Endpoint:
+            Ref: OperatorEmail
+          Protocol: "email"
+
+  CrossAccountLoggingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: This function is called on each delivery of a new cloudtrail trail dump. Every 5 minutes.
+      CodeUri: lambdas/CrossAccountLoggingFunction
+      Environment:
+        Variables: 
+          FILTER_S3_OBJECT: 
+            Ref: EventsFilter
+          ALERT_TOPIC: 
+            Ref: Topic
+      Events:
+        S3PutObject:
+          Type: S3
+          Properties: 
+            Bucket: 
+              Ref: LogsBucket
+            Events: "s3:ObjectCreated:*"
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - S3ReadPolicy: 
+            BucketName: 
+              Fn::Sub: "sapc01-crossaccountlogging-${AWS::AccountId}-${AWS::Region}-logs"
+        - S3ReadPolicy: 
+            BucketName: 
+              Fn::Sub: "sapc01-crossaccountlogging-${AWS::AccountId}-${AWS::Region}-config"
+        - SNSPublishMessagePolicy:
+            TopicName:
+              Fn::GetAtt: Topic.TopicName
+Outputs:
+  FunctionArn:
+    Description: "CrossAccountLogging Lambda Function ARN"
+    Value: 
+      Fn::GetAtt: "CrossAccountLoggingFunction.Arn"
+
+  EventsFilter:
+    Description: "The S3 Object containing the event filters"
+    Value: 
+      Ref: EventsFilter
+
+  Topic:
+    Description: "The SNS topic you must register to, in order to receive alerts"
+    Value: 
+      Ref: Topic
+
+  Trail:
+    Description: "The Trail you can start / stop"
+    Value: 
+      Ref: Trail

@@ -1,0 +1,176 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+Description: >
+  S3TransferAccCloudFront. Showcase how to accelerate S3 upload / download
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "ArchitectureSolutions-S3TransferAccCloudFront"
+    Description: Showcase to solutions to accelerate S3 upload / download
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "ArchitectureSolutions" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to CloudFront
+        Parameters:
+          - ManagedCachingDisabledId
+
+Parameters:
+
+  ManagedCachingDisabledId:
+    Description: "The Caching Policy Id to use. Defaul to the Managed-CachingDisabled Caching Policy"
+    Type: String
+    Default: "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+  ManagedPolicyArns:
+    Description: "A comma separated list of IAM Policy ARNs to attach to the Instance"
+    Type: String
+    Default: "arn:aws:iam::aws:policy/PowerUserAccess"
+
+
+Resources:
+
+  CentralBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  CentralBucketIndex:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: CentralBucket
+        Key: index.html
+        ContentType: text/html
+        ACL: public-read
+      Body: 
+        Fn::Sub: |
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <link rel="icon" href="favicon.ico" type="image/x-icon"/>
+              <link rel="shortcut icon" href="favicon.ico" type="image/x-icon"/>
+              <title>S3 Integration</title>
+              <link rel="stylesheet" href="//code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
+            </head>
+            <body>
+              <div data-role="page" id="page1">
+              <div data-role="header"><h1>'${CentralBucket}': S3 Integration</h1></div>
+              <div><p>Showcase S3 Integration</p></div>
+              </div>
+            </body>
+            </html>
+
+  S3OriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: "CloudFront::CloudFrontOriginAccessIdentity for S3 Integration"
+
+  CentralBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: CentralBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - "s3:*"
+            Principal: 
+              AWS:
+                Fn::Sub: "arn:${AWS::Partition}:iam::${AWS::AccountId}:user/rostskadat"
+            Resource:
+              - Fn::Sub: "arn:${AWS::Partition}:s3:::${CentralBucket}"
+              - Fn::Sub: "arn:${AWS::Partition}:s3:::${CentralBucket}/*"
+          - Effect: Allow
+            Action:
+              - "s3:GetObject"
+            Principal: 
+              AWS:
+                Fn::Sub: "arn:${AWS::Partition}:iam::cloudfront:user/CloudFront Origin Access Identity ${S3OriginAccessIdentity}"
+              # It's harder to know who the CanonicalUser is refering to...
+              # CanonicalUser: 
+              #   Fn::GetAtt: S3OriginAccessIdentity.S3CanonicalUserId
+            Resource:
+              Fn::Sub: "arn:${AWS::Partition}:s3:::${CentralBucket}/*"
+
+  S3Distribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: CentralBucketPolicy
+    Properties:
+      DistributionConfig:
+        DefaultCacheBehavior:
+          CachePolicyId: 
+            Ref: ManagedCachingDisabledId
+          # This element is deprecated but still required (!?!)
+          ForwardedValues: 
+            QueryString: false
+          TargetOriginId: CentralBucketOrigin
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: index.html
+        Enabled: true
+        Origins:
+          - DomainName:
+              Fn::GetAtt: CentralBucket.RegionalDomainName
+            Id: CentralBucketOrigin
+            S3OriginConfig:
+              OriginAccessIdentity: 
+                Fn::Sub: "origin-access-identity/cloudfront/${S3OriginAccessIdentity}"
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName: 
+          Ref: AWS::StackName
+        ImageId:
+          Ref: ImageId
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel
+            yum update -y
+            echo "Instance initialization... Done"
+        ManagedPolicyArns:
+          Ref: ManagedPolicyArns
+
+Outputs:
+
+  CentralBucket:
+    Description: The CentralBucket
+    Value: 
+      Ref: CentralBucket
+
+  S3DistributionDomainName:
+    Description: The S3Distribution DomainName
+    Value: 
+      Fn::GetAtt: S3Distribution.DomainName
+
+  EC2Instance:
+    Description: The EC2Instance PublicDnsName
+    Value: 
+      Fn::GetAtt: EC2Instance.Outputs.InstancePublicDnsName

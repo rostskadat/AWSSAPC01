@@ -1,0 +1,200 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  CloudTrail: This SAM Nested Application (c.f. https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-template-nested-applications.html)
+  create a CloudTrail and associated Athena DB / Tables
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: ARNs to configure the data events
+        Parameters:
+          - DataEventS3BucketArns
+      - Label:
+          default: Athena related parameters
+        Parameters:
+          - AthenaDB
+          - AthenaLogTable
+Parameters:
+  DataEventS3BucketArns:
+    Type: String
+    Description: A comma separeted list of Arn of the S3Buckets for which to log the Data Events. Each Arn must be finished with the final /
+
+  AthenaDB:
+    Type: String
+    Description: The name of the DB where to store the log table
+    Default: "CloudtrailDB"
+
+  AthenaLogTable:
+    Type: String
+    Description: The name of the Table through which the logs will be accessed
+    Default: "AthenaLogTable"
+
+Resources:
+
+  LogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      RetentionInDays: 7
+
+  CloudWatchLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - cloudtrail.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'    
+      Description: 
+        Fn::Sub: Role assumed by CloudTrail when writing event from ${AWS::StackName}
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Path: /
+
+  LogsBucket: 
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  LogsBucketPolicy: 
+    Type: AWS::S3::BucketPolicy
+    Properties: 
+      Bucket: 
+        Ref: LogsBucket
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Sid: "AWSCloudTrailAclCheck20150319"
+            Effect: "Allow"
+            Principal: 
+              Service: cloudtrail.amazonaws.com
+            Action: "s3:GetBucketAcl"
+            Resource: 
+              Fn::GetAtt: LogsBucket.Arn
+          - Sid: "AWSCloudTrailWrite20150319"
+            Effect: "Allow"
+            Principal: 
+              Service: cloudtrail.amazonaws.com
+            Action: "s3:PutObject"
+            Resource: 
+              Fn::Sub: "${LogsBucket.Arn}/AWSLogs/${AWS::AccountId}/*"
+            Condition: 
+              StringEquals: 
+                "s3:x-amz-acl": "bucket-owner-full-control"
+
+  Trail: 
+    Type: AWS::CloudTrail::Trail
+    Properties: 
+      CloudWatchLogsLogGroupArn:
+        Fn::GetAtt: LogGroup.Arn
+      CloudWatchLogsRoleArn:
+        Fn::GetAtt: CloudWatchLogsRole.Arn
+      EventSelectors: 
+        - DataResources: 
+            - Type: AWS::S3::Object
+              Values: 
+                Fn::Split: 
+                  - ","
+                  - Ref: DataEventS3BucketArns
+      S3BucketName:
+        Ref: LogsBucket
+      IsLogging: false
+
+  CreateTableAthenaNamedQuery:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database: 
+        Ref: AthenaDB
+      Description: "A query to construct the Log table"
+      Name: 
+        Fn::Sub: "01-CreateTable-${AWS::StackName}"
+      QueryString: 
+        Fn::Sub: |
+          CREATE EXTERNAL TABLE ${AthenaDB}.${AthenaLogTable} (
+            eventversion STRING,
+            useridentity STRUCT<
+              type:STRING,
+              principalid:STRING,
+              arn:STRING,
+              accountid:STRING,
+              invokedby:STRING,
+              accesskeyid:STRING,
+              userName:STRING,
+              sessioncontext:STRUCT<
+                attributes:STRUCT<
+                  mfaauthenticated:STRING,
+                  creationdate:STRING
+                >,
+                sessionissuer:STRUCT<  
+                  type:STRING,
+                  principalId:STRING,
+                  arn:STRING, 
+                  accountId:STRING,
+                  userName:STRING
+                >
+              >
+            >,
+            eventtime STRING,
+            eventsource STRING,
+            eventname STRING,
+            awsregion STRING,
+            sourceipaddress STRING,
+            useragent STRING,
+            errorcode STRING,
+            errormessage STRING,
+            requestparameters STRING,
+            responseelements STRING,
+            additionaleventdata STRING,
+            requestid STRING,
+            eventid STRING,
+            resources ARRAY<STRUCT<
+              ARN:STRING,
+              accountId:STRING,
+              type:STRING>>,
+            eventtype STRING,
+            apiversion STRING,
+            readonly STRING,
+            recipientaccountid STRING,
+            serviceeventdetails STRING,
+            sharedeventid STRING,
+            vpcendpointid STRING
+          )
+          ROW FORMAT SERDE 'com.amazon.emr.hive.serde.CloudTrailSerde'
+          STORED AS INPUTFORMAT 'com.amazon.emr.cloudtrail.CloudTrailInputFormat'
+          OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+          LOCATION 's3://${LogsBucket}/AWSLogs/${AWS::AccountId}/';
+
+  SelectS3OperationAthenaNamedQuery:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database: 
+        Ref: AthenaDB
+      Description: "A query that shows the S3 opeartion and its encryption parameter"
+      Name: 
+        Fn::Sub: "02-SelectEvents-${AWS::StackName}"
+      QueryString: 
+        Fn::Sub: |
+          SELECT eventtime,
+                 eventname,
+                 json_extract(requestparameters, '$.bucketName') AS bucketName, 
+                 json_extract(requestparameters, '$.key') AS key, 
+                 json_extract(additionaleventdata, '$.SSEApplied') AS SSEApplied, 
+                 responseelements
+            FROM ${AthenaDB}.${AthenaLogTable}
+           WHERE eventsource = 's3.amazonaws.com'
+             -- AND useridentity.username = 'IAMUser'
+             -- AND from_iso8601_timestamp(eventtime) >= from_iso8601_timestamp('2020-01-01T00:00:00Z')
+           ORDER BY from_iso8601_timestamp(eventtime) ASC        
+
+Outputs:
+  Trail:
+    Description: The Trail name to use when starting / stopping the Trail
+    Value: 
+      Ref: Trail

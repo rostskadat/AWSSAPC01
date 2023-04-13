@@ -1,0 +1,289 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+Description: >
+  BatchImageProcessing. Showcase a 2 level Image processing pipeline
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "StepFunctions-BatchImageProcessing"
+    Description: Showcase a 2 level Image processing pipeline
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01", "StepFunctions"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Lambda
+        Parameters:
+          - "BatchImageProcessingParameter"
+
+Parameters:
+  "BatchImageProcessingParameter":
+    Description: Look at https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html
+    Type: String
+    Default: "BatchImageProcessingValue"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: "BatchImageProcessingLayer01"
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  ThumbnailBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  ImageMetadata:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      Tags:
+        PLATFORM: SAPC01
+
+  BatchImageProcessingLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/BatchImageProcessingLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  ListAllImagesInBucketFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/ListAllImagesInBucketFunction
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref Bucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref Bucket
+
+  IterateOverImagesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.lambda_handler
+      InlineCode: |
+        def lambda_handler(event, context):
+          iterator = event["iterator"]
+          iterator["index"] += 1
+          iterator["continue"] = iterator["index"] < iterator["count"]
+          return iterator
+
+  DebugInputFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.lambda_handler
+      InlineCode: |
+        def lambda_handler(event, context):
+          print(event)
+
+  CreateThumbnailFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/CreateThumbnailFunction
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref Bucket
+          THUMBNAIL_BUCKET_NAME: !Ref ThumbnailBucket
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref Bucket
+        - S3CrudPolicy:
+            BucketName: !Ref ThumbnailBucket
+          
+  ProcessExifFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/ProcessExifFunction
+      Environment:
+        Variables:
+          BUCKET_NAME: !Ref Bucket
+          TABLE_NAME: !Ref ImageMetadata
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref Bucket
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ImageMetadata
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      RetentionInDays: 7
+
+  ProcessAllImagesStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      Description: Execution Role for the StepFunctions State Machine
+      AssumeRolePolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AllowWritingToLogGroup
+          PolicyDocument: 
+            Version: 2012-10-17
+            Statement:
+              # As per https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-iam-policy
+              - Effect: "Allow"
+                Action: 
+                  - logs:CreateLogDelivery
+                  - logs:GetLogDelivery
+                  - logs:UpdateLogDelivery
+                  - logs:DeleteLogDelivery
+                  - logs:ListLogDeliveries
+                  - logs:PutResourcePolicy
+                  - logs:DescribeResourcePolicies
+                  - logs:DescribeLogGroups
+                Resource: "*"
+              # As per https://docs.aws.amazon.com/step-functions/latest/dg/lambda-iam.html
+              - Effect: Allow
+                Action: 
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt ListAllImagesInBucketFunction.Arn
+                  - !GetAtt IterateOverImagesFunction.Arn
+              # As per https://docs.aws.amazon.com/step-functions/latest/dg/stepfunctions-iam.html
+              - Effect: Allow
+                Action: 
+                  - states:StartExecution
+                Resource:
+                  - !GetAtt ProcessOneImageStateMachine.Arn
+              # To avoid the '"Role" is not authorized to create managed-rule.'
+              - Effect: Allow
+                Action:
+                  - events:PutTargets
+                  - events:PutRule
+                  - events:DescribeRule
+                Resource: 
+                  - !Sub arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctionsGetEventsForStepFunctionsExecutionRule
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  ProcessAllImagesStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionUri: statemachine/process_all_images.asl.yaml
+      Events:
+        Schedule:
+          Type: Schedule
+          Properties:
+            Schedule: 'rate(1 hour)'
+            Enabled: False
+      Logging: 
+        Destinations: 
+          - CloudWatchLogsLogGroup: 
+              LogGroupArn: !GetAtt LogGroup.Arn
+        IncludeExecutionData: true
+        Level: ALL
+      Role: !GetAtt ProcessAllImagesStateMachineRole.Arn
+      Tracing:
+        Enabled: True
+      DefinitionSubstitutions:
+        ListAllImagesInBucketFunctionArn: !GetAtt ListAllImagesInBucketFunction.Arn
+        IterateOverImagesFunctionArn: !GetAtt IterateOverImagesFunction.Arn
+        ProcessOneImageStateMachineArn: !GetAtt ProcessOneImageStateMachine.Arn
+
+  ProcessOneImageStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      Description: Execution Role for the StepFunctions State Machine
+      AssumeRolePolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AllowWritingToLogGroup
+          PolicyDocument: 
+            Version: 2012-10-17
+            Statement:
+              # As per https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-iam-policy
+              - Effect: "Allow"
+                Action: 
+                  - logs:CreateLogDelivery
+                  - logs:GetLogDelivery
+                  - logs:UpdateLogDelivery
+                  - logs:DeleteLogDelivery
+                  - logs:ListLogDeliveries
+                  - logs:PutResourcePolicy
+                  - logs:DescribeResourcePolicies
+                  - logs:DescribeLogGroups
+                Resource: "*"
+              # As per https://docs.aws.amazon.com/step-functions/latest/dg/lambda-iam.html
+              - Effect: Allow
+                Action: 
+                  - lambda:InvokeFunction
+                Resource:
+                  - !GetAtt ProcessExifFunction.Arn
+                  - !GetAtt CreateThumbnailFunction.Arn
+                  - !GetAtt DebugInputFunction.Arn
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  ProcessOneImageStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      DefinitionUri: statemachine/process_one_image.asl.yaml
+      Logging: 
+        Destinations: 
+          - CloudWatchLogsLogGroup: 
+              LogGroupArn: !GetAtt LogGroup.Arn
+        IncludeExecutionData: true
+        Level: ALL
+      Role: !GetAtt ProcessOneImageStateMachineRole.Arn
+      Tracing:
+        Enabled: True
+      DefinitionSubstitutions:
+        DebugInputFunctionArn: !GetAtt DebugInputFunction.Arn
+        ProcessExifFunctionArn: !GetAtt ProcessExifFunction.Arn
+        CreateThumbnailFunctionArn: !GetAtt CreateThumbnailFunction.Arn
+
+Outputs:
+  Bucket:
+    Description: The Bucket
+    Value: !Ref Bucket
+
+  ThumbnailBucket:
+    Description: The ThumbnailBucket
+    Value: !Ref ThumbnailBucket
+
+  ImageMetadata:
+    Description: The ImageMetadata
+    Value: !Ref ImageMetadata
+
+  ProcessAllImagesStateMachine:
+    Description: The ProcessAllImagesStateMachine
+    Value: !Ref ProcessAllImagesStateMachine

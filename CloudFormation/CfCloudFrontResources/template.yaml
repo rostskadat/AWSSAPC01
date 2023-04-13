@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  CfCloudFrontKeyGroup. A Custom Resource to use CloudFront's KeyGroup in your template
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "CloudFormation-CfCloudFrontKeyGroup"
+    Description: A Custom Resource to use CloudFront's KeyGroup in your template
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "CloudFormation" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: CfCloudFrontResourcesLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  CfCloudFrontResourcesLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/CfCloudFrontResourcesLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+      
+  CfCloudFrontPublicKeyFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      FunctionName: CfCloudFrontPublicKeyFunction
+      Description: A CloudFormation Custom Resource to create an CloudFront Key Group
+      CodeUri: lambdas/CfCloudFrontPublicKeyFunction
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - "arn:aws:iam::aws:policy/CloudFrontFullAccess"
+
+  CfCloudFrontKeyGroupFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      FunctionName: CfCloudFrontKeyGroupFunction
+      Description: A CloudFormation Custom Resource to create an CloudFront Key Group
+      CodeUri: lambdas/CfCloudFrontKeyGroupFunction
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - "arn:aws:iam::aws:policy/CloudFrontFullAccess"
+
+  CfCloudFrontTrustedKeyGroupAssociationFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      FunctionName: CfCloudFrontTrustedKeyGroupAssociationFunction
+      Description: A CloudFormation Custom Resource to associate a Distribution with a KeyGroup
+      CodeUri: lambdas/CfCloudFrontTrustedKeyGroupAssociationFunction
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - "arn:aws:iam::aws:policy/CloudFrontFullAccess"
+
+Outputs:
+
+  CfCloudFrontPublicKeyFunctionArn:
+    Description: "CfCloudFrontPublicKeyFunction Lambda Function ARN"
+    Value: 
+      Fn::GetAtt: "CfCloudFrontPublicKeyFunction.Arn"
+
+  CfCloudFrontKeyGroupFunctionArn:
+    Description: "CfCloudFrontKeyGroup Lambda Function ARN"
+    Value: 
+      Fn::GetAtt: "CfCloudFrontKeyGroupFunction.Arn"
+
+  CfCloudFrontTrustedKeyGroupAssociationFunctionArn:
+    Description: "CfCloudFrontTrustedKeyGroupAssociation Lambda Function ARN"
+    Value: 
+      Fn::GetAtt: "CfCloudFrontTrustedKeyGroupAssociationFunction.Arn"
+

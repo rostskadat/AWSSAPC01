@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  InstanceStoreBackup. Showcase Instance Store Backup
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "ArchitectureSolutions-InstanceStoreBackup"
+    Description: Showcase Instance Store Backup
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "ArchitectureSolutions" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Lambda
+        Parameters:
+          - "InstanceStoreBackupParameter"
+
+Parameters:
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+  InstanceType:
+    Description: "The Instance Type to spin up"
+    Type: String
+    Default: "m3.medium"
+
+Resources:
+
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName: 
+          Ref: AWS::StackName
+        ImageId:
+          Ref: ImageId
+        InstanceType:
+          Ref: InstanceType
+        UserData: 
+          Fn::Sub: |
+            #!/bin/bash
+            cd
+            yum-config-manager --enable epel
+            yum update -y
+            yum install -y ruby
+            wget https://s3.amazonaws.com/ec2-downloads/ec2-ami-tools.noarch.rpm
+            yum install -y ec2-ami-tools.noarch.rpm
+            # The /media/ephemeral0 is mounted at startup...
+            export RUBYLIB=$RUBYLIB:/usr/lib/ruby/site_ruby:/usr/lib64/ruby/site_ruby
+            export PATH=/usr/local/bin:$PATH
+            # I create a 1MB random file that I will backup afterward
+            dd if=/dev/urandom of=/media/ephemeral0/RANDOM bs=1K count=1024
+            echo "Initialization: OK."
+            
+Outputs:
+
+  EC2Instance:
+    Description: The EC2Instance PublicDnsName
+    Value: 
+      Fn::GetAtt: EC2Instance.Outputs.InstancePublicDnsName
+

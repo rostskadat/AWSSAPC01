@@ -1,0 +1,297 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  SSLForNLB. Showcases the use of an SSL certifiate with a TCP NetworkLoadBalancer
+Parameters:
+
+  HostedZoneName:
+    Description: "The hosted zone name"
+    Type: String
+    Default: domain.com
+
+  SubDomainName:
+    Description: "The subdomain of the API"
+    Type: String
+    Default: sapc01-nlb
+
+  VpcId:
+    Description: "The VPC in which to put the load balancer"
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-9e9b9ffa
+
+  Subnets:
+    Description: "The Subnets in which to put the load balancer"
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581,subnet-58421700"
+
+  ImageId:
+    Description: "The EC2 Instance AMI"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+  KeyName:
+    Description: "The Key to use to connect to the EC2 Instance"
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: "SAPC01"
+
+  ObtainCertificate:
+    Description: "Whether to renew the certificate"
+    Type: String
+    AllowedValues:
+      - true
+      - false
+    Default: false
+      
+Resources:
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/job-function/ViewOnlyAccess
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - Ref: InstanceRole
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId:
+          Ref: LaunchTemplate
+        Version:
+          Fn::GetAtt: LaunchTemplate.LatestVersionNumber
+
+  RecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        HostedZoneId: 
+          Fn::GetAtt: LoadBalancer.CanonicalHostedZoneID
+        DNSName: 
+          Fn::GetAtt: LoadBalancer.DNSName
+      HostedZoneName: 
+        # NOTE: the final dot
+        Fn::Sub: "${HostedZoneName}."
+      Name: 
+        Fn::Sub: "${SubDomainName}.${HostedZoneName}"
+#      ResourceRecords:
+#        - Fn::GetAtt: EC2Instance.PublicIp
+      Type: A
+#      TTL: 900
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Subnets:
+        Ref: Subnets
+      Type: network
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 443
+      Protocol: TCP
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      Targets:
+        - Id: 
+            Ref: EC2Instance
+      TargetType: instance
+      VpcId:
+        Ref: VpcId
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - TargetGroupArn:   
+          Ref: TargetGroup
+        Type: forward
+      LoadBalancerArn: 
+        Ref: LoadBalancer
+      Port: 443
+      Protocol: TCP
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          default: [Install]
+        Install:
+          files:
+            /etc/yum.repos.d/nginx.repo:
+              content: |
+                [nginx]
+                name=nginx repo
+                baseurl=http://nginx.org/packages/mainline/centos/7/$basearch/
+                gpgcheck=0
+                enabled=1
+              mode: "000644"
+              owner: root
+              group: root
+            /etc/nginx/conf.d/default.conf:
+              content: 
+                Fn::Sub: |
+                  server {
+                    listen       80;
+                    server_name  ${SubDomainName}.${HostedZoneName};
+                    access_log   /var/log/nginx/access.log;
+                    error_log    /var/log/nginx/error.log;
+                    location / {
+                      root   /usr/share/nginx/html;
+                      index  index.html index.htm;
+                    }
+                    error_page   500 502 503 504  /50x.html;
+                    location = /50x.html {
+                      root   /usr/share/nginx/html;
+                    }
+                  }
+              mode: "000644"
+              owner: root
+              group: root
+            /etc/nginx/conf.d/default.ssl.conf:
+              content: 
+                Fn::Sub: |
+                  server {
+                    listen              443 http2;
+                    server_name         ${SubDomainName}.${HostedZoneName};
+                    ssl                 on;
+                    ssl_certificate     /etc/nginx/ssl/${HostedZoneName}/${SubDomainName}.cer;
+                    ssl_certificate_key /etc/nginx/ssl/${HostedZoneName}/${SubDomainName}.key;
+                    ssl_session_timeout 30m;
+                    ssl_protocols       TLSv1 TLSv1.1 TLSv1.2;
+                    ssl_ciphers         ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS;
+                    ssl_session_cache   shared:SSL:10m;
+                    ssl_dhparam         /etc/nginx/ssl/${HostedZoneName}/dhparams.pem;
+                    ssl_prefer_server_ciphers on;
+                    ## Improves TTFB by using a smaller SSL buffer than the nginx default
+                    ssl_buffer_size     8k;
+                    ## Enables OCSP stapling
+                    ssl_stapling        on;
+                    resolver            8.8.8.8;
+                    ssl_stapling_verify on;
+                    ## Send header to tell the browser to prefer https to http traffic
+                    add_header          Strict-Transport-Security max-age=31536000;
+                    access_log          /var/log/nginx/ssl_access.log;
+                    error_log           /var/log/nginx/ssl_error.log;
+                    location / {
+                      root /usr/share/nginx/html;
+                      index index.html index.htm;
+                    }
+                  }
+              mode: "000644"
+              owner: root
+              group: root
+            /root/bootstrap.sh:
+              content: 
+                Fn::Sub: |
+                  #!/bin/bash
+                  yum install -y nginx git bc wget curl
+                  systemctl enable nginx
+                  systemctl start nginx
+                  p_new_certificate=${ObtainCertificate}
+                  options=$(getopt --alternative --name $(basename $0) --options "n" --longoptions new-certificate -- $0 "$@")
+                  if [ $? -ne 0 ]; then
+                    echo "Failed to parse command line..."
+                    exit 1
+                  fi
+                  eval set -- "$options"
+                  while true; do
+                    case "$1" in
+                      -n|--new-certificate) p_new_certificate=true ;;
+                      --)                   shift; break ;;
+                    esac
+                    shift
+                  done
+                  if ($p_new_certificate); then
+                    echo "Renewing certificate ..."
+                    git clone https://github.com/Neilpang/acme.sh.git
+                    ~/acme.sh/acme.sh --install
+                    source ~/.bashrc
+                    HTML_ROOT=/usr/share/nginx/html
+                    CHALG_DIR=$HTML_ROOT/.well-known/acme-challenge
+                    mkdir -vp $CHALG_DIR
+                    chown -R nginx:nginx $CHALG_DIR
+                    chmod -R 0555 $CHALG_DIR
+                    SSL_DIR=/etc/nginx/ssl/${HostedZoneName}
+                    mkdir -p $SSL_DIR
+                    openssl dhparam -out $SSL_DIR/dhparams.pem -dsaparam 4096
+                    ~/acme.sh/acme.sh --issue -w $HTML_ROOT/ -d ${SubDomainName}.${HostedZoneName} -k 2048
+                    ~/acme.sh/acme.sh --installcert -d ${SubDomainName}.${HostedZoneName} --keypath $SSL_DIR/${SubDomainName}.key --fullchainpath $SSL_DIR/${SubDomainName}.cer --reloadcmd 'systemctl reload nginx'
+                  else
+                    echo "Using certificate from ParameterStore ..."
+                    aws --region ${AWS::Region} ssm get-parameter --name /${HostedZoneName}/${SubDomainName}.key --with-decrypt --query "Parameter.Value" --output text > $SSL_DIR/${SubDomainName}.key
+                    aws --region ${AWS::Region} ssm get-parameter --name /${HostedZoneName}/${SubDomainName}.cer --with-decrypt --query "Parameter.Value" --output text > $SSL_DIR/${SubDomainName}.cer
+                    aws --region ${AWS::Region} ssm get-parameter --name /${HostedZoneName}/dhparams.pem --with-decrypt --query "Parameter.Value" --output text > $SSL_DIR/dhparams.pem
+                  fi
+                  systemctl restart nginx
+              mode: "000700"
+              owner: root
+              group: root
+          commands:
+            01_bootstrap:
+              command: "bash /root/bootstrap.sh"
+    Properties:
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Arn:
+            Fn::GetAtt: InstanceProfile.Arn
+        ImageId: 
+          Ref: ImageId
+        InstanceType: t3.micro
+        KeyName: 
+          Ref: KeyName
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: PLATFORM
+                Value: SAPC01
+          - ResourceType: volume
+            Tags:
+              - Key: PLATFORM
+                Value: SAPC01
+        UserData:
+          Fn::Base64:
+            Fn::Sub: |
+              #!/bin/bash
+              yum-config-manager --enable epel ; yum update -y ; yum install -y aws-cfn-bootstrap
+              /opt/aws/bin/cfn-init --verbose --region ${AWS::Region} --stack ${AWS::StackName} --resource LaunchTemplate --role ${InstanceRole}
+              echo "Done"
+
+Outputs:
+
+  EC2InstancePublicDnsName:
+    Description: "EC2 Instance PublicDnsName"
+    Value: 
+      Fn::GetAtt: EC2Instance.PublicDnsName
+
+  LoadBalancerDNSName:
+    Description: "The LoadBalancer DNSName"
+    Value: 
+      Fn::GetAtt: LoadBalancer.DNSName
+
+  RecordSet:
+    Description: "RecordSet"
+    Value: 
+      Ref: RecordSet

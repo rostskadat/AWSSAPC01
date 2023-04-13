@@ -1,0 +1,306 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - Yaml2Json
+Description: >
+  DynamoDB2ElasticSearch. Showcase the use of DynamoDB, Stream and ElasticSearch together
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "DynamoDB,ElasticSearch-DynamoDB2ElasticSearch"
+    Description: Showcase the use of DynamoDB, Stream and ElasticSearch together
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01", "DynamoDB,ElasticSearch"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Lambda
+        Parameters:
+          - IpAllowed
+          - MasterUserName
+          - MasterUserPassword
+          - EsIndex
+          - EsDocType
+
+Parameters:
+  IpAllowed:
+    Description: The IpAllowed
+    Type: String
+    Default: 129.35.108.66
+
+  MasterUserName:
+    Description: The ES MasterUserName
+    Type: String
+    Default: root
+
+  MasterUserPassword:
+    Description: The ES MasterUserPassword
+    Type: String
+    NoEcho: true
+    Default: "eE4!#73nzbHAZw*q"
+
+  EsIndex:
+    Description: The ES Index
+    Type: String
+    Default: funds
+
+  EsDocType:
+    Description: The ES EsDocType
+    Type: String
+    Default: fund
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Environment:
+      Variables: 
+        ES_ENDPOINT:
+          Fn::GetAtt: Domain.DomainEndpoint
+        ES_INDEX: 
+          Ref: EsIndex
+        ES_DOC_TYPE: 
+          Ref: EsDocType
+    Layers:
+      - Ref: DynamoDB2ElasticSearchLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+  Table:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: "id"
+          AttributeType: "S"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema:
+        - AttributeName: "id"
+          KeyType: "HASH"
+      StreamSpecification: 
+        StreamViewType: NEW_IMAGE
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  DynamoDB2ElasticSearchLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/DynamoDB2ElasticSearchLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  StreamFunction: 
+    Type: AWS::Serverless::Function
+    Properties: 
+      Description: Process all the events from the DynamoDB Stream
+      CodeUri: lambdas/StreamFunction
+      Events:
+        DynamoDB:
+          Type: DynamoDB
+          Properties:
+            Enabled: true
+            StartingPosition: TRIM_HORIZON
+            Stream: 
+              Fn::GetAtt: Table.StreamArn
+      Role:
+        Fn::GetAtt: StreamFunctionRole.Arn
+      #
+      # I create an external role instead of the inline policy listing in order
+      # to be able to specify a custom Assume policy (by adding a specific IAM 
+      # user). This way the Lambda function can be tested with the SAM Cli. If 
+      # no need to call the function from the SAM Cli is required, you can 
+      # simply uncomment the Policies attribute and comment the Role attribute
+      # above.
+      #
+      #Policies:
+      #  - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      #  - ElasticsearchHttpPostPolicy:
+      #      DomainName:
+      #        Ref: Domain
+
+  # BEWARE: in order to avoid circular dependencies I create an extra policy
+  #   element. Note also that the assume role is for a specific IAM entity.
+  #   no '*' allowed.
+  StreamFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+          # This allows the Lambda Function to be called from the SAM command 
+          # line.
+          - Effect: Allow
+            Principal:
+              AWS:
+                Fn::Sub: "arn:${AWS::Partition}:iam::${AWS::AccountId}:user/rostskadat"
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaDynamoDBExecutionRole
+
+  AllowAccessToES:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: AllowAccessToES
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - es:*
+            Resource: 
+              Fn::Sub: "${Domain.Arn}/*"
+      Roles:
+        - Ref: StreamFunctionRole
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      RetentionInDays: 7
+
+  # To allow ES to deliver logs to CloudWatch
+  ResourcePolicy:
+    Type: Custom::CfCloudWatchLogsResourcePolicy
+    Version: "1.0"
+    Properties:
+      ServiceToken:
+        Fn::Sub: "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:CfCloudWatchLogsResourcePolicy"
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement: 
+          - Effect: Allow
+            Principal:
+              Service: es.amazonaws.com
+            Action: 
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Resource: 
+              Fn::GetAtt: LogGroup.Arn
+
+  Domain:
+    Type: AWS::Elasticsearch::Domain
+    DependsOn:
+      - ResourcePolicy
+      - StreamFunctionRole
+    UpdatePolicy:
+      EnableVersionUpgrade: true
+    Properties:
+      # BEWARE: The DomainName must be the name of this specific Domain :(
+      AccessPolicies:
+        Version: 2012-10-17
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              AWS: "*"
+            Action: "es:*"
+            Resource: 
+              Fn::Sub: "arn:${AWS::Partition}:es:${AWS::Region}:${AWS::AccountId}:domain/dynamodb2es-domain/*"
+            Condition:
+              IpAddress:
+                "aws:SourceIp": 
+                  Fn::Sub: "${IpAllowed}"
+          - Effect: "Allow"
+            Principal:
+              AWS: 
+                Fn::GetAtt: StreamFunctionRole.Arn
+            Action: "es:*"
+            Resource: 
+              Fn::Sub: "arn:${AWS::Partition}:es:${AWS::Region}:${AWS::AccountId}:domain/dynamodb2es-domain/*"
+      AdvancedSecurityOptions:
+        Enabled: true
+        InternalUserDatabaseEnabled: true
+        MasterUserOptions: 
+          MasterUserName: 
+            Ref: MasterUserName
+          MasterUserPassword: 
+            Ref: MasterUserPassword
+      DomainEndpointOptions:
+        EnforceHTTPS: true
+        TLSSecurityPolicy: Policy-Min-TLS-1-2-2019-07
+      # Necessary to setup the AccessPolicies
+      DomainName: "dynamodb2es-domain"
+      EBSOptions:
+        EBSEnabled: true
+        VolumeSize: 20
+        VolumeType: gp2
+      ElasticsearchClusterConfig:
+        InstanceCount: 1
+        InstanceType: m5.large.elasticsearch
+      ElasticsearchVersion: 7.9
+      EncryptionAtRestOptions: 
+        Enabled: true
+      LogPublishingOptions:
+        SEARCH_SLOW_LOGS:
+          CloudWatchLogsLogGroupArn:
+            Fn::GetAtt: LogGroup.Arn
+          Enabled: true
+        ES_APPLICATION_LOGS:
+          CloudWatchLogsLogGroupArn:
+            Fn::GetAtt: LogGroup.Arn
+          Enabled: true
+        INDEX_SLOW_LOGS:
+          CloudWatchLogsLogGroupArn:
+            Fn::GetAtt: LogGroup.Arn
+          Enabled: true
+        AUDIT_LOGS:
+          CloudWatchLogsLogGroupArn:
+            Fn::GetAtt: LogGroup.Arn
+          Enabled: true
+      NodeToNodeEncryptionOptions: 
+        Enabled: true          
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: 0
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+Outputs:
+
+  Table:
+    Description: The Table
+    Value:
+      Ref: Table
+
+  StreamArn: 
+    Description: The Table StreamArn
+    Value:
+      Fn::GetAtt: Table.StreamArn
+  
+  DomainEndpoint:
+    Description: The DomainEndpoint
+    Value:
+      Fn::GetAtt: Domain.DomainEndpoint
+
+  EsIndex:
+    Description: The EsIndex
+    Value:
+      Ref: EsIndex
+
+  EsDocType:
+    Description: The EsDocType
+    Value:
+      Ref: EsDocType
+
+  StreamFunctionRole:
+    Description: The StreamFunctionRole
+    Value:
+      Fn::Sub: "${StreamFunctionRole.Arn}"

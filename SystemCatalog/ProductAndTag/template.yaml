@@ -1,0 +1,273 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+  - Yaml2Json
+Description: >
+  ProductAndTag. Showcase the use of the SystemCatalog service. As per https://docs.aws.amazon.com/servicecatalog/latest/adminguide/getstarted.html
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "SystemCatalog-ProductAndTag"
+    Description: Showcase the use of the SystemCatalog service
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "SystemCatalog" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  FlaskInstanceStack:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: Bucket
+        Key: FlaskInstanceStack.yaml
+        ContentType: text/yaml
+      Body: |
+        AWSTemplateFormatVersion: '2010-09-09'
+        Description: AWS Service Catalog sample template. Creates an Amazon EC2 instance running
+          the Amazon Linux AMI. The AMI is chosen based on the region in which the stack is
+          run. This example creates an EC2 security group for the instance to give you SSH
+          access. **WARNING** This template creates an Amazon EC2 instance. You will be billed
+          for the AWS resources used if you create a stack from this template.
+        Parameters:
+          KeyName:
+            Description: Name of an existing EC2 key pair for SSH access to the EC2 instance.
+            Type: AWS::EC2::KeyPair::KeyName
+          InstanceType:
+            Description: EC2 instance type.
+            Type: String
+            Default: t2.micro
+            AllowedValues:
+            - t2.micro
+            - t2.small
+            - t2.medium
+            - m3.medium
+            - m3.large
+            - m3.xlarge
+            - m3.2xlarge
+          SSHLocation:
+            Description: The IP address range that can SSH to the EC2 instance.
+            Type: String
+            MinLength: '9'
+            MaxLength: '18'
+            Default: 0.0.0.0/0
+            AllowedPattern: "(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,2})"
+            ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x.
+        Metadata:
+          AWS::CloudFormation::Interface:
+            ParameterGroups:
+            - Label:
+                default: Instance configuration
+              Parameters:
+              - InstanceType
+            - Label:
+                default: Security configuration
+              Parameters:
+              - KeyName
+              - SSHLocation
+            ParameterLabels:
+              InstanceType:
+                default: 'Server size:'
+              KeyName:
+                default: 'Key pair:'
+              SSHLocation:
+                default: 'CIDR range:'
+        Mappings:
+          AWSRegionArch2AMI:
+            us-east-1:
+              HVM64: ami-08842d60
+            us-west-2:
+              HVM64: ami-8786c6b7
+            us-west-1:
+              HVM64: ami-cfa8a18a
+            eu-west-1:
+              HVM64: ami-748e2903
+            ap-southeast-1:
+              HVM64: ami-d6e1c584
+            ap-northeast-1:
+              HVM64: ami-35072834
+            ap-southeast-2:
+              HVM64: ami-fd4724c7
+            sa-east-1:
+              HVM64: ami-956cc688
+            cn-north-1:
+              HVM64: ami-ac57c595
+            eu-central-1:
+              HVM64: ami-b43503a9
+        Resources:
+          EC2Instance:
+            Type: AWS::EC2::Instance
+            Properties:
+              InstanceType:
+                Ref: InstanceType
+              SecurityGroups:
+              - Ref: InstanceSecurityGroup
+              KeyName:
+                Ref: KeyName
+              ImageId:
+                Fn::FindInMap:
+                - AWSRegionArch2AMI
+                - Ref: AWS::Region
+                - HVM64
+          InstanceSecurityGroup:
+            Type: AWS::EC2::SecurityGroup
+            Properties:
+              GroupDescription: Enable SSH access via port 22
+              SecurityGroupIngress:
+              - IpProtocol: tcp
+                FromPort: '22'
+                ToPort: '22'
+                CidrIp:
+                  Ref: SSHLocation
+        Outputs:
+          PublicDNSName:
+            Description: Public DNS name of the new EC2 instance
+            Value:
+              Fn::GetAtt:
+              - EC2Instance
+              - PublicDnsName
+          PublicIPAddress:
+            Description: Public IP address of the new EC2 instance
+            Value:
+              Fn::GetAtt:
+              - EC2Instance
+              - PublicIp
+
+  # First we create a portfolio that will contain all the product, constraints,
+  # etc.
+  Portfolio:
+    Type: AWS::ServiceCatalog::Portfolio
+    Properties: 
+      AcceptLanguage: en
+      Description: A portfolio with all resources required by developers
+      DisplayName: DeveloperPortfolio
+      ProviderName: ArchitectureLabs
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  # Then we add the specific product
+  FlaskInstanceProduct:
+    Type: AWS::ServiceCatalog::CloudFormationProduct
+    Properties: 
+      AcceptLanguage: en
+      Description: Create an EC2 Instance with Flask pre-installed
+      Name: EC2FlaskInstance
+      Owner: ArchitectureLabs
+      ProvisioningArtifactParameters: 
+        - Info: 
+            LoadTemplateFromURL: !Sub "https://s3.amazonaws.com/${FlaskInstanceStack.Bucket}/${FlaskInstanceStack.Key}"
+            # LoadTemplateFromURL: "https://awsdocs.s3.amazonaws.com/servicecatalog/development-environment.template"
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  # Then we associate the product and the portofolio
+  FlaskInstanceProductAssociation:
+    Type: AWS::ServiceCatalog::PortfolioProductAssociation
+    Properties: 
+      AcceptLanguage: en
+      PortfolioId: !Ref Portfolio
+      ProductId: !Ref FlaskInstanceProduct
+
+  LaunchTemplateConstraint:
+    Type: AWS::ServiceCatalog::LaunchTemplateConstraint
+    Properties: 
+      AcceptLanguage: en
+      Description: "LaunchTemplateConstraint associated with the launch of the EC2 Instance with Flask pre-installed"
+      PortfolioId: !Ref Portfolio
+      ProductId: !Ref FlaskInstanceProduct
+      Rules: 
+        Fn::Sub:
+          Fn::Yaml2Json: 
+            CheckInstanceType:
+              Assertions:
+                - Assert:
+                    Fn::Contains:
+                      - - t2.micro
+                        - t2.small
+                      - Ref: InstanceType
+                  AssertDescription: Instance type should be t2.micro or t2.small
+
+
+  LaunchRoleConstraintPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy for creating a test database
+      Path: /
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: 
+              - s3:GetObject
+            Resource: "*"
+            Condition:
+              StringEquals:
+                s3:ExistingObjectTag/servicecatalog:provisioning: true
+
+  LaunchRoleConstraintRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - servicecatalog.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/PowerUserAccess
+        - !Ref LaunchRoleConstraintPolicy
+
+  LaunchRoleConstraint:
+    Type: AWS::ServiceCatalog::LaunchRoleConstraint
+    DependsOn: LaunchRoleConstraintPolicy
+    Properties: 
+      AcceptLanguage: en
+      Description: "LaunchRoleConstraint associated with the launch of the EC2 Instance with Flask pre-installed"
+      PortfolioId: !Ref Portfolio
+      ProductId: !Ref FlaskInstanceProduct
+      RoleArn: !GetAtt LaunchRoleConstraintRole.Arn
+
+  TagOption:
+    Type: AWS::ServiceCatalog::TagOption
+    Properties: 
+      Active: true
+      Key: CreatedBy
+      Value: ServiceCatalog
+
+  TagOptionAssociation:
+    Type: AWS::ServiceCatalog::TagOptionAssociation
+    Properties: 
+      ResourceId: !Ref FlaskInstanceProduct
+      TagOptionId: !Ref TagOption
+
+  # Finally we associate the product with a specific IAM entity (user / role / group)
+  FlaskInstancePrincipalAssociation:
+    Type: AWS::ServiceCatalog::PortfolioPrincipalAssociation
+    Properties: 
+      AcceptLanguage: en
+      PortfolioId: !Ref Portfolio
+      PrincipalARN: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:user/rostskadat"
+      PrincipalType: IAM
+
+Outputs:
+  Portfolio:
+    Description: The Portfolio
+    Value: !Ref Portfolio

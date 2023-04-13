@@ -1,0 +1,171 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  EC2WithSimpleADAccount. Showcase how to integrate an EC2 Instance with a Simple AD directory
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "DirectoryService-EC2WithSimpleADAccount"
+    Description: Showcase how to integrate an EC2 Instance with a Simple AD directory
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "DirectoryService" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to VPC
+        Parameters:
+          - VpcId
+          - Subnets
+          - SecurityGroups
+      - Label:
+          default: Parameters related to the EC2 Instance
+        Parameters:
+          - ImageId
+          - ManagedPolicyArns
+          - SecretArn
+
+Parameters:
+  VpcId:
+    Description: "The VPC (DEFAULT_VPC)"
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-9e9b9ffa
+
+  SubnetIds:
+    Description: "The PublicSubnet (DEFAULT_VPC)"
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581"
+
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+  ManagedPolicyArns:
+    Description: "A comma separated list of IAM Policy ARNs to attach to the Instance"
+    Type: String
+    Default: "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore,arn:aws:iam::aws:policy/AmazonSSMDirectoryServiceAccess"
+
+  SimpleADName:
+    Description: The FQDN of the Simple AD directory
+    Type: String
+    Default: simplead.domain.com
+
+  # About the Password: The ideal scenario would have a Secret generated on the
+  # stack and used through out the different elements using the 
+  # '{{resolve:ssm-secure:ParameterName:ParameterVersion}}'... However there 
+  # are some problems with this approach:
+  # - in order to seamlessly integrate the EC2 instance as per (https://docs.aws.amazon.com/directoryservice/latest/admin-guide/simple_ad_seamlessly_join_linux_instance.html)
+  #   we need to create a Secret with a specific name. This creates a loop
+  #   between the SimpleAd and the Secret
+  # - further more the construct is only supported on certain attributes
+  #   as per https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html#template-parameters-dynamic-patterns-resources
+  #   Therefore it is not possible to use a third secret on all the 
+  #   attributes that would require the value of the secret...
+  #
+  # A work around would be to use the dynamic construct:
+  #   '{{resolve:ssm:ParameterName:ParameterVersion}}' 
+  # and then have the proper resource Policy attached to it... 
+  SimpleADPassword:
+    Description: The SimpleAD Password
+    Type: String
+    Default: Passw0rd
+    NoEcho: true
+
+Resources:
+
+  SimpleAD: 
+    Type: AWS::DirectoryService::SimpleAD
+    Properties:
+      CreateAlias: true
+      Description: "Simple AD to integrate EC2 Instance"
+      EnableSso: true
+      Name: 
+        Ref: SimpleADName
+      Password: 
+        Ref: SimpleADPassword
+      Size: Small
+      VpcSettings: 
+        SubnetIds: 
+          Ref: SubnetIds
+        VpcId: 
+          Ref: VpcId
+
+  Secret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      # As per https://docs.aws.amazon.com/directoryservice/latest/admin-guide/simple_ad_seamlessly_join_linux_instance.html#simple_ad_seamless-linux-prereqs
+      Name: 
+        Fn::Sub: "aws/directory-services/${SimpleAD}/seamless-domain-join"
+      Description: "The user name for your service account"
+      SecretString: 
+        Fn::Sub: '{"awsSeamlessDomainUsername":"awsSeamlessDomain","awsSeamlessDomainPassword":"${SimpleADPassword}"}'
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  ReadSecretPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: Policy to read the Simple AD Secret
+      Path: /
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - secretsmanager:GetSecretValue
+              - secretsmanager:DescribeSecret
+            Resource:
+              - Ref: Secret
+
+  Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ImageId: 
+          Ref: ImageId
+        ManagedPolicyArns: 
+          Fn::Sub: "${ManagedPolicyArns},${ReadSecretPolicy}"
+        SubnetId:
+          Fn::Select: [ 0, Ref: SubnetIds ]
+        UserData:
+          # As per https://docs.aws.amazon.com/directoryservice/latest/admin-guide/simple_ad_join_linux_instance.html
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel ; yum update -y
+            # To manage the Simple AD content look at:
+            # https://aws.amazon.com/blogs/security/how-to-manage-identities-in-simple-ad-directories/
+            # However a user is created by default with the username Administrator
+            # As per https://aws.amazon.com/premiumsupport/knowledge-center/ec2-static-dns-ubuntu-debian/ 
+            yum install -y jq sssd realmd krb5-workstation samba-common-tools
+            cat >> /etc/dhcp/dhclient.conf <<EOF
+            supersede domain-name-servers $(aws --region ${AWS::Region} ds describe-directories --directory-ids ${SimpleAD} | jq -r '.DirectoryDescriptions[0].DnsIpAddrs|join(",")');
+            EOF
+            systemctl restart network.service
+            realm discover ${SimpleADName} --verbose
+            # Unfortunately the Password needs to be entered interactively...
+            # realm join ${SimpleADName} --verbose
+
+Outputs:
+
+  SimpleAD:
+    Description: The SimpleAD
+    Value: 
+      Fn::GetAtt: SimpleAD.Alias
+
+  Secret:
+    Description: The Secret
+    Value: 
+      Ref: Secret
+
+  Instance:
+    Description: The Instance
+    Value: 
+      Fn::Sub: "${Instance.Outputs.InstancePublicDnsName}"

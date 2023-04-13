@@ -1,0 +1,184 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+Description: >
+  MigrateHadoop
+Parameters:
+
+  ReleaseLabel:
+    Type: String
+    Description: The EMR Release Label to use
+    Default: "emr-5.31.0"
+
+  SubnetId:
+    Type: String
+    Description: The SubnetId in which to place the Instances
+    Default: "subnet-b09099d4"
+
+  KeyName:
+    Type: String
+    Description: The KeyName to connect to the instances
+    Default: "SAPC01"
+
+  S3CloudFrontLogUrl:
+    Type: String
+    Description: The S3 Url where CloudFront logs are stored
+    Default: "s3://eu-west-1.elasticmapreduce.samples/cloudfront/data "
+
+Resources:
+  Cluster:
+    Type: AWS::EMR::Cluster
+    Properties:
+      Instances:
+        MasterInstanceGroup:
+          InstanceCount: 1
+          InstanceType: "m4.large"
+          Market: ON_DEMAND
+          Name: CfClusterMaster
+        CoreInstanceGroup:
+          InstanceCount: 1
+          InstanceType: "m4.large"
+          Market: ON_DEMAND
+          Name: CfClusterCore
+        TerminationProtected: false
+        Ec2KeyName: 
+          Ref: KeyName
+        Ec2SubnetId: 
+          Ref: SubnetId
+      LogUri:
+        Fn::Sub: "s3://${SourceBucket}/logs/cluster"
+      Name: MigrateHadoopSample
+      JobFlowRole: 
+        Ref: EmrEc2InstanceProfile
+      ServiceRole: 
+        Ref: EmrRole
+      ReleaseLabel: 
+        Ref: ReleaseLabel
+      VisibleToAllUsers: true
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  EmrRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: "elasticmapreduce.amazonaws.com"
+            Action: 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole'
+
+  EmrEc2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: "ec2.amazonaws.com"
+            Action: 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceforEC2Role'
+
+  EmrEc2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - Ref: EmrEc2Role
+
+  SourceBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  EMRScript:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: SourceBucket
+        Key: bin/my_script.sh
+        ContentType: text/x-shellscript
+      Body: 
+        Fn::Sub: |
+          #!/bin/env bash
+          echo "$(date): Runing ${EMRScriptHiveCloudFront.Key} ..."
+          hive -f ${EMRScriptHiveCloudFront.Key}
+          if [ $? -eq 0 ]; then
+            echo "$(date): ${EMRScriptHiveCloudFront.Key} completed successfully"
+          else
+            echo "$(date): ${EMRScriptHiveCloudFront.Key} failed"
+          fi
+
+  EMRScriptHiveCloudFront:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: SourceBucket
+        Key: bin/HiveCloudFront.hql
+        ContentType: text/x-shellscript
+      Body: 
+        Fn::Sub: |
+          -- Summary This sample shows you how to analyze CloudFront logs stored in S3 using Hive
+          -- Create table using sample data in S3.
+          -- NOTE: you can replace this S3 path with your own.
+          CREATE EXTERNAL TABLE IF NOT EXISTS cloudfront_logs (
+            DateObject Date,
+            Time STRING,
+            Location STRING,
+            Bytes INT,
+            RequestIP STRING,
+            Method STRING,
+            Host STRING,
+            Uri STRING,
+            Status INT,
+            Referrer STRING,
+            OS String,
+            Browser String,
+            BrowserVersion String
+          )
+          ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.RegexSerDe'
+          WITH SERDEPROPERTIES (
+            "input.regex" = "^(?!#)([^ ]+)\\s+([^ ]+)\\s+([^ ]+)\\s+([^ ]+)\\s+([^ ]+)\\s+([^ ]+)\\s+([^ ]+)\\s+([^ ]+)\\s+([^ ]+)\\s+([^ ]+)\\s+[^\(]+[\(]([^\;]+).*\%20([^\/]+)[\/](.*)$"
+          ) LOCATION 's3://${AWS::Region}.elasticmapreduce.samples/cloudfront/data/cloudfront/data';
+          -- Total requests per operating system for a given time frame
+          INSERT OVERWRITE DIRECTORY 's3://${SourceBucket}/os_requests/' SELECT os, COUNT(*) count FROM cloudfront_logs WHERE dateobject BETWEEN '2014-07-05' AND '2014-08-05' GROUP BY os;
+
+  RunS3Script:
+    Type: AWS::EMR::Step
+    Properties: 
+      ActionOnFailure: CONTINUE
+      HadoopJarStep: 
+        Args:
+          - Fn::Sub: "s3://${SourceBucket}/${EMRScript.Key}"
+        Jar: 
+          Fn::Sub: "s3://${AWS::Region}.elasticmapreduce/libs/script-runner/script-runner.jar"
+      JobFlowId: 
+        Ref: Cluster
+      Name: RunS3Script
+
+Outputs:
+  ClusterMasterPublicDNS:
+    Description: The cluster DNS
+    Value:
+      Fn::GetAtt: Cluster.MasterPublicDNS
+
+  SourceBucket:
+    Description: The S3 Bucket
+    Value:
+      Ref: SourceBucket

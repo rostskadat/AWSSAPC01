@@ -1,0 +1,210 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  DeployToASG. Showcase how to deploy to ASG (In place deploymemnt)
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "CodeDeploy-DeployToASG"
+    Description: Showcase how to deploy to ASG (In place deploymemnt)
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "CodeDeploy" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to the AutoScalingGroup
+        Parameters:
+          - VpcId
+          - SubnetIds
+          - MinSize
+          - DesiredCapacity
+          - MaxSize
+      - Label:
+          default: Parameters related to CodeDeploy
+        Parameters:
+          - Bucket
+
+Parameters:
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Default: "vpc-9e9b9ffa"
+
+  SubnetIds:
+    Description: "The subnet in which to start the instances"
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581,subnet-58421700"
+
+  MinSize:
+    Description: "The minimum number of instance in the AutoScalingGroup"
+    Type: Number
+    Default: 1
+
+  DesiredCapacity:
+    Description: "The desired number of instance in the AutoScalingGroup"
+    Type: Number
+    Default: 5
+
+  MaxSize:
+    Description: "The maximum number of instance in the AutoScalingGroup"
+    Type: Number
+    Default: 5
+
+  Bucket:
+    Description: The bucket where the app versions are located
+    Type: String
+    Default: "sapc01-deploytoasg-bucket-bucket-kr34pi588pzi"
+
+Resources:
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      # SecurityGroups: 
+      #   - Ref: SecurityGroup
+      Subnets: 
+        Ref: SubnetIds
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 80
+      Protocol: HTTP
+      HealthCheckPath: /health
+      Matcher:
+        HttpCode: 200
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      VpcId: 
+        Ref: VpcId
+
+  ListenerHTTP:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn: 
+          Ref: TargetGroup
+      LoadBalancerArn: 
+        Ref: LoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        CreateInstance: false
+        # to be able to read the S3Bucket
+        ManagedPolicyArns: arn:aws:iam::aws:policy/AmazonS3FullAccess
+        ParentStackName:
+          Ref: AWS::StackName
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel
+            yum update -y
+            yum install -y ruby wget
+            wget https://aws-codedeploy-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/latest/install
+            chmod +x ./install
+            ./install auto
+            service codedeploy-agent start
+            service codedeploy-agent status
+            /opt/aws/bin/cfn-signal --exit-code=$? --region ${AWS::Region} --stack ${AWS::StackName} --resource AutoScalingGroup
+            echo "Instance initialization... Done"
+
+  AutoScalingGroup: 
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      HealthCheckType: EC2
+      LaunchTemplate: 
+        LaunchTemplateId:
+          Fn::GetAtt: EC2Instance.Outputs.LaunchTemplateId
+        Version:
+          Fn::GetAtt: EC2Instance.Outputs.LaunchTemplateVersion
+      MetricsCollection:
+        - Granularity: 1Minute
+          Metrics:
+            - GroupInServiceInstances
+      MinSize:
+        Ref: MinSize
+      MaxSize: 
+        Ref: MaxSize
+      DesiredCapacity: 
+        Ref: DesiredCapacity
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+          PropagateAtLaunch: true
+      TargetGroupARNs:
+        - Ref: TargetGroup
+      VPCZoneIdentifier:
+        Ref: SubnetIds
+
+  Application:
+    Type: AWS::CodeDeploy::Application
+    Properties: 
+      ComputePlatform: Server
+  
+  DeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    DependsOn: 
+      - EC2Instance
+    Properties: 
+      ApplicationName: 
+        Ref: Application
+      AutoScalingGroups:
+        - Ref: AutoScalingGroup
+      Deployment: 
+        IgnoreApplicationStopFailures: true
+        Revision:
+          RevisionType: S3
+          S3Location: 
+            Bucket:
+              Ref: Bucket
+            BundleType: tgz
+            Key: application.tgz
+      DeploymentConfigName: CodeDeployDefault.OneAtATime
+      DeploymentStyle:
+        DeploymentOption: WITH_TRAFFIC_CONTROL
+        DeploymentType: IN_PLACE
+      LoadBalancerInfo:
+        TargetGroupInfoList: 
+          - Name:
+              Fn::GetAtt: TargetGroup.TargetGroupName
+      ServiceRoleArn: 
+        Fn::GetAtt: AWSCodeDeployRole.Arn
+
+  AWSCodeDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - codedeploy.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole
+
+Outputs:
+
+  LoadBalancerDNSName:
+    Description: The LoadBalancer DNSName
+    Value: 
+      Fn::GetAtt: LoadBalancer.DNSName

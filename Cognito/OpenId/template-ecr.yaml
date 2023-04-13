@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Create an ECR repository where a Docker image can be uploaded
+Resources:
+  ContainerImageRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+Outputs:
+  ContainerImageRepository:
+    Description: The ContainerImageRepository
+    Value:
+      Ref: ContainerImageRepository
+
+  ContainerRepositoryUrl:
+    Description: The ContainerRepository Url to push to
+    Value:
+      Fn::Sub: ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ContainerImageRepository}

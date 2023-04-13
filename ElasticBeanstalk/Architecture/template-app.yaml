@@ -1,0 +1,169 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform:
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - Yaml2Json
+Description: >
+  Architecture. Showcase different architecture for Elastic Beanstalk
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "ElasticBeanstalk-Architecture"
+    Description: Showcase different architecture for Elastic Beanstalk
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "ElasticBeanstalk" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to elastic Beanstalk
+        Parameters:
+          - BucketName
+          - KeyName
+          - ApplicationHealthcheckURL
+
+Parameters:
+
+  BucketName:
+    Description: The S3 Bucket where the Application code has been uploaded
+    Type: String
+
+  ApplicationS3Key:
+    Description: The S3 Key of the zip that contains the application code
+    Type: String
+    Default: "flask-hello-world.zip"
+
+  KeyName:
+    Description: "The Key to use to connect to the EC2 Instance"
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: "SAPC01"
+
+Resources:
+
+  DevApplication:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      ApplicationName: DevApplication
+      Description: AWS Elastic Beanstalk Python Sample Application
+
+  DevApplicationVersion:
+    Type: AWS::ElasticBeanstalk::ApplicationVersion
+    Properties:
+      ApplicationName: 
+        Ref: DevApplication
+      Description: "1.0"
+      SourceBundle:
+        S3Bucket: 
+          #Fn::Sub: 'elasticbeanstalk-samples-${AWS::Region}'
+          Ref: BucketName
+        S3Key: 
+          # python-sample-20150402.zip
+          Ref: ApplicationS3Key
+
+  DevEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties: 
+      ApplicationName: 
+        Ref: DevApplication
+      Description: AWS Elastic Beanstalk Python Sample Environment
+      EnvironmentName: DevEnvironment
+      SolutionStackName: "64bit Amazon Linux 2 v3.1.3 running Python 3.7"
+      OptionSettings: 
+        - Namespace: "aws:autoscaling:launchconfiguration"
+          OptionName: IamInstanceProfile
+          Value: 
+            Ref: InstanceProfile
+        - Namespace: "aws:autoscaling:launchconfiguration"
+          OptionName: EC2KeyName
+          Value: 
+            Ref: KeyName
+        - Namespace: "aws:elasticbeanstalk:environment"
+          OptionName: ServiceRole
+          Value: 
+            Ref: EBServiceRole
+        - Namespace: "aws:elasticbeanstalk:environment"
+          OptionName: EnvironmentType
+          Value: "SingleInstance"
+        - Namespace: "aws:elasticbeanstalk:xray"
+          OptionName: XRayEnabled
+          Value: true
+        # - Namespace: "aws:rds:dbinstance"
+        #   OptionName: DBPassword
+        #   Value: Passw0rd
+      VersionLabel: 
+        Ref: DevApplicationVersion
+
+  EBServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: elasticbeanstalk.amazonaws.com
+            Action: 
+              - sts:AssumeRole
+            Condition:
+              StringEquals:
+                'sts:ExternalId': elasticbeanstalk
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkService
+        - arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - Ref: InstanceProfileRole
+
+  InstanceProfileRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - S3CrudPolicy:
+            BucketName: "*"
+        - SQSPollerPolicy:
+            QueueName: "*"
+        - SQSSendMessagePolicy:
+            QueueName: "*"
+        - CloudWatchPutMetricPolicy: {}
+        - DynamoDBCrudPolicy:
+            TableName: "*"
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Sid: ECSAccess
+                Effect: Allow
+                Action:
+                  - 'ecs:StartTask'
+                  - 'ecs:StopTask'
+                  - 'ecs:RegisterContainerInstance'
+                  - 'ecs:DeregisterContainerInstance'
+                  - 'ecs:DescribeContainerInstances'
+                  - 'ecs:DiscoverPollEndpoint'
+                  - 'ecs:Submit*'
+                  - 'ecs:Poll'
+                Resource: '*'
+      Path: /
+
+Outputs:
+
+  Application:
+    Description: The Application
+    Value: 
+      Ref: DevApplication

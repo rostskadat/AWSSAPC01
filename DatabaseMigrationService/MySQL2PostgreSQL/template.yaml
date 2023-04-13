@@ -1,0 +1,311 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - Yaml2Json
+Description: >
+  MySQL2PostgreSQL. Showcase migration from MySQL to PostgreSQL
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "DatabaseMigrationService-MySQL2PostgreSQL"
+    Description: Showcase migration from MySQL to PostgreSQL
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "DatabaseMigrationService" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to VPC
+        Parameters:
+          - SubnetIds
+          - SecurityGroupDB
+      - Label:
+          default: Parameters related to RDS
+        Parameters:
+          - SourceServerName
+          - SourcePort
+          - SourceUsername
+          - SourcePassword
+      - Label:
+          default: Parameters related to S3 Target
+        Parameters:
+          - LogBucket
+
+Parameters:
+  SubnetIds:
+    Description: The List of SubnetIds
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: subnet-0f20fad2034347a28,subnet-07cddf728023f9c5d
+  SecurityGroupDB:
+    Description: The SecurityGroupDB
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-016e247c544181029
+  SourceServerName:
+    Description: The source DB ServerName
+    Type: String
+    Default: "bd1tmza21uj737y.cgbdhswg43m4.eu-west-1.rds.amazonaws.com"
+  SourcePort:
+    Description: The source DB Port
+    Type: Number
+    Default: 3306
+  SourceUsername:
+    Description: The source DB Username
+    Type: String
+    Default: administrator
+  SourcePassword:
+    Description: The source DB Password
+    # Not supported: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html#aws-ssm-parameter-types
+    # Type: AWS::SSM::Parameter::Value<String>
+    # Default: DBAdminPassword
+    Type: String
+    Default: puBP25wVqzUYjV6g
+  LogBucket:
+    Description: The LogBucket
+    Type: String
+    Default: aws-logs-123456789012-eu-west-1
+
+Resources:
+
+  DmsVpcRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: dms-vpc-role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - dms.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonDMSVPCManagementRole
+      Path: "/"
+
+  DmsCloudwatchLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: dms-cloudwatch-logs-role 
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - dms.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - S3CrudPolicy:
+            BucketName:
+              Ref: LogBucket
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonDMSCloudWatchLogsRole
+      Path: "/"
+
+  SonarqubeEndpoint:
+    Type: AWS::DMS::Endpoint
+    Properties: 
+      DatabaseName: sonarqube
+      EndpointType: source
+      EngineName: mysql
+      Port: 
+        Ref: SourcePort
+      ServerName: 
+        Ref: SourceServerName
+      Username: 
+        Ref: SourceUsername
+      # Not supported: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html#dynamic-references-ssm-secure-strings
+      # Password: '{{resolve:ssm-secure:DBAdminPassword:1}}'
+      Password: 
+        Ref: SourcePassword
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  ReplicationSubnetGroup: 
+    Type: AWS::DMS::ReplicationSubnetGroup
+    DependsOn: 
+      - DmsVpcRole
+      - DmsCloudwatchLogsRole
+    Properties: 
+      ReplicationSubnetGroupDescription: "The subnets where the DB resides"
+      SubnetIds: 
+        Ref: SubnetIds
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  ReplicationInstance: 
+    Type: AWS::DMS::ReplicationInstance
+    Properties: 
+      ReplicationInstanceClass: dms.t3.medium
+      PubliclyAccessible: false
+      ReplicationSubnetGroupIdentifier:
+        Ref: ReplicationSubnetGroup
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+      VpcSecurityGroupIds:
+        - Ref: SecurityGroupDB
+
+  TargetDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties: 
+      DBSubnetGroupDescription: "The subnets where the DB resides"
+      SubnetIds:
+        Ref: SubnetIds
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  TargetDBInstance: 
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 200
+      AutoMinorVersionUpgrade: true
+      BackupRetentionPeriod: 7
+      CopyTagsToSnapshot: true
+      DBInstanceClass: db.m4.large
+      DBName: sonarqube
+      DBSubnetGroupName: 
+        Ref: TargetDBSubnetGroup
+      Engine: postgres
+      EngineVersion: '10.3'
+      MasterUsername: 
+        Ref: SourceUsername
+      MasterUserPassword: '{{resolve:ssm-secure:DBAdminPassword:1}}'
+      VPCSecurityGroups:
+        - Ref: SecurityGroupDB
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  TargetEndpoint:
+    Type: AWS::DMS::Endpoint
+    DependsOn: TargetDBInstance
+    Properties: 
+      DatabaseName: sonarqube
+      EndpointType: target
+      EngineName: postgres
+      Port: 
+        Fn::Sub: '${TargetDBInstance.Endpoint.Port}'
+      ServerName: 
+        Fn::Sub: '${TargetDBInstance.Endpoint.Address}'
+      Username: 
+        Ref: SourceUsername
+      # Not supported: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/dynamic-references.html#dynamic-references-ssm-secure-strings
+      # Password: '{{resolve:ssm-secure:DBAdminPassword:1}}'
+      Password: 
+        Ref: SourcePassword
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  ReplicationTask: 
+    Type: AWS::DMS::ReplicationTask
+    Properties: 
+      MigrationType: full-load
+      ReplicationInstanceArn: 
+        Ref: ReplicationInstance
+      SourceEndpointArn: 
+        Ref: SonarqubeEndpoint
+      TableMappings: 
+        Fn::Yaml2Json:
+          rules:
+          - rule-type: selection
+            rule-id: 1
+            rule-name: "SelectAllTable"
+            object-locator:
+              schema-name: "sonarqube"
+              table-name: "%"
+            rule-action: include
+            filters: []
+      TargetEndpointArn: 
+        Ref: TargetEndpoint
+
+  TargetBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  S3TargetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - dms.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - S3CrudPolicy:
+            BucketName:
+              Ref: TargetBucket
+      Path: "/"
+
+  S3TargetEndpoint:
+    Type: AWS::DMS::Endpoint
+    DependsOn: TargetDBInstance
+    Properties: 
+      EndpointType: target
+      EngineName: s3
+      S3Settings: 
+        BucketFolder: "sonarqube"
+        BucketName: 
+          Ref: TargetBucket
+        ServiceAccessRoleArn: 
+          Fn::GetAtt: S3TargetRole.Arn
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  S3ReplicationTask: 
+    Type: AWS::DMS::ReplicationTask
+    Properties: 
+      MigrationType: full-load
+      ReplicationInstanceArn: 
+        Ref: ReplicationInstance
+      SourceEndpointArn: 
+        Ref: SonarqubeEndpoint
+      TableMappings: 
+        Fn::Yaml2Json:
+          rules:
+          - rule-type: selection
+            rule-id: 1
+            rule-name: "SelectAllTable"
+            object-locator:
+              schema-name: "sonarqube"
+              table-name: "%"
+            rule-action: include
+            filters: []
+      TargetEndpointArn: 
+        Ref: S3TargetEndpoint
+
+Outputs:
+  SonarqubeEndpoint:
+    Description: The SonarqubeEndpoint 
+    Value: 
+      Ref: SonarqubeEndpoint
+
+  ReplicationInstance:
+    Description: The ReplicationInstance 
+    Value: 
+      Ref: ReplicationInstance
+
+  TargetDBInstance:
+    Description: The TargetDBInstance 
+    Value: 
+      Ref: TargetDBInstance

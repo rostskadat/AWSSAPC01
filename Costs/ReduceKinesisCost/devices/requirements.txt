@@ -1,0 +1,3 @@
+boto3==1.13.13
+python-testdata==1.0.5
+numpy==1.19.2

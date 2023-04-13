@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  LocalBackup. Showcase the use of DataSync to backup your local HD
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "DataSync-LocalBackup"
+    Description: Showcase the use of DataSync to backup your local HD
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01", "DataSync"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Lambda
+        Parameters:
+          - "LocalBackupParameter"
+
+Parameters:
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/datasync/ami"
+
+  InstanceType:
+    Description: "The Instance Type to spin up"
+    Type: String
+    Default: "m5.xlarge"
+
+  KeyName:
+    Description: "The Key to use to connect to the EC2 Instance"
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: "SAPC01"
+
+Resources:
+
+  # as per https://docs.aws.amazon.com/datasync/latest/userguide/agent-requirements.html#ec2-instance-types
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName: !Ref AWS::StackName
+        ImageId: !Ref ImageId
+        InstanceType: !Ref InstanceType
+        KeyName: !Ref KeyName
+        VolumeSize: 100
+        UserData: !Sub |
+          #!/bin/bash
+          yum-config-manager --enable epel
+          yum update -y
+          echo "Initialization: OK."
+
+Outputs:
+
+  EC2Instance:
+    Description: The EC2Instance PublicDnsName
+    Value:
+      Fn::GetAtt: EC2Instance.Outputs.InstancePublicDnsName

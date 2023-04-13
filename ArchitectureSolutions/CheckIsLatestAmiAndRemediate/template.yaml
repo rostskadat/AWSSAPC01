@@ -1,0 +1,226 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  CheckIsLatestAmiAndRemediate. Showcase a Config rule to alert and remediate the use of unapproved AMI
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "Config-CheckIsLatestAmiAndRemediate"
+    Description: Showcase a Config rule to alert and remediate the use of unapproved AMI
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01", "Config"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to EC2 instances
+        Parameters:
+          - FlaskPort
+          - CompliantImageId
+          - NonCompliantImageId
+          - Endpoint
+
+Parameters:
+  FlaskPort:
+    Description: "The Port on which the Flask app is listening on"
+    Type: Number
+    Default: 80
+
+  CompliantImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+  NonCompliantImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::EC2::Image::Id"
+    Default: "ami-0a4d9fe85fa45dcac"
+
+  Endpoint:
+    Description: The Subscription Email
+    Type: String
+    Default: rostskadat@gmail.com
+  
+  Approver:
+    Description: The Subscription Email
+    Type: String
+    Default: arn:aws:iam::123456789012:user/rostskadat
+
+  AutomationAssumeRole:
+    Description: The AutomationAssumeRole
+    Type: String
+    Default: arn:aws:iam::123456789012:role/SAPC01
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - !Ref DetectLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+  CompliantInstance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/SimpleFlaskApp/template.yaml
+      Parameters:
+        ParentStackName: !Ref AWS::StackName
+        ImageId: !Ref CompliantImageId
+        FlaskPort: !Ref FlaskPort
+        DefRenderIndex: |
+          def render_index():
+            return "Hello CompliantWorld"
+
+  NonCompliantInstance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/SimpleFlaskApp/template.yaml
+      Parameters:
+        ParentStackName: !Ref AWS::StackName
+        ImageId: !Ref NonCompliantImageId
+        # The ami require that much storage...
+        VolumeSize: 100
+        FlaskPort: !Ref FlaskPort
+        DefRenderIndex: |
+          def render_index():
+            return "Hello NonCompliantWorld"
+
+  DetectLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/DetectFunctionLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  CheckIsLatestAmiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/CheckIsLatestAmiFunction
+      Policies:
+        - arn:aws:iam::aws:policy/AmazonSSMFullAccess
+        - arn:aws:iam::aws:policy/service-role/AWSConfigRulesExecutionRole
+
+  DetectFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt CheckIsLatestAmiFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: config.amazonaws.com
+
+  ConfigRule:
+    Type: AWS::Config::ConfigRule
+    DependsOn: DetectFunctionPermission
+    Properties:
+      Scope:
+        TagKey: "Name"
+        TagValue: !Sub "${AWS::StackName}-MainInstance"
+      Source:
+        Owner: CUSTOM_LAMBDA
+        SourceDetails:
+          - EventSource: aws.config
+            MessageType: ConfigurationItemChangeNotification
+          - EventSource: aws.config
+            MessageType: OversizedConfigurationItemChangeNotification
+        SourceIdentifier: !GetAtt CheckIsLatestAmiFunction.Arn
+
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Subscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: !Ref Endpoint
+      TopicArn: !Ref Topic
+      Protocol: email
+
+  RemediationConfiguration:
+    Type: AWS::Config::RemediationConfiguration
+    Properties:
+      Automatic: true
+      ConfigRuleName: !Ref ConfigRule
+      MaximumAutomaticAttempts: 5
+      Parameters:
+        InstanceId:
+          ResourceValue:
+            Value: RESOURCE_ID
+        Approvers:
+          StaticValue: 
+            Values:
+              - !Ref Approver
+        SNSTopicArn:
+          StaticValue: 
+            Values:
+              - !Ref Topic
+        AutomationAssumeRole:
+          StaticValue: 
+            Values:
+              - !Ref AutomationAssumeRole
+      RetryAttemptSeconds: 60
+      TargetId: AWS-StopEC2InstanceWithApproval
+      TargetType: SSM_DOCUMENT
+      TargetVersion: 1
+
+
+  # ConfigurationAggregatorRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Version: 2012-10-17
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service:
+  #               - config.amazonaws.com
+  #           Action:
+  #             - sts:AssumeRole
+  #     ManagedPolicyArns:
+  #       - arn:aws:iam::aws:policy/service-role/AWSConfigRoleForOrganizations
+  #     Path: /
+
+  # ConfigurationAggregator:
+  #   Type: "AWS::Config::ConfigurationAggregator"
+  #   Properties:
+  #     ConfigurationAggregatorName: AllRegionsConfigurationAggregator
+  #     OrganizationAggregationSource:
+  #       AllAwsRegions: true
+  #       RoleArn: !GetAtt ConfigurationAggregatorRole.Arn
+  #     Tags:
+  #       - Key: PLATFORM
+  #         Value: SAPC01
+
+  # StoredQuery:
+  #   Type: AWS::Config::StoredQuery
+  #   Properties:
+  #     QueryDescription: Retrieve the config for the instance
+  #     QueryExpression: "SELECT configuration.imageId WHERE resourceType = 'AWS::EC2::Instance'"
+  #     QueryName: !Sub "${AWS::StackName}-GetInstanceConfig"
+  #     Tags:
+  #       - Key: PLATFORM
+  #         Value: SAPC01
+
+Outputs:
+  CompliantInstance:
+    Description: The CompliantInstance InstanceId
+    Value: !GetAtt CompliantInstance.Outputs.InstanceId
+
+  NonCompliantInstance:
+    Description: The NonCompliantInstance InstanceId
+    Value: !GetAtt NonCompliantInstance.Outputs.InstanceId
+
+  ConfigRule:
+    Description: The ConfigRule
+    Value: !Ref ConfigRule

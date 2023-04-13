@@ -1,0 +1,4 @@
+ExternalId,SMBiosId,IPAddress,MACAddress,HostName,VMware.MoRefId,VMware.VCenterId,CPU.NumberOfProcessors,CPU.NumberOfCores,CPU.NumberOfLogicalCores,OS.Name,OS.Version,VMware.VMName,RAM.TotalSizeInMB,RAM.UsedSizeInMB.Avg,RAM.UsedSizeInMB.Max,CPU.UsagePct.Avg,CPU.UsagePct.Max,DiskReadsPerSecondInKB.Avg,DiskWritesPerSecondInKB.Avg,DiskReadsPerSecondInKB.Max,DiskWritesPerSecondInKB.Max,DiskReadOpsPerSecond.Avg,DiskWriteOpsPerSecond.Avg,DiskReadOpsPerSecond.Max,DiskWriteOpsPerSecond.Max,NetworkReadsPerSecondInKB.Avg,NetworkWritesPerSecondInKB.Avg,NetworkReadsPerSecondInKB.Max,NetworkWritesPerSecondInKB.Max,Applications,Tags
+{% for computer in computers -%}
+{{computer.ExternalId}},,"{{computer.IPAddress}}","{{computer.MACAddress}}",{{computer.HostName|lower}},,,4,8,16,{{computer.OS_Name}},{{computer.OS_Version}},,1024,1024,1024,100,100,0,0,0,0,0,0,0,0,0,0,0,0,"Personal LAPTOP","Retain, Application:LAPTOP"
+{% endfor %}

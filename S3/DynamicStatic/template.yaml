@@ -1,0 +1,304 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+Description: >
+  DynamicStatic. Showcase Dynamic Vs Static Content Architecture. Note the fact that the Stage is mapped (not the whole API)
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: DynamicStatic
+    Description: Showcase Dynamic Vs Static Content Architecture
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Route53
+        Parameters:
+          - S3HostedZoneId
+          - HostedZoneName
+          - SubDomainName
+          - CertificateArn
+      - Label:
+          default: Parameters related to API Gateway
+        Parameters:
+          - StageName
+
+Parameters:
+  S3HostedZoneId:
+    Description: Look at https://docs.aws.amazon.com/general/latest/gr/s3.html#s3_website_region_endpoints
+    Type: String
+    Default: Z1BKCTXD74EZPE
+
+  HostedZoneName:
+    Description: "The hosted zone name"
+    Type: String
+    Default: domain.com
+
+  SubDomainName:
+    Description: The subdomain of the API
+    Type: String
+    Default: sapc01-dynamicstatic
+
+  CertificateArn:
+    Description: "The ACM certificate Arn. Must be valid in the current region."
+    Type: String
+    Default: "arn:aws:acm:eu-west-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+
+  StageName:
+    Description: "The Stage name."
+    Type: String
+    Default: Prod
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Environment:
+      Variables:
+        BUCKET_NAME: 
+          Ref: StaticContentBucket
+    Layers:
+      - Ref: DynamicStaticLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  RecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: 
+        # NOTE: the final dot
+        Fn::Sub: "${HostedZoneName}."
+      Name: 
+        # NOTE: the bucket name is the same as the RecordSet
+        Fn::Sub: "${SubDomainName}.${HostedZoneName}"
+      AliasTarget: 
+        DNSName:
+          Fn::Sub: s3-website-${AWS::Region}.amazonaws.com
+        HostedZoneId:
+          Ref: S3HostedZoneId
+      Type: A
+
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      Cors: 
+        Fn::Sub: "'${StaticContentBucket.WebsiteURL}'"
+      Domain:
+        CertificateArn:
+          Ref: CertificateArn
+        DomainName:
+          Fn::Sub: "${SubDomainName}-api.${HostedZoneName}"
+        Route53:
+          HostedZoneName:
+            # NOTE: the final dot
+            Fn::Sub: "${HostedZoneName}."
+      EndpointConfiguration:
+        Type: REGIONAL
+      StageName:
+        Ref: StageName
+
+  StaticContentBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      # NOTE: the bucket name is the same as the RecordSet
+      BucketName: 
+        Fn::Sub: "${SubDomainName}.${HostedZoneName}"
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      WebsiteConfiguration:
+        IndexDocument: index.html
+
+  IndexWebpage:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: StaticContentBucket
+        Key: index.html
+        ContentType: text/html
+        ACL: public-read
+      Body: 
+        Fn::Sub: |
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <link rel="icon" href="favicon.ico" type="image/x-icon"/>
+              <link rel="shortcut icon" href="favicon.ico" type="image/x-icon"/>
+              <title>DynamicStatic</title>
+              <link rel="stylesheet" href="//code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
+              <script src="//code.jquery.com/jquery-3.2.1.min.js"></script>
+              <script src="//code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+              <script>
+                var download = function(item) {
+                  $.ajax({
+                    url: "https://${SubDomainName}-api.${HostedZoneName}/download",
+                    data: { key: item },
+                    dataType: "json",
+                    success: function (result, status, xhr) {
+                      window.location.replace(result['url']);
+                    },
+                    error: function (xhr, status, error) {
+                      alert("Result: " + status + " " + error + " " + xhr.status + " " + xhr.statusText)
+                    }
+                  });
+                };
+                var upload = function() {
+                  var fileToUpload = document.getElementById("fileToUpload").files[0]
+                  var filename = fileToUpload.name;
+                  $.ajax({
+                    url: "https://${SubDomainName}-api.${HostedZoneName}/upload",
+                    data: { key: filename },
+                    dataType: "json",
+                    success: function (result, status, xhr) {
+                      var formData = new FormData();
+                      for (var field in result['fields']) {
+                        formData.append(field, result['fields'][field]);
+                      }
+                      formData.append("file", fileToUpload, filename);
+                      $.ajax({
+                        method: 'POST',
+                        url: result['url'],
+                        async: true,
+                        data: formData,
+                        cache: false,
+                        contentType: false,
+                        processData: false,
+                        timeout: 60000
+                      });
+                    },
+                    error: function (xhr, status, error) {
+                      alert("Result: " + status + " " + error + " " + xhr.status + " " + xhr.statusText)
+                    }
+                  });
+                }
+                $(document).ready(function () {
+                  $(document).ajaxStart(function () { $("#status").html("Loading...") });
+                  $(document).ajaxStop(function () { $("#status").html("") });
+                  $.ajax({
+                    url: "https://${SubDomainName}-api.${HostedZoneName}/list",
+                    dataType: "json",
+                    success: function (result, status, xhr) {
+                      inner_html = ""
+                      result['keys'].forEach(function (item, index) {
+                        inner_html += "<li class='ui-listview-item'><a class='ui-listview-item-button ui-button' href='javascript:download(\"" + item + "\")'>" + item + "</a></li>"
+                      })
+                      $("#keys").html(inner_html);
+                    },
+                    error: function (xhr, status, error) {
+                      alert("Result: " + status + " " + error + " " + xhr.status + " " + xhr.statusText)
+                    }
+                  });
+                });
+              </script>
+            </head>
+            <body>
+              <div data-role="page" id="page1">
+              <div data-role="header"><h1>S3 '${StaticContentBucket}'</h1></div>
+              <form action="javascript:upload()">
+                <label for="fileToUpload">Select a file:</label>
+                <input type="file" id="fileToUpload" name="fileToUpload"><br><br>
+                <input type="submit">
+              </form>
+              <div><p id="status"></p></div>
+              <div role="main" class="ui-content">
+                <ul id="keys" data-role="listview"></ul>
+              </div>
+              </div>
+            </body>
+            </html>
+
+  DynamicStaticLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/DynamicStaticLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  ListFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/List
+      Events:
+        Invoke:
+          Type: Api
+          Properties:
+            Path: /list
+            Method: get
+            RestApiId:
+              Ref: Api
+      Policies:
+        - S3ReadPolicy:
+            BucketName: 
+              Ref: StaticContentBucket
+
+  DownloadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/Download
+      Events:
+        Invoke:
+          Type: Api
+          Properties:
+            Path: /download
+            Method: get
+            RestApiId:
+              Ref: Api
+      Policies:
+        - S3ReadPolicy:
+            BucketName: 
+              Ref: StaticContentBucket
+
+  UploadFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/Upload
+      Events:
+        Invoke:
+          Type: Api
+          Properties:
+            Path: /upload
+            Method: get
+            RestApiId:
+              Ref: Api
+      Policies:
+        - S3WritePolicy:
+            BucketName: 
+              Ref: StaticContentBucket
+
+Outputs:
+  RecordSetUrl:
+    Description: The Website Url
+    Value:
+      Fn::Sub: "https://${SubDomainName}.${HostedZoneName}/index.html"
+
+  ApiUserFriendlyUrl:
+    Description: The Api user friendly Url
+    Value:
+      Fn::Sub: "https://${SubDomainName}-api.${HostedZoneName}/list"
+
+  ApiUrl:
+    Description: The Backend Api Url
+    Value:
+      Fn::Sub: "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/"
+
+  StaticContentBucket:
+    Description: The StaticContent Bucket
+    Value:
+      Ref: StaticContentBucket

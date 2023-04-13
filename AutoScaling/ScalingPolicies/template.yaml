@@ -1,0 +1,252 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+Description: >
+  ScalingPolicies. Showcase the different Scaling Policies (Step/Target/Scheduled)
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: AutoScaling-ScalingPolicies
+    Description: Showcase the different Scaling Policies (Step/Target/Scheduled)
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to the AutoScalingGroup
+        Parameters:
+          - MinSize
+          - DesiredCapacity
+          - MaxSize
+          - SubnetIds
+
+Parameters:
+
+  MinSize:
+    Description: "The minimum number of instance in the AutoScalingGroup"
+    Type: Number
+    Default: 1
+
+  DesiredCapacity:
+    Description: "The desired number of instance in the AutoScalingGroup"
+    Type: Number
+    Default: 1
+
+  MaxSize:
+    Description: "The maximum number of instance in the AutoScalingGroup"
+    Type: Number
+    Default: 5
+
+  SubnetIds:
+    Description: "The subnet in which to start the instances"
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581,subnet-58421700"
+
+Resources:
+
+  #
+  # This is a helper instance
+  #
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel ;  yum update -y ; yum install -y aws-cfn-bootstrap stress
+
+  StepScalingAutoScalingGroup: 
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      HealthCheckType: EC2
+      LaunchTemplate: 
+        LaunchTemplateId:
+          Fn::GetAtt: EC2Instance.Outputs.LaunchTemplateId
+        Version:
+          Fn::GetAtt: EC2Instance.Outputs.LaunchTemplateVersion
+      MetricsCollection:
+        - Granularity: 1Minute
+          Metrics:
+            - GroupInServiceInstances
+      MinSize:
+        Ref: MinSize
+      MaxSize: 
+        Ref: MaxSize
+      DesiredCapacity: 
+        Ref: DesiredCapacity
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+          PropagateAtLaunch: true
+        - Key: ScalingStrategy
+          Value: Step
+          PropagateAtLaunch: true
+      VPCZoneIdentifier:
+        Ref: SubnetIds
+
+  ScalingOutPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName:
+        Ref: StepScalingAutoScalingGroup
+      Cooldown: 60
+      ScalingAdjustment: 1
+
+  CPUUtilizationHigh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: 1
+      Statistic: Average
+      Threshold: 40
+      AlarmDescription: Trigger a scale out if CPUUtilization is more than 40%
+      Period: 60
+      AlarmActions: 
+        - Ref: ScalingOutPolicy
+      Namespace: 'AWS/EC2'
+      ComparisonOperator: GreaterThanThreshold
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value:
+            Ref: StepScalingAutoScalingGroup
+
+  ScalingInPolicy:
+    Type: 'AWS::AutoScaling::ScalingPolicy'
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName:
+        Ref: StepScalingAutoScalingGroup
+      Cooldown: 60
+      ScalingAdjustment: -1
+
+  CPUUtilizationLow:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: 1
+      Statistic: Average  
+      Threshold: 5
+      AlarmDescription: Trigger a scale in if CPUUtilization is less 5%
+      Period: 60
+      AlarmActions:
+        - Ref: ScalingInPolicy
+      Namespace: 'AWS/EC2'
+      ComparisonOperator: LessThanThreshold
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value:
+            Ref: StepScalingAutoScalingGroup
+      
+  TargetScalingAutoScalingGroup: 
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      HealthCheckType: EC2
+      LaunchTemplate: 
+        LaunchTemplateId:
+          Fn::GetAtt: EC2Instance.Outputs.LaunchTemplateId
+        Version:
+          Fn::GetAtt: EC2Instance.Outputs.LaunchTemplateVersion
+      MetricsCollection:
+        - Granularity: 1Minute
+          Metrics:
+            - GroupInServiceInstances
+      MinSize:
+        Ref: MinSize
+      MaxSize: 
+        Ref: MaxSize
+      DesiredCapacity: 
+        Ref: DesiredCapacity
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+          PropagateAtLaunch: true
+        - Key: ScalingStrategy
+          Value: Target
+          PropagateAtLaunch: true
+      VPCZoneIdentifier:
+        Ref: SubnetIds
+
+  TargetScalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: 
+        Ref: TargetScalingAutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 1
+
+  ScheduledScalingAutoScalingGroup: 
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      HealthCheckType: EC2
+      LaunchTemplate: 
+        LaunchTemplateId:
+          Fn::GetAtt: EC2Instance.Outputs.LaunchTemplateId
+        Version:
+          Fn::GetAtt: EC2Instance.Outputs.LaunchTemplateVersion
+      MetricsCollection:
+        - Granularity: 1Minute
+          Metrics:
+            - GroupInServiceInstances
+      MinSize:
+        Ref: MinSize
+      MaxSize: 
+        Ref: MaxSize
+      DesiredCapacity: 
+        Ref: DesiredCapacity
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+          PropagateAtLaunch: true
+        - Key: ScalingStrategy
+          Value: Scheduled
+          PropagateAtLaunch: true
+      VPCZoneIdentifier:
+        Ref: SubnetIds
+
+  ScheduledActionOut: 
+    Type: AWS::AutoScaling::ScheduledAction
+    Properties:
+      AutoScalingGroupName: 
+        Ref: ScheduledScalingAutoScalingGroup
+      DesiredCapacity: 
+        Ref: MaxSize
+      Recurrence: "00,20,40 * * * *"
+
+  ScheduledActionIn: 
+    Type: AWS::AutoScaling::ScheduledAction
+    Properties:
+      AutoScalingGroupName: 
+        Ref: ScheduledScalingAutoScalingGroup
+      DesiredCapacity: 
+        Ref: MinSize
+      Recurrence: "10,30,50 * * * *"
+
+Outputs:
+  StepScalingAutoScalingGroup:
+    Description: The StepScaling AutoScalingGroup
+    Value: 
+      Ref: StepScalingAutoScalingGroup
+
+  TargetScalingAutoScalingGroup:
+    Description: The TargetScaling AutoScalingGroup
+    Value: 
+      Ref: TargetScalingAutoScalingGroup
+
+  ScheduledScalingAutoScalingGroup:
+    Description: The ScheduledScaling AutoScalingGroup
+    Value: 
+      Ref: ScheduledScalingAutoScalingGroup

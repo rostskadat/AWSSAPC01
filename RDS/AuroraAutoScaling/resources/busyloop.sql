@@ -1,0 +1,2 @@
+SELECT "Starting BUSYLOOP ...";
+CALL BUSYLOOP(6);

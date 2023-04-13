@@ -1,0 +1,8 @@
+{
+    "AWSVPCFunction" : {
+        "REGION": "eu-west-1",
+        "SECRET_ARN": "arn:aws:secretsmanager:eu-west-1:123456789012:secret:Secret-4gXTg8XtMvHk-N75wOP",
+        "PUBLIC_TABLE": "SAPC01-VPCEndpoint-PublicTable-1GJFH0PGC0M60",
+        "PRIVATE_TABLE": "SAPC01-VPCEndpoint-PrivateTable-1XOSE9ZZCB3V0"
+    }
+}

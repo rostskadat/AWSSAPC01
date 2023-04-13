@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  DeployToEC2. Showcase deploying to EC2 instance (could be on-premise server)
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "CodeDeploy-DeployToEC2-bucket"
+    Description: Showcase deploying to EC2 instance (could be on-premise server)
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "CodeDeploy" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+Resources:
+
+  # The bucket containing the recipes
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+Outputs:
+
+  Bucket:
+    Description: The Bucket
+    Value: 
+      Ref: Bucket

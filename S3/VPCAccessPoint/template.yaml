@@ -1,0 +1,201 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform:
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+Description: >
+  VPCAccessPoint. Show case the use of an S3 AccessPoint for the S3 bucket
+Parameters:
+
+  VpcId: 
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC in which the endpoint is accessible
+    Default: "vpc-9e9b9ffa"
+
+  AllowAccesFromPublicIp:
+    Type: String
+    Description: The IP from which S3 bucket access should be allowed
+    Default: "90.162.185.145"
+
+Resources:
+
+  PublicOnlyBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  PublicOnlyS3Object:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: PublicOnlyBucket
+        Key: s3object
+        ContentType: text/plain
+      Body: |
+        Hello World from PublicOnlyBucket!
+
+  ForcePublicOnlyBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: PublicOnlyS3Object
+    Properties:
+      Bucket:
+        Ref: PublicOnlyBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Deny
+            Action:
+              - s3:*
+            Resource:
+              - Fn::Sub: "${PublicOnlyBucket.Arn}/*"
+            Principal: "*"
+            Condition:
+              NotIpAddress:
+                aws:SourceIp: 
+                  Ref: AllowAccesFromPublicIp
+
+  PrivateOnlyBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  PrivateOnlyS3Object:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: PrivateOnlyBucket
+        Key: s3object
+        ContentType: text/plain
+      Body: |
+        Hello World from PrivateOnlyBucket!
+
+  # 
+  # The Bucket Policy enforce strict access through VPCEndpoint. This is done
+  # through the DataAccessThroughAccessPointsOnly statement.
+  # 
+  ForcePrivateOnlyBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: PrivateOnlyS3Object
+    Properties:
+      Bucket:
+        Ref: PrivateOnlyBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: AccessThroughAccessPointsOnly
+            Effect: Deny
+            Principal: "*"
+            Action:
+              - s3:*
+            Resource:
+              - Fn::Sub: "${PrivateOnlyBucket.Arn}"
+              - Fn::Sub: "${PrivateOnlyBucket.Arn}/*"
+            Condition:
+              StringNotEqualsIfExists:
+                s3:AccessPointNetworkOrigin: vpc
+
+  ForcePrivateOnlyBucketEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action:
+              - "s3:*"
+            Resource:
+              - Fn::Sub: "${PrivateOnlyBucket.Arn}"
+              - Fn::Sub: "${PrivateOnlyBucket.Arn}/*"
+      ServiceName: 
+        Fn::Sub: "com.amazonaws.${AWS::Region}.s3"
+      VpcId: 
+        Ref: VpcId
+
+  AccessPoint:
+    Type: AWS::S3::AccessPoint
+    Properties:
+      Bucket: 
+        Ref: PrivateOnlyBucket
+      Name: 
+        Fn::Sub: "ap-${PrivateOnlyBucket}"
+      NetworkOrigin: VPC
+      # Policy: 
+      #   Version: 2012-10-17
+      #   Statement:
+      #     - Effect: Allow
+      #       Action: "*"
+      #       Resource:
+      #         Fn::Sub: "arn:${AWS::Partition}:s3:${AWS::Region}:${AWS::AccountId}:accesspoint/ap-${PrivateOnlyBucket}/object/*"
+      #       Principal: "*"
+      VpcConfiguration: 
+        VpcId: 
+          Ref: VpcId
+
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ManagedPolicyArns: "arn:aws:iam::aws:policy/PowerUserAccess"
+
+  CloudTrail:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/CloudTrail/template.yaml
+      Parameters:
+        DataEventS3BucketArns:
+          Fn::Sub: "${PrivateOnlyBucket.Arn}/,${PublicOnlyBucket.Arn}/"
+      Tags:
+        PLATFORM: SAPC01
+
+
+Outputs:
+  PublicOnlyBucket:
+    Description: "PublicOnlyBucket Id"
+    Value:
+      Ref: PublicOnlyBucket
+
+  PublicOnlyS3Object:
+    Description: "PublicOnlyS3Object Id"
+    Value:
+      Ref: PublicOnlyS3Object
+
+  PrivateOnlyBucket:
+    Description: "PrivateOnlyBucket Id"
+    Value:
+      Ref: PrivateOnlyBucket
+
+  PrivateOnlyS3Object:
+    Description: "PrivateOnlyS3Object Id"
+    Value:
+      Ref: PrivateOnlyS3Object
+
+  AccessPoint:
+    Description: AccessPoint Id
+    Value:
+      Ref: AccessPoint
+  
+  AccessPointArn:
+    Description: AccessPoint Arn
+    Value:
+      Fn::Sub: "arn:${AWS::Partition}:s3:${AWS::Region}:${AWS::AccountId}:accesspoint/${AccessPoint}"
+
+  InstancePublicDnsName:
+    Description: The Public IP of the instance created
+    Value:
+      Fn::GetAtt: EC2Instance.Outputs.InstancePublicDnsName
+
+  CloudTrail:
+    Description: "CloudTrail Trail Name"
+    Value:
+      Fn::GetAtt: CloudTrail.Outputs.Trail
+
+    

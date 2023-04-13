@@ -1,0 +1,167 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform:
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+Description: >
+  MigrateToEKS. Showcase the use of EKS and related services
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "EKS-MigrateToEKS"
+    Description: Showcase the use of EKS and related services
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "EKS" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Lambda
+        Parameters:
+          - SubnetIds
+          - SecurityGroupIds
+
+Parameters:
+
+  VpcId:
+    Description: The SubnetIds
+    Type: AWS::EC2::VPC::Id
+    Default: "vpc-9e9b9ffa"
+
+  SubnetIds:
+    Description: The SubnetIds
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-061b4aea8122da878,subnet-02df09930032b188a"
+
+  SecurityGroupIds:
+    Description: The SecurityGroupIds
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Default: "sg-e1435287"
+
+Resources:
+
+  EksClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - eks.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+
+  Cluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+          Ref: SecurityGroupIds
+        SubnetIds:
+          Ref: SubnetIds
+      RoleArn:
+        Fn::GetAtt: EksClusterRole.Arn
+
+  NodeExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+
+  Nodegroup:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName: 
+        Ref: Cluster
+      NodeRole: 
+        Fn::GetAtt: NodeExecutionRole.Arn
+      ScalingConfig:
+        MinSize: 2
+        DesiredSize: 2
+        MaxSize: 4
+      Labels:
+        pod-type: ec2
+      Subnets:
+        Ref: SubnetIds
+
+  PodExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - eks-fargate-pods.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy
+
+  FargateProfile:
+    Type: AWS::EKS::FargateProfile
+    Properties:
+      ClusterName: 
+        Ref: Cluster
+      PodExecutionRoleArn: 
+        Fn::GetAtt: PodExecutionRole.Arn
+      Selectors:
+        - Namespace: sample
+          Labels:
+            - Key: pod-type
+              Value: fargate
+      Subnets:
+        Ref: SubnetIds
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        CreateInstance: true
+        ParentStackName:
+          Ref: AWS::StackName
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel ;
+            yum update -y ;
+
+Outputs:
+
+  Cluster:
+    Description: The Cluster
+    Value: 
+      Ref: Cluster
+
+  ClusterEndpoint:
+    Description: The Cluster Endpoint
+    Value: 
+      Fn::GetAtt: Cluster.Endpoint
+
+  EC2Instance:
+    Description: The EC2Instance
+    Value: 
+      Fn::Sub: ${EC2Instance.Outputs.InstancePublicDnsName}

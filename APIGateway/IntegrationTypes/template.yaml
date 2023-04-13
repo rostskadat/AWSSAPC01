@@ -1,0 +1,394 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+Description: >
+  IntegrationTypes. Showcases the 3 differents types of API Gateway integration.
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: APIGateway-IntegrationTypes
+    Description: Showcases the 3 differents types of API Gateway integration.
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Route53 and ELB
+        Parameters:
+          - HostedZoneName
+          - SubDomainName
+          - CertificateArn
+      - Label:
+          default: Parameters related to AutoScalingGroup
+        Parameters:
+          - VpcId
+          - Subnets
+          - FlaskPort
+      - Label:
+          default: Parameters related to API GateWay
+        Parameters:
+          - StageName
+          - TopicEmail
+          
+Parameters:
+  HostedZoneName:
+    Description: "The hosted zone name"
+    Type: String
+    Default: domain.com
+
+  SubDomainName:
+    Description: "The subdomain of the API"
+    Type: String
+    Default: sapc01-integrationtype
+
+  CertificateArn:
+    Description: "The ACM certificate Arn. Must be valid in the current region."
+    Type: String
+    Default: "arn:aws:acm:eu-west-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+
+  VpcId:
+    Description: "The VPC in which to put the load balancer"
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-9e9b9ffa
+
+  Subnets:
+    Description: "The subnet in which to start the instances"
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581,subnet-58421700"
+
+  FlaskPort:
+    Description: "The Port on which the Flask app is listening on"
+    Type: Number
+    Default: 80
+
+  StageName:
+    Description: "The StageName for ApiGateway"
+    Type: String
+    Default: "Prod"
+
+  TopicEmail:
+    Description: "The email where published message should be received"
+    Type: String
+    Default: "rostskadat@gmail.com"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: IntegrationTypesLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  #
+  # HTTP backend Integration
+  #
+  # Starting a barebone HTTP Flask Application...
+  HttpIntegrationRecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        HostedZoneId: 
+          Fn::GetAtt: LoadBalancer.CanonicalHostedZoneID
+        DNSName: 
+          Fn::GetAtt: LoadBalancer.DNSName
+      HostedZoneName: 
+        # NOTE: the final dot
+        Fn::Sub: "${HostedZoneName}."
+      Name: 
+        Fn::Sub: "${SubDomainName}-http.${HostedZoneName}"
+      Type: A
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Subnets:
+        Ref: Subnets
+      Type: application
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 80
+      Protocol: HTTP
+      HealthCheckPath: /health
+      Matcher:
+        HttpCode: '200-299'
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      TargetType: instance
+      VpcId:
+        Ref: VpcId
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      Certificates:
+        - CertificateArn: 
+            Ref: CertificateArn
+      DefaultActions:
+      - TargetGroupArn:   
+          Ref: TargetGroup
+        Type: forward
+      LoadBalancerArn: 
+        Ref: LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        CreateInstance: false
+        ParentStackName:
+          Ref: AWS::StackName
+        UserData: 
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel ; 
+            yum update -y ; 
+            yum install -y python3 python3-pip
+            pip3 --disable-pip-version-check install gunicorn==20.0.4 Flask==1.1.2 Flask-Cors==3.0.10
+            mkdir /flask-hello-world
+            cat > /flask-hello-world/app.py <<EOF
+            import datetime, flask, flask_cors, json, logging, os
+            app = flask.Flask(__name__)
+            flask_cors.CORS(app)
+            gunicorn_error_logger = logging.getLogger('gunicorn.error')
+            app.logger.handlers.extend(gunicorn_error_logger.handlers)
+            app.logger.setLevel(logging.DEBUG)
+            app.logger.debug('Welcome to Flask')
+            @app.route('/')
+            def render_index():
+              headers = list(map(lambda i: {i[0]:i[1]}, flask.request.headers ))
+              created_at = datetime.datetime.utcnow().strftime("%Y-%m-%d'T'%H:%M:%S")
+              return json.dumps({ "created_at": created_at, "headers": headers })
+            @app.route('/health')
+            def render_health():
+              return "OK"
+            if __name__ == '__main__':
+              app.run(debug=True, host='0.0.0.0', port=${FlaskPort})
+            EOF
+            cd /flask-hello-world && /usr/local/bin/gunicorn --bind 0.0.0.0:${FlaskPort} --log-file /var/log/gunicorn.log --log-level DEBUG --daemon app:app
+            echo "Instance initialization... Done"
+
+  AutoScalingGroup: 
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      HealthCheckGracePeriod: 60
+      HealthCheckType: ELB
+      LaunchTemplate: 
+        LaunchTemplateId:
+          Fn::GetAtt: EC2Instance.Outputs.LaunchTemplateId
+        Version:
+          Fn::GetAtt: EC2Instance.Outputs.LaunchTemplateVersion
+      MetricsCollection:
+        - Granularity: 1Minute
+          Metrics:
+            - GroupInServiceInstances
+      MinSize: 1
+      MaxSize: 1
+      DesiredCapacity: 1
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+          PropagateAtLaunch: true
+        - Key: ScalingStrategy
+          Value: Target
+          PropagateAtLaunch: true
+      TargetGroupARNs: 
+        - Ref: TargetGroup
+      VPCZoneIdentifier:
+        Ref: Subnets
+
+  ScalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: 
+        Ref: AutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 1
+
+  #
+  # Lambda Integration
+  #
+  IntegrationTypesLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/IntegrationTypesLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  IntegrationTypesFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/IntegrationTypesFunction
+      Events:
+        Invoke:
+          Type: Api
+          Properties:
+            Path: /lambda
+            Method: GET
+            RestApiId: 
+              Ref: Api
+
+  #
+  # The integration nexus
+  #
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      Domain: 
+        CertificateArn: 
+          Ref: CertificateArn
+        DomainName: 
+          Fn::Sub: "${SubDomainName}.${HostedZoneName}"
+        Route53: 
+          HostedZoneName: 
+            # NOTE: the final dot
+            Fn::Sub: "${HostedZoneName}."
+      StageName: 
+        Ref: StageName
+
+  #
+  # HTTP Integration: we proxy the ELB defined above
+  #
+  HttpApiGatewayResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: 
+        Ref: Api
+      ParentId: 
+        Fn::GetAtt: Api.RootResourceId
+      PathPart: http
+
+  HttpGetApiGatewayMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: 
+        Ref: Api
+      ResourceId: 
+        Ref: HttpApiGatewayResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type:  HTTP_PROXY
+        IntegrationHttpMethod: GET
+        Uri: 
+          Fn::Sub: https://${HttpIntegrationRecordSet}/
+
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Protocol: email
+          Endpoint:
+            Ref: TopicEmail
+
+  AllowApiGatewayToCallSnsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "apigateway.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Description: Role use by APIGateWay to publish to specific SNS topic
+      Path: "/"
+      Policies:
+        - SNSPublishMessagePolicy:
+            TopicName: 
+              Fn::GetAtt: Topic.TopicName
+
+  #
+  # AWS Service Integration: we proxy the ELB defined above
+  #
+  ServiceApiGatewayResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      RestApiId: 
+        Ref: Api
+      ParentId: 
+        Fn::GetAtt: Api.RootResourceId
+      PathPart: service
+
+  ServiceGetApiGatewayMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: 
+        Ref: Api
+      ResourceId: 
+        Ref: ServiceApiGatewayResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Credentials: 
+          Fn::GetAtt: AllowApiGatewayToCallSnsRole.Arn
+        IntegrationHttpMethod: POST
+        IntegrationResponses: 
+          - StatusCode: 200
+            SelectionPattern: 200
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters:
+          # BEWARE: You must enclose static values in single quotation marks and pre-encode these values based on their destination in the request. 
+          integration.request.querystring.TopicArn: 
+            Fn::Sub: "'${Topic}'"
+          integration.request.querystring.Message: method.request.querystring.Message
+        Type:  AWS
+        Uri:
+          Fn::Sub: arn:${AWS::Partition}:apigateway:${AWS::Region}:sns:action/Publish
+      RequestParameters:
+        method.request.querystring.Message: true
+      MethodResponses: 
+        - StatusCode: 200
+
+  ServiceRequestValidator:
+    Type: AWS::ApiGateway::RequestValidator
+    Properties:
+      RestApiId: 
+        Ref: Api
+      ValidateRequestBody: false
+      ValidateRequestParameters: true
+
+Outputs:
+
+  ApiUrl:
+    Description: The URL to access the API Gateway
+    Value: 
+      Fn::Sub: "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
+
+  ApiFriendlyUrl:
+    Description: "The LoadBalancer DNSName"
+    Value: 
+      Fn::Sub: "https://${SubDomainName}.${HostedZoneName}"
+
+  HttpIntegrationRecordSet:
+    Description: "The URL to access the HTTP endpoint directly"
+    Value: 
+      Fn::Sub: "https://${HttpIntegrationRecordSet}"
+

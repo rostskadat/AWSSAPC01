@@ -1,0 +1,191 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  CodeDeploy. Showcases a Lambda Deployment using different update strategy with CodeDeploy.
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: Lambda-Invocations
+    Description: Showcases a Lambda Deployment using different update strategy with CodeDeploy.
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to API GateWay
+        Parameters:
+          - StageName
+          - FunctionAlias
+
+Parameters:
+  StageName:
+    Description: "The StageName for ApiGateway"
+    Type: String
+    Default: "Prod"
+  FunctionAlias:
+    Description: "The FunctionAlias for the Lambda function"
+    Type: String
+    Default: "live"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: CodeDeployLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+  Api:
+    Type: AWS::Serverless::Api 
+    Properties:
+      StageName: 
+        Ref: StageName
+
+  CodeDeployLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/CodeDeployLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  AliasErrorMetricGreaterThanZeroAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Lambda Function Error > 0
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Resource
+          Value: 
+            Fn::Sub: "${CodeDeployFunction}:${FunctionAlias}"
+        - Name: FunctionName
+          Value: 
+            Ref: CodeDeployFunction
+      EvaluationPeriods: 2
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Sum
+      Threshold: 0
+
+  LatestVersionErrorMetricGreaterThanZeroAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Lambda Function Error > 0
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: Resource
+          Value: 
+            Fn::Sub: "${CodeDeployFunction}:${FunctionAlias}"
+        - Name: FunctionName
+          Value: 
+            Ref: CodeDeployFunction
+        - Name: ExecutedVersion
+          Value: 
+            Fn::Sub: "${CodeDeployFunction.Version.Version}"
+      EvaluationPeriods: 2
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Period: 60
+      Statistic: Sum
+      Threshold: 0
+
+  PreTrafficLambdaFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      FunctionName: CodeDeployHook_PreTrafficLambdaFunction
+      CodeUri: lambdas/PreTrafficLambdaFunction
+      DeploymentPreference:
+        Enabled: False      
+      Environment:
+        Variables:
+          NEW_VERSION: 
+            Ref: CodeDeployFunction.Version
+          HOOK_ENABLED: true
+      Policies:
+        - Version: 2012-10-17
+          Statement:
+            - Effect: "Allow"
+              Action:
+                - "codedeploy:PutLifecycleEventHookExecutionStatus"
+              Resource:
+                Fn::Sub: "arn:${AWS::Partition}:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${ServerlessDeploymentApplication}/*"
+        - Version: 2012-10-17
+          Statement:
+            - Effect: "Allow"
+              Action:
+                - "lambda:InvokeFunction"
+              Resource: 
+                Ref: CodeDeployFunction.Version
+
+  PostTrafficLambdaFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      FunctionName: CodeDeployHook_PostTrafficLambdaFunction
+      CodeUri: lambdas/PostTrafficLambdaFunction
+      DeploymentPreference:
+        Enabled: False      
+      Environment:
+        Variables:
+          NEW_VERSION: 
+            Ref: CodeDeployFunction.Version
+          HOOK_ENABLED: true
+      Policies:
+        - Version: 2012-10-17
+          Statement:
+            - Effect: "Allow"
+              Action:
+                - "codedeploy:PutLifecycleEventHookExecutionStatus"
+              Resource:
+                Fn::Sub: "arn:${AWS::Partition}:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${ServerlessDeploymentApplication}/*"
+        - Version: 2012-10-17
+          Statement:
+            - Effect: "Allow"
+              Action:
+                - "lambda:InvokeFunction"
+              Resource: 
+                Ref: CodeDeployFunction.Version
+
+  CodeDeployFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/CodeDeployFunction
+      AutoPublishAlias: 
+        Ref: FunctionAlias
+      Events:
+        Invoke:
+          Type: Api
+          Properties:
+            Method: GET
+            Path: /CodeDeployFunction
+            RestApiId: 
+              Ref: Api
+      DeploymentPreference:
+        Type: Canary10Percent10Minutes 
+        Alarms:
+          # A list of alarms that you want to monitor
+          - Ref: AliasErrorMetricGreaterThanZeroAlarm
+          - Ref: LatestVersionErrorMetricGreaterThanZeroAlarm
+        Hooks:
+          # Validation Lambda functions that are run before & after traffic shifting
+          PreTraffic:   
+            Ref: PreTrafficLambdaFunction
+          PostTraffic: 
+            Ref: PostTrafficLambdaFunction
+Outputs:
+
+  ApiUrl:
+    Description: "The base url of the different functions"
+    Value: 
+      Fn::Sub: "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/CodeDeployFunction"
+

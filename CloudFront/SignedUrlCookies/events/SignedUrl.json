@@ -1,0 +1,109 @@
+{
+  "resource": "/GetSignedUrl",
+  "path": "/GetSignedUrl",
+  "httpMethod": "GET",
+  "headers": {
+    "Cache-Control": "no-cache",
+    "CloudFront-Forwarded-Proto": "https",
+    "CloudFront-Is-Desktop-Viewer": "true",
+    "CloudFront-Is-Mobile-Viewer": "false",
+    "CloudFront-Is-SmartTV-Viewer": "false",
+    "CloudFront-Is-Tablet-Viewer": "false",
+    "CloudFront-Viewer-Country": "US",
+    "Host": "idi3bzdmg3.execute-api.eu-west-1.amazonaws.com",
+    "Pragma": "no-cache",
+    "User-Agent": "Amazon CloudFront",
+    "Via": "1.1 8698da0cfd5dac9801848770e0d61b63.cloudfront.net (CloudFront), 1.1 4ebc80fbe8c95fbda707a7dd4b84a6b9.cloudfront.net (CloudFront)",
+    "X-Amz-Cf-Id": "9yuCSQQlANC1AOBwKI8SGkcQqHuLNu_IuyTUArs1_a2gkqim86vm9Q==",
+    "X-Amzn-Trace-Id": "Root=1-6071f9ed-35477286246ab3f911a16b93",
+    "X-Forwarded-For": "92.56.134.93, 64.252.132.133, 52.46.44.72",
+    "X-Forwarded-Port": "443",
+    "X-Forwarded-Proto": "https"
+  },
+  "multiValueHeaders": {
+    "Cache-Control": [
+      "no-cache"
+    ],
+    "CloudFront-Forwarded-Proto": [
+      "https"
+    ],
+    "CloudFront-Is-Desktop-Viewer": [
+      "true"
+    ],
+    "CloudFront-Is-Mobile-Viewer": [
+      "false"
+    ],
+    "CloudFront-Is-SmartTV-Viewer": [
+      "false"
+    ],
+    "CloudFront-Is-Tablet-Viewer": [
+      "false"
+    ],
+    "CloudFront-Viewer-Country": [
+      "US"
+    ],
+    "Host": [
+      "idi3bzdmg3.execute-api.eu-west-1.amazonaws.com"
+    ],
+    "Pragma": [
+      "no-cache"
+    ],
+    "User-Agent": [
+      "Amazon CloudFront"
+    ],
+    "Via": [
+      "1.1 8698da0cfd5dac9801848770e0d61b63.cloudfront.net (CloudFront), 1.1 4ebc80fbe8c95fbda707a7dd4b84a6b9.cloudfront.net (CloudFront)"
+    ],
+    "X-Amz-Cf-Id": [
+      "9yuCSQQlANC1AOBwKI8SGkcQqHuLNu_IuyTUArs1_a2gkqim86vm9Q=="
+    ],
+    "X-Amzn-Trace-Id": [
+      "Root=1-6071f9ed-35477286246ab3f911a16b93"
+    ],
+    "X-Forwarded-For": [
+      "92.56.134.93, 64.252.132.133, 52.46.44.72"
+    ],
+    "X-Forwarded-Port": [
+      "443"
+    ],
+    "X-Forwarded-Proto": [
+      "https"
+    ]
+  },
+  "queryStringParameters": null,
+  "multiValueQueryStringParameters": null,
+  "pathParameters": null,
+  "stageVariables": null,
+  "requestContext": {
+    "resourceId": "q20fqb",
+    "resourcePath": "/GetSignedUrl",
+    "httpMethod": "GET",
+    "extendedRequestId": "dlP9IGXdDoEF2NA=",
+    "requestTime": "10/Apr/2021:19:18:05 +0000",
+    "path": "/api/GetSignedUrl",
+    "accountId": "123456789012",
+    "protocol": "HTTP/1.1",
+    "stage": "api",
+    "domainPrefix": "idi3bzdmg3",
+    "requestTimeEpoch": 1618082285591,
+    "requestId": "6c750044-787f-46a4-b5af-15ffa4e129f8",
+    "identity": {
+      "cognitoIdentityPoolId": null,
+      "accountId": null,
+      "cognitoIdentityId": null,
+      "caller": null,
+      "sourceIp": "64.252.132.133",
+      "principalOrgId": null,
+      "accessKey": null,
+      "cognitoAuthenticationType": null,
+      "cognitoAuthenticationProvider": null,
+      "userArn": null,
+      "userAgent": "Amazon CloudFront",
+      "user": null
+    },
+    "domainName": "idi3bzdmg3.execute-api.eu-west-1.amazonaws.com",
+    "apiId": "idi3bzdmg3"
+  },
+  "body": null,
+  "isBase64Encoded": false
+}

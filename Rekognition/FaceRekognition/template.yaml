@@ -1,0 +1,190 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - RekognitionCollection
+  - SamPolicyTemplateTranslator
+Description: >
+  FaceRekognition. Showcase the use of Rekognition to analyse videos in S3 and create a face collection
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "Rekognition-FaceRekognition"
+    Description: Showcase the use of Rekognition to analyse videos in S3 and create a face collection
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "Rekognition" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Lambda
+        Parameters:
+          - "FaceRekognitionParameter"
+
+Parameters:
+  "FaceRekognitionParameter":
+    Description: Look at https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html
+    Type: String
+    Default: "FaceRekognitionValue"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties: 
+      BucketName: 
+        Fn::Sub: sapc01-facerekognition1-bucket-${AWS::Region}-${AWS::AccountId}
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Collection:
+    Type: AWS::Rekognition::Collection
+    Properties: {}
+
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties: 
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - rekognition.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      Policies:
+      - SNSPublishMessagePolicy:
+          TopicName:
+            Fn::GetAtt: Topic.TopicName
+#      - PolicyName: AllowAccessToS3
+#        PolicyDocument: 
+#          Version: 2012-10-17
+#          Statement:
+#            - Effect: Allow
+#              Action: s3:*
+#              Resource: 
+#                Fn::Sub: "arn:${AWS::Partition}:s3:::sapc01-facerekognition1-bucket-${AWS::Region}-${AWS::AccountId}"
+
+  StartFaceDetectionFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/StartFaceDetectionFunction
+      Environment:
+        Variables: 
+          TOPIC_ARN: 
+            Ref: Topic
+          ROLE_ARN: 
+            Fn::GetAtt: Role.Arn
+      Events:
+        S3ObjectCreated:
+          Type: S3
+          Properties: 
+            Bucket: 
+              Ref: Bucket
+            Events: "s3:ObjectCreated:*"
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - SNSPublishMessagePolicy:
+            TopicName:
+              Fn::GetAtt: Topic.TopicName
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: rekognition:StartFaceDetection
+              Resource: "*"
+        # This is a bit weird because despite the fact that we call the 
+        # rekognition boto3 client and therefore we do not directly interact 
+        # with S3, it seems that the call to rekognition:StartFaceDetection
+        # implies the caller (in this case lambda) having at least read 
+        # permission on the S3 bucket
+        - S3ReadPolicy:
+            BucketName:
+              Fn::Sub: "sapc01-facerekognition1-bucket-${AWS::Region}-${AWS::AccountId}"
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: iam:PassRole
+              Resource:
+                Fn::GetAtt: Role.Arn
+
+  IndexFacesLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/IndexFacesLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  IndexFacesFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/IndexFacesFunction
+      Environment:
+        Variables: 
+          COLLECTION_ID: 
+            Ref: Collection
+      Events:
+        Notification:
+          Type: SNS
+          Properties: 
+            Topic:  
+              Ref: Topic
+      Layers:
+        - Ref: IndexFacesLayer01
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - S3ReadPolicy:
+            BucketName:
+              Fn::Sub: "sapc01-facerekognition1-bucket-${AWS::Region}-${AWS::AccountId}"
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: 
+                - rekognition:GetFaceDetection
+                - rekognition:IndexFaces
+                - rekognition:CompareFaces
+              Resource: "*"
+
+Outputs:
+  Bucket:
+    Description: The Bucket
+    Value: 
+      Ref: Bucket
+
+  Collection:
+    Description: The Collection
+    Value: 
+      Ref: Collection
+
+  Topic:
+    Description: The Topic
+    Value: 
+      Ref: Topic
+
+  Role:
+    Description: The Role
+    Value: 
+      Fn::GetAtt: Role.Arn
+      

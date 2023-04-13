@@ -1,0 +1,418 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  DynamoDB2DataPipelineDR. Showcase DR for DynamoDB using DataPipeline
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "ArchitectureSolutions-DynamoDB2DataPipelineDR"
+    Description: Showcase DR for DynamoDB using DataPipeline
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "ArchitectureSolutions" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to SNS
+        Parameters:
+          - NotificationEmail
+
+Parameters:
+
+  NotificationEmail:
+    Description: The NotificationEmail
+    Type: String
+    Default: rostskadat@gmail.com
+
+  PipelineLogUri:
+    Description: The PipelineLogUri
+    Type: String
+    Default: "s3://aws-logs-123456789012-eu-west-1/datapipeline/"
+
+# s3://sapc01-dynamodb2datapipelinedr-bucket-tf5p7qf8hodb/
+# s3://aws-logs-123456789012-eu-west-1/datapipeline/
+
+Resources:
+
+  DataPipelineDefaultRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - datapipeline.amazonaws.com
+                - elasticmapreduce.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSDataPipelineRole
+      Path: "/"
+      RoleName: DataPipelineDefaultRole
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  DataPipelineDefaultResourceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforDataPipelineRole
+      Path: "/"
+      RoleName: DataPipelineDefaultResourceRole
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Subscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: 
+        Ref: NotificationEmail
+      Protocol: email
+      TopicArn: 
+        Ref: Topic
+
+  SourceTable:
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - AttributeName: "id"
+          AttributeType: "S"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema: 
+        - AttributeName: "id"
+          KeyType: "HASH"
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  DRTable:
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - AttributeName: "id"
+          AttributeType: "S"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema: 
+        - AttributeName: "id"
+          KeyType: "HASH"
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  ExportPipeline: 
+    Type: AWS::DataPipeline::Pipeline
+    DependsOn: 
+      - DataPipelineDefaultResourceRole
+      - DataPipelineDefaultRole
+    Properties: 
+      Activate: true
+      Description: "Pipeline to backup DynamoDB data to S3"
+      Name: ExportDynamoDB2S3
+      ParameterObjects: 
+        - Id: "myDDBReadThroughputRatio"
+          Attributes: 
+            - Key: "description"
+              StringValue: "DynamoDB read throughput ratio"
+            - Key: "type"
+              StringValue: "Double"
+            - Key: "default"
+              StringValue: "0.2"
+        - Id: "myOutputBucket"
+          Attributes: 
+            - Key: "description"
+              StringValue: "S3 output bucket"
+            - Key: "type"
+              StringValue: "AWS::S3::ObjectKey"
+            - Key: "default"
+              StringValue: 
+                Fn::Sub: "s3://${Bucket}"
+        - Id: "myDDBTableName"
+          Attributes: 
+            - Key: "description"
+              StringValue: "DynamoDB Table Name"
+            - Key: "type"
+              StringValue: "String"
+        - Id: "myDDBRegion"
+          Attributes: 
+            - Key: "description"
+              StringValue: "DynamoDB Table Region"
+            - Key: "type"
+              StringValue: "String"
+            - Key: "default"
+              StringValue: 
+                Ref: "AWS::Region"
+      ParameterValues: 
+        - Id: "myDDBTableName"
+          StringValue: 
+            Ref: "SourceTable"
+      PipelineObjects: 
+        - Id: "Default"
+          Name: "Default"
+          Fields: 
+            - Key: "type"
+              StringValue: "Default"
+            - Key: "scheduleType"
+              StringValue: "cron"
+            - Key: "failureAndRerunMode"
+              StringValue: "CASCADE"
+            - Key: "role"
+              StringValue: "DataPipelineDefaultRole"
+            - Key: "resourceRole"
+              StringValue: "DataPipelineDefaultResourceRole"
+            - Key: "schedule"
+              RefValue: "DefaultSchedule"
+            - Key: "pipelineLogUri"
+              StringValue: 
+                Ref: "PipelineLogUri"
+        - Id: "DefaultSchedule"
+          Name: "Every 1 hour"
+          Fields: 
+            - Key: "startAt"
+              StringValue: "FIRST_ACTIVATION_DATE_TIME"
+            - Key: "type"
+              StringValue: "Schedule"
+            - Key: "period"
+              StringValue: "15 minutes"
+        - Id: "DDBSourceTable"
+          Name: "DDBSourceTable"
+          Fields: 
+            - Key: "tableName"
+              StringValue: "#{myDDBTableName}"
+            - Key: "type"
+              StringValue: "DynamoDBDataNode"
+            - Key: "dataFormat"
+              RefValue: "DDBExportFormat"
+            - Key: "readThroughputPercent"
+              StringValue: "#{myDDBReadThroughputRatio}"
+        - Id: "S3BackupLocation"
+          Name: "Copy data to this S3 location"
+          Fields: 
+            - Key: "type"
+              StringValue: "S3DataNode"
+            - Key: "dataFormat"
+              RefValue: "DDBExportFormat"
+            - Key: "directoryPath"
+              StringValue: "#{myOutputBucket}/#{format(@scheduledStartTime, 'YYYYMMdd')}"
+        - Id: "DDBExportFormat"
+          Name: "DDBExportFormat"
+          Fields: 
+            - Key: "type"
+              StringValue: "DynamoDBExportDataFormat"
+        - Id: "TableBackupActivity"
+          Name: "TableBackupActivity"
+          Fields: 
+            - Key: "resizeClusterBeforeRunning"
+              StringValue: "true"
+            - Key: "type"
+              StringValue: "EmrActivity"
+            - Key: "maximumRetries"
+              StringValue: "2"
+            - Key: "input"
+              RefValue: "DDBSourceTable"
+            - Key: "runsOn"
+              RefValue: "EmrClusterForBackup"
+            - Key: "output"
+              RefValue: "S3BackupLocation"
+            - Key: "step"
+              StringValue: "s3://dynamodb-dpl-#{myDDBRegion}/emr-ddb-storage-handler/4.11.0/emr-dynamodb-tools-4.11.0-SNAPSHOT-jar-with-dependencies.jar,org.apache.hadoop.dynamodb.tools.DynamoDBExport,#{output.directoryPath},#{input.tableName},#{input.readThroughputPercent}"
+        - Id: "EmrClusterForBackup"
+          Name: "EmrClusterForBackup"
+          Fields: 
+            - Key: "releaseLabel"
+              StringValue: "emr-5.23.0"
+            - Key: "terminateAfter"
+              StringValue: "1 Hour"
+            - Key: "masterInstanceType"
+              StringValue: "m3.xlarge"
+            - Key: "coreInstanceType"
+              StringValue: "m3.xlarge"
+            - Key: "coreInstanceCount"
+              StringValue: "1"
+            - Key: "type"
+              StringValue: "EmrCluster"
+            - Key: "region"
+              StringValue: "#{myDDBRegion}"
+
+  ImportPipeline: 
+    Type: AWS::DataPipeline::Pipeline
+    DependsOn: 
+      - DataPipelineDefaultResourceRole
+      - DataPipelineDefaultRole
+    Properties: 
+      Activate: true
+      Description: "Pipeline to import a backup from S3 to DR DynamoDB Table"
+      Name: ImportS32DynamoDB
+      ParameterObjects: 
+        - Id: "myDDBWriteThroughputRatio"
+          Attributes: 
+            - Key: "description"
+              StringValue: "DynamoDB read throughput ratio"
+            - Key: "type"
+              StringValue: "Double"
+            - Key: "default"
+              StringValue: "0.2"
+        - Id: "myInputS3Loc"
+          Attributes: 
+            - Key: "description"
+              StringValue: "S3 input bucket"
+            - Key: "type"
+              StringValue: "AWS::S3::ObjectKey"
+            - Key: "default"
+              StringValue: 
+                Fn::Sub: "s3://${Bucket}"
+        - Id: "myDDBTableName"
+          Attributes: 
+            - Key: "description"
+              StringValue: "DynamoDB Table Name"
+            - Key: "type"
+              StringValue: "String"
+        - Id: "myDDBRegion"
+          Attributes: 
+            - Key: "description"
+              StringValue: "DynamoDB Table Region"
+            - Key: "type"
+              StringValue: "String"
+            - Key: "default"
+              StringValue: 
+                Ref: "AWS::Region"
+      ParameterValues: 
+        - Id: "myDDBTableName"
+          StringValue: 
+            Ref: "DRTable"
+      PipelineObjects: 
+        - Id: "Default"
+          Name: "Default"
+          Fields: 
+            - Key: "type"
+              StringValue: "Default"
+            - Key: "scheduleType"
+              StringValue: "cron"
+            - Key: "failureAndRerunMode"
+              StringValue: "CASCADE"
+            - Key: "role"
+              StringValue: "DataPipelineDefaultRole"
+            - Key: "resourceRole"
+              StringValue: "DataPipelineDefaultResourceRole"
+            - Key: "schedule"
+              RefValue: "DefaultSchedule"
+            - Key: "pipelineLogUri"
+              StringValue: 
+                Ref: "PipelineLogUri"
+        - Id: "DefaultSchedule"
+          Name: "Every 1 hour"
+          Fields: 
+            - Key: "startAt"
+              StringValue: "FIRST_ACTIVATION_DATE_TIME"
+            - Key: "type"
+              StringValue: "Schedule"
+            - Key: "period"
+              StringValue: "15 minutes"
+        - Id: "TableLoadActivity"
+          Name: "TableLoadActivity"
+          Fields: 
+            - Key: "type"
+              StringValue: "EmrActivity"
+            - Key: "maximumRetries"
+              StringValue: "2"
+            - Key: "resizeClusterBeforeRunning"
+              StringValue: "true"
+            - Key: "runsOn"
+              RefValue: "EmrClusterForLoad"
+            - Key: "output"
+              RefValue: "DDBDestinationTable"
+            - Key: "input"
+              RefValue: "S3InputDataNode"
+            - Key: "step"
+              StringValue: "s3://dynamodb-dpl-#{myDDBRegion}/emr-ddb-storage-handler/4.11.0/emr-dynamodb-tools-4.11.0-SNAPSHOT-jar-with-dependencies.jar,org.apache.hadoop.dynamodb.tools.DynamoDBImport,#{input.directoryPath},#{output.tableName},#{output.writeThroughputPercent}"
+        - Id: "EmrClusterForLoad"
+          Name: "EmrClusterForLoad"
+          Fields: 
+            - Key: "releaseLabel"
+              StringValue: "emr-5.23.0"
+            - Key: "terminateAfter"
+              StringValue: "1 Hour"
+            - Key: "masterInstanceType"
+              StringValue: "m3.xlarge"
+            - Key: "coreInstanceType"
+              StringValue: "m3.xlarge"
+            - Key: "coreInstanceCount"
+              StringValue: "1"
+            - Key: "type"
+              StringValue: "EmrCluster"
+            - Key: "region"
+              StringValue: "#{myDDBRegion}"
+        - Id: "DDBDestinationTable"
+          Name: "DDBDestinationTable"
+          Fields: 
+            - Key: "tableName"
+              StringValue: "#{myDDBTableName}"
+            - Key: "type"
+              StringValue: "DynamoDBDataNode"
+            - Key: "writeThroughputPercent"
+              StringValue: "#{myDDBWriteThroughputRatio}"
+        - Id: "S3InputDataNode"
+          Name: "S3InputDataNode"
+          Fields: 
+            - Key: "type"
+              StringValue: "S3DataNode"
+            - Key: "directoryPath"
+              StringValue: "#{myInputS3Loc}/#{format(@scheduledStartTime, 'YYYYMMdd')}"
+
+Outputs:
+
+  SourceTable:
+    Description: The SourceTable
+    Value: 
+      Ref: SourceTable
+
+  Bucket:
+    Description: The Bucket
+    Value: 
+      Ref: Bucket
+
+  ExportPipeline:
+    Description: The ExportPipeline
+    Value: 
+      Ref: ExportPipeline
+
+  ImportPipeline:
+    Description: The ImportPipeline
+    Value: 
+      Ref: ImportPipeline
+
+  DRTable:
+    Description: The DRTable
+    Value: 
+      Ref: DRTable

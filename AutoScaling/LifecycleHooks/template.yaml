@@ -1,0 +1,151 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+Description: >
+  LifecycleHooks. Showcase the different Lifecycle Hooks available during autoscaling.
+
+Parameters:
+
+  MinSize:
+    Description: "The minimum number of instance in the AutoScalingGroup"
+    Type: Number
+    Default: 1
+
+  DesiredCapacity:
+    Description: "The desired number of instance in the AutoScalingGroup"
+    Type: Number
+    Default: 1
+
+  MaxSize:
+    Description: "The maximum number of instance in the AutoScalingGroup"
+    Type: Number
+    Default: 5
+
+  SubnetIds:
+    Description: "The subnet in which to start the instances"
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581,subnet-58421700"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: "LifecycleHooksLayer01"
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+
+  AutoScalingGroup: 
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      HealthCheckType: EC2
+      LaunchTemplate: 
+        LaunchTemplateId:
+          Fn::GetAtt: EC2Instance.Outputs.LaunchTemplateId
+        Version:
+          Fn::GetAtt: EC2Instance.Outputs.LaunchTemplateVersion
+      MetricsCollection:
+        - Granularity: 1Minute
+          Metrics:
+            - GroupInServiceInstances
+      MinSize:
+        Ref: MinSize
+      MaxSize: 
+        Ref: MaxSize
+      DesiredCapacity: 
+        Ref: DesiredCapacity
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+          PropagateAtLaunch: true
+      VPCZoneIdentifier:
+        Ref: SubnetIds
+
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  LifecycleHookRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - autoscaling.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName:
+              Ref: LifecycleHooksFunction
+        - SNSPublishMessagePolicy:
+            TopicName:
+              Fn::GetAtt: Topic.TopicName
+      Path: "/"
+
+  LaunchLifecycleHook: 
+    Type: AWS::AutoScaling::LifecycleHook
+    Properties: 
+      AutoScalingGroupName: 
+        Ref: AutoScalingGroup
+      LifecycleTransition: autoscaling:EC2_INSTANCE_LAUNCHING
+      NotificationTargetARN: 
+        Ref: Topic
+      RoleARN: 
+        Fn::GetAtt: LifecycleHookRole.Arn
+
+  TerminateLifecycleHook: 
+    Type: AWS::AutoScaling::LifecycleHook
+    Properties: 
+      AutoScalingGroupName: 
+        Ref: AutoScalingGroup
+      LifecycleTransition: autoscaling:EC2_INSTANCE_TERMINATING
+      NotificationTargetARN: 
+        Ref: Topic
+      RoleARN: 
+        Fn::GetAtt: LifecycleHookRole.Arn
+
+  LifecycleHooksLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/LifecycleHooksLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  LifecycleHooksFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/LifecycleHooksFunction
+      Events:
+        Notification:
+          Type: SNS
+          Properties:
+            Topic: 
+              Ref: Topic
+
+Outputs:
+  FunctionArn:
+    Description: "LifecycleHooks Lambda Function ARN"
+    Value: 
+      Fn::GetAtt: "LifecycleHooksFunction.Arn"

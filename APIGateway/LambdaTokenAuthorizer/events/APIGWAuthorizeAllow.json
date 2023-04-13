@@ -1,0 +1,5 @@
+{
+  "type": "TOKEN",
+  "authorizationToken": "allow",
+  "methodArn": "arn:aws:execute-api:eu-west-1:123456789012:u5eqf1ivj5/Prod/GET/execute/"
+}

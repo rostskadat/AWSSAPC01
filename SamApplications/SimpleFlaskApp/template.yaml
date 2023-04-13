@@ -1,0 +1,278 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  EC2Instance: This SAM Nested Application (c.f. https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-template-nested-applications.html)
+  create an EC2Instance.
+Metadata:
+
+  AWS::ServerlessRepo::Application:
+    Name: EC2Instance
+    Description: Launch a sensibly configured EC2Instance in the default VPC.
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ 'SAPC01' ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to the parent stack
+        Parameters:
+          - ParentStackName
+      - Label:
+          default: Parameters related to the EC2 Instance.
+        Parameters:
+          - ImageId
+          - InstanceType
+          - KeyName
+          - ManagedPolicyArns
+          - VolumeSize
+          - ExtraVolume1
+          - ExtraVolume2
+          - SubnetId
+          - FlaskPort
+          - DefRenderIndex
+
+Parameters:
+  ParentStackName:
+    Description: "The name of the parent stack in order to set the permission properly"
+    Type: String
+
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: String
+    Default: ''
+
+  InstanceType:
+    Description: "The Instance Type to spin up"
+    Type: String
+    Default: ''
+
+  KeyName:
+    Description: "The Key to use to connect to the EC2 Instance"
+    Type: String
+    Default: ''
+
+  ManagedPolicyArns:
+    Description: "A comma separated list of IAM Policy ARNs to attach to the Instance"
+    Type: String
+    Default: ''
+
+  VolumeSize:
+    Description: "The size of the EBS Volume attached to the instance"
+    Type: Number
+    Default: 32
+
+  ExtraVolume1:
+    Description: The type of extra volume
+    Type: String
+    AllowedValues: [ 'ephemeral', 'ebs', '' ]
+    Default: ''
+
+  ExtraVolume2:
+    Description: The type of extra volume
+    Type: String
+    AllowedValues: [ 'ephemeral', 'ebs', '' ]
+    Default: ''
+
+  SubnetId:
+    Description: The SubnetId
+    Type: String
+    Default: ''
+
+  IsPublic:
+    Description: "Indicate whether the SubnetId is Public or not"
+    Type: String
+    AllowedValues: [ true, false ]
+    Default: true
+
+  CanHibernate:
+    Description: "Indicate whether the Instance can hibernate or not"
+    Type: String
+    AllowedValues: [ true, false ]
+    Default: false
+
+  FlaskPort:
+    Description: "The Port on which the Flask app is listening on"
+    Type: Number
+    Default: 80
+
+  DefRenderIndex:
+    Description: "The user data to start the instance with"
+    Type: String
+    Default: |
+      def render_index():
+        headers = list(map(lambda i: {i[0]:i[1]}, flask.request.headers ))
+        created_at = datetime.datetime.utcnow().strftime("%Y-%m-%d'T'%H:%M:%S")
+        return json.dumps({ "created_at": created_at, "headers": headers })
+
+  DefRenderIndexPath:
+    Description: "The path of the index"
+    Type: String
+    Default: "/"
+  
+  DefRenderHealthPath:
+    Description: The Path to check the health of the application  
+    Type: String
+    Default: "/health"
+
+Conditions:
+
+  HasImageId:
+    Fn::Not:
+      - Fn::Equals: [ Ref: ImageId, '' ]
+  HasInstanceType:
+    Fn::Not:
+      - Fn::Equals: [ Ref: InstanceType, '' ]
+  HasKeyName:
+    Fn::Not:
+      - Fn::Equals: [ Ref: KeyName, '' ]
+  HasManagedPolicyArns:
+    Fn::Not:
+      - Fn::Equals: [ Ref: ManagedPolicyArns, '' ]
+  HasVolumeSize:
+    Fn::Not:
+      - Fn::Equals: [ Ref: VolumeSize, '' ]
+  HasExtraVolume1:
+    Fn::Not:
+      - Fn::Equals: [ Ref: ExtraVolume1, '' ]
+  HasExtraVolume2:
+    Fn::Not:
+      - Fn::Equals: [ Ref: ExtraVolume2, '' ]
+  HasSubnetId:
+    Fn::Not:
+      - Fn::Equals: [ Ref: SubnetId, '' ]
+  LaunchPublicInstance:
+    Fn::Equals: [ Ref: IsPublic, true ]
+
+Resources:
+
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../EC2Instance/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: ParentStackName
+        ImageId:
+          Fn::If:
+            - HasImageId
+            - Ref: ImageId
+            - Ref: AWS::NoValue
+        InstanceType:
+          Fn::If:
+            - HasInstanceType
+            - Ref: InstanceType
+            - Ref: AWS::NoValue
+        KeyName:
+          Fn::If:
+            - HasKeyName
+            - Ref: KeyName
+            - Ref: AWS::NoValue
+        ManagedPolicyArns:
+          Fn::If:
+            - HasManagedPolicyArns
+            - Ref: ManagedPolicyArns
+            - Ref: AWS::NoValue
+        VolumeSize:
+          Fn::If:
+            - HasVolumeSize
+            - Ref: VolumeSize
+            - Ref: AWS::NoValue
+        ExtraVolume1:
+          Fn::If:
+            - HasExtraVolume1
+            - Ref: ExtraVolume1
+            - Ref: AWS::NoValue
+        ExtraVolume2:
+          Fn::If:
+            - HasExtraVolume2
+            - Ref: ExtraVolume2
+            - Ref: AWS::NoValue
+        SubnetId:
+          Fn::If:
+            - HasSubnetId
+            - Ref: SubnetId
+            - Ref: AWS::NoValue
+        IsPublic:
+          Ref: IsPublic
+        CanHibernate:
+          Ref: CanHibernate
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel ; 
+            yum update -y 
+            yum install -y ec2-instance-connect
+            yum install -y python3 python3-pip
+            pip3 --disable-pip-version-check install gunicorn==20.0.4 Flask==1.1.2 Flask-Cors==3.0.10
+            mkdir /flask-hello-world
+            cat > /flask-hello-world/app.py <<EOF
+            import datetime, flask, flask_cors, json, logging, os
+            app = flask.Flask(__name__)
+            flask_cors.CORS(app)
+            gunicorn_error_logger = logging.getLogger('gunicorn.error')
+            app.logger.handlers.extend(gunicorn_error_logger.handlers)
+            app.logger.setLevel(logging.DEBUG)
+            app.logger.debug('Welcome to Flask')
+            @app.route('${DefRenderIndexPath}')
+            ${DefRenderIndex}
+            @app.route('${DefRenderHealthPath}')
+            def render_health():
+              return "OK"
+            if __name__ == '__main__':
+              app.run(debug=True, host='0.0.0.0', port=${FlaskPort})
+            EOF
+            cd /flask-hello-world && /usr/local/bin/gunicorn --bind 0.0.0.0:${FlaskPort} --log-file /var/log/gunicorn.log --log-level DEBUG --daemon app:app
+            echo "Instance initialization... Done"
+
+Outputs:
+
+  StackName:
+    Description: The name of that stack
+    Value:
+      Ref: AWS::StackName
+
+  StackId:
+    Description: The name of that stack
+    Value:
+      Fn::Sub: ${EC2Instance.Outputs.StackId}
+
+  InstanceId:
+    Description: The EC2 Instance Id
+    Value:
+      Fn::Sub: ${EC2Instance.Outputs.InstanceId}
+
+  InstancePublicDnsName:
+    Condition: LaunchPublicInstance
+    Description: The EC2 Instance PublicDnsName
+    Value:
+      Fn::Sub: ${EC2Instance.Outputs.InstancePublicDnsName}
+
+  InstancePublicIp:
+    Condition: LaunchPublicInstance
+    Description: The EC2 Instance PublicIp
+    Value:
+      Fn::Sub: ${EC2Instance.Outputs.InstancePublicIp}
+
+  InstancePrivateIp:
+    Description: The EC2 Instance PrivateIp
+    Value:
+      Fn::Sub: ${EC2Instance.Outputs.InstancePrivateIp}
+
+  LaunchTemplateId:
+    Description: The LaunchTemplate Id
+    Value:
+      Fn::Sub: ${EC2Instance.Outputs.LaunchTemplateId}
+
+  LaunchTemplateVersion:
+    Description: The LaunchTemplate Version
+    Value:
+      Fn::Sub: ${EC2Instance.Outputs.LaunchTemplateVersion}
+
+  DefRenderHealthPath:
+    Description: The Path to check the health of the application
+    Value: !Ref DefRenderHealthPath

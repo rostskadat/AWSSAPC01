@@ -1,0 +1,222 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - PolicyGenerator
+  - S3Objects
+  - Yaml2Json
+Description: >
+  AccessDeniedAlert. Showcases a CloudTrail alert system on AccessDenied events
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: CommonLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Parameters:
+
+  OperatorEmail:
+    Type: String
+    Description: The email of the operator the will receive the alerts
+    Default: "rostskadat@gmail.com"
+
+  OrganizationId:
+    Type: String
+    Description: The OrganizationId under which the Trail is logging
+    Default: "o-abcdefghij"
+
+Resources:
+
+  Bucket: 
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  LogsBucket: 
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  LogsBucketPolicy: 
+    Type: AWS::S3::BucketPolicy
+    Properties: 
+      Bucket: 
+        Ref: LogsBucket
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - Sid: "AWSCloudTrailAclCheck20150319"
+            Effect: "Allow"
+            Principal: 
+              Service: cloudtrail.amazonaws.com
+            Action: "s3:GetBucketAcl"
+            Resource: 
+              Fn::GetAtt: LogsBucket.Arn
+          - Sid: "AWSCloudTrailWrite20150319"
+            Effect: "Allow"
+            Principal: 
+              Service: cloudtrail.amazonaws.com
+            Action: "s3:PutObject"
+            Resource: 
+              Fn::Sub: "${LogsBucket.Arn}/AWSLogs/${AWS::AccountId}/*"
+            Condition: 
+              StringEquals: 
+                "s3:x-amz-acl": "bucket-owner-full-control"
+          - Sid: "AWSOrganizationWrite20150319"
+            Effect: "Allow"
+            Principal: 
+              Service: cloudtrail.amazonaws.com
+            Action: "s3:PutObject"
+            Resource: 
+                Fn::Sub: "${LogsBucket.Arn}/AWSLogs/${OrganizationId}/*"
+            Condition:
+              StringEquals:
+                "s3:x-amz-acl": "bucket-owner-full-control"
+
+  LogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      RetentionInDays: 7
+
+  AccessDeniedMetric:
+    Type: AWS::Logs::MetricFilter
+    Properties: 
+      FilterPattern: '{ ($.errorCode = "AccessDenied") && ($.userIdentity.type= "IAMUser") }'
+      LogGroupName: 
+        Ref: LogGroup
+      MetricTransformations: 
+        - DefaultValue: 0
+          MetricName: CloudTrail-AccessDeniedForIAMUser
+          MetricNamespace: SECURITY
+          MetricValue: 1
+
+  AccessDeniedInsight:
+    Type: AWS::CloudWatch::InsightRule
+    Properties: 
+      RuleBody: 
+        Fn::Sub:
+          Fn::Yaml2Json:
+            Schema:
+              Name: "CloudWatchLogRule"
+              Version: 1
+            AggregateOn: "Count"
+            Contribution:
+              Filters: 
+                - Match: "$.errorCode"
+                  In:
+                    -  "AccessDenied"
+                - Match: "$.userIdentity.type"
+                  In: 
+                    - "IAMUser"
+              Keys: 
+                - "$.requestID"
+            LogFormat: "JSON"
+            LogGroupNames: 
+              - ${LogGroup}
+      RuleName: AccessDeniedByIAMUser
+      RuleState: DISABLED
+
+  CloudWatchLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - cloudtrail.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'    
+      Description: 
+        Fn::Sub: Role assumed by CloudTrail when writing event from ${AWS::StackName}
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Path: /
+
+  Trail: 
+    Type: AWS::CloudTrail::Trail
+    Properties: 
+      CloudWatchLogsLogGroupArn:
+        Fn::GetAtt: LogGroup.Arn
+      CloudWatchLogsRoleArn:
+        Fn::GetAtt: CloudWatchLogsRole.Arn
+      EventSelectors: 
+        - DataResources: 
+            - Type: AWS::S3::Object
+              Values: 
+                - Fn::Sub: "${Bucket.Arn}/"
+      S3BucketName:
+        Ref: LogsBucket
+      IsLogging: false
+      # IsMultiRegionTrail: true
+      # IsOrganizationTrail: true
+
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint:
+            Ref: OperatorEmail
+          Protocol: "email"
+
+  CommonLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/CommonLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  AccessDeniedAlertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: This function is called when a suspicious event is detected in the CloudWatch stream of event.
+      CodeUri: lambdas/AccessDeniedAlertFunction
+      Environment:
+        Variables: 
+          ALERT_TOPIC: 
+            Ref: Topic
+      Events:
+        CloudWatchLogs:
+          Type: CloudWatchLogs
+          Properties: 
+            FilterPattern: '{ ($.errorCode = "AccessDenied") && ($.userIdentity.type= "IAMUser") }'
+            LogGroupName: 
+              Ref: LogGroup
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - FilterLogEventsPolicy: 
+            LogGroupName: 
+              Ref: LogGroup
+        - SNSPublishMessagePolicy:
+            TopicName:
+              Fn::GetAtt: Topic.TopicName
+
+Outputs:
+  Bucket:
+    Description: "The Bucket that will trigger AccessDenied Alerts"
+    Value: 
+      Ref: Bucket
+
+  Trail:
+    Description: "The Trail you can start / stop"
+    Value: 
+      Ref: Trail
+
+  LogGroup:
+    Description: "The LogGroup you can analyse"
+    Value: 
+      Ref: LogGroup

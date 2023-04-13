@@ -1,0 +1,119 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ProxyToControlUrls. Showcase an architecture where only a specific set of URL are allowed to be accessed by instances
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "VPC-ProxyToControlUrls"
+    Description: Showcase an architecture where only a specific set of URL are allowed to be accessed by instances
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "VPC" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to VPC
+        Parameters:
+          - VpcId
+          - Subnets
+          - SecurityGroups
+      - Label:
+          default: Parameters related to the EC2 Instance
+        Parameters:
+          - ImageId
+          - ManagedPolicyArns
+
+Parameters:
+  VpcId:
+    Description: "The VPC (DEFAULT_VPC)"
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-9e9b9ffa
+
+  PublicSubnet:
+    Description: "The PublicSubnet (DEFAULT_VPC)"
+    Type: AWS::EC2::Subnet::Id
+    Default: "subnet-b09099d4"
+
+  PrivateSubnet:
+    Description: "The PrivateSubnet (DEFAULT_VPC)"
+    Type: AWS::EC2::Subnet::Id
+    Default: "subnet-061b4aea8122da878"
+
+  SecurityGroups:
+    Description: "The Security group (DEFAULT_VPC)"
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Default: "sg-e1435287"
+
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+  ManagedPolicyArns:
+    Description: "A comma separated list of IAM Policy ARNs to attach to the Instance"
+    Type: String
+    Default: "arn:aws:iam::aws:policy/PowerUserAccess"
+
+Resources:
+
+  ProxyInstance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ImageId: 
+          Ref: ImageId
+        ManagedPolicyArns: 
+          Ref: ManagedPolicyArns
+        SubnetId:
+          Ref: PublicSubnet
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel ; yum update -y
+            yum install -y squid
+
+  PrivateInstance:
+    Type: AWS::Serverless::Application
+    DependsOn: ProxyInstance
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ImageId: 
+          Ref: ImageId
+        ManagedPolicyArns: 
+          Ref: ManagedPolicyArns
+        SubnetId:
+          Ref: PrivateSubnet
+        IsPublic: false
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel ; yum update -y
+            cat >> /etc/environment <<EOF
+            http_proxy=http://${ProxyInstance.Outputs.InstancePrivateIp}:3128
+            https_proxy=http://${ProxyInstance.Outputs.InstancePrivateIp}:3128
+            HTTP_PROXY=http://${ProxyInstance.Outputs.InstancePrivateIp}:3128
+            HTTPS_PROXY=http://${ProxyInstance.Outputs.InstancePrivateIp}:3128
+            EOF
+
+Outputs:
+
+  ProxyInstance:
+    Description: The ProxyInstance
+    Value: 
+      Fn::GetAtt: ProxyInstance.Outputs.InstancePublicDnsName
+
+  PrivateInstance:
+    Description: The PrivateInstance
+    Value: 
+      Fn::GetAtt: PrivateInstance.Outputs.InstancePrivateIp

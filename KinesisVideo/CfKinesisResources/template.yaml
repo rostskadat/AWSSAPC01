@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  CfKinesisResources. This stack provides Cloudformation Custom Resources to create Kinesis Video Resources in your CloudFormation template.
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "KinesisVideoStream-CfKinesisResources"
+    Description: This stack provides Cloudformation Custom Resources to create Kinesis Video Resources in your CloudFormation template.
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "KinesisVideoStream" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Lambda
+        Parameters:
+          - "CfKinesisResourcesParameter"
+
+Parameters:
+  "CfKinesisResourcesParameter":
+    Description: Look at https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html
+    Type: String
+    Default: "CfKinesisResourcesValue"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: CfKinesisResourcesLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  CfKinesisResourcesLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/CfKinesisResourcesLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  CfKinesisVideoStream:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: CfKinesisVideoStream
+      Description: A CloudFormation Custom Resource to create a Kinesis Video Stream
+      CodeUri: lambdas/CfKinesisVideoStream
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - "arn:aws:iam::aws:policy/AmazonKinesisVideoStreamsFullAccess"
+
+  CfRekognitionCollection:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: CfRekognitionCollection
+      Description: A CloudFormation Custom Resource to create a Rekognition Collection
+      CodeUri: lambdas/CfRekognitionCollection
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - "arn:aws:iam::aws:policy/AmazonRekognitionFullAccess"
+
+  CfRekognitionStreamProcessor:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: CfRekognitionStreamProcessor
+      Description: A CloudFormation Custom Resource to create a Rekognition StreamProcessor
+      CodeUri: lambdas/CfRekognitionStreamProcessor
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - "arn:aws:iam::aws:policy/AmazonRekognitionFullAccess"
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action: iam:PassRole
+              Resource:
+                Fn::Sub: "arn:aws:iam::${AWS::AccountId}:role/*"
+
+Outputs:
+
+  CfKinesisVideoStreamArn:
+    Description: The CfKinesisVideoStream function ARN
+    Value:
+      Fn::GetAtt: CfKinesisVideoStream.Arn
+  
+  CfRekognitionCollection:
+    Description: The CfRekognitionCollection function ARN
+    Value:
+      Fn::GetAtt: CfRekognitionCollection.Arn
+  
+  CfRekognitionStreamProcessor:
+    Description: The CfRekognitionStreamProcessor function ARN
+    Value:
+      Fn::GetAtt: CfRekognitionStreamProcessor.Arn
+
+

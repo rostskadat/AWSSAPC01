@@ -1,0 +1,193 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+Description: >
+  LambdaAtEdge. Show case a LambdaAtEdge site to transform user request to implement localisation
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "Lambda-LambdaAtEdge"
+    Description: Show case a LambdaAtEdge site to transform user request to implement localisation
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01", "Lambda"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to CloudFront
+        Parameters:
+          - ManagedCachingOptimizedId
+          - ManagedCachingDisabledId
+      - Label:
+          default: Parameters related to API GateWay
+        Parameters:
+          - StageName
+
+Parameters:
+  # Look at https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
+  ManagedCachingOptimizedId:
+    Description: "The Caching Policy Id to use. Default to the Managed-CachingOptimized Caching Policy"
+    Type: String
+    Default: "658327ea-f89d-4fab-a63d-7e88639e58f6"
+
+  ManagedCachingDisabledId:
+    Description: "The Caching Policy Id to use. Default to the Managed-CachingDisabled Caching Policy"
+    Type: String
+    Default: "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.7
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  S3OriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: "CloudFront::CloudFrontOriginAccessIdentity for S3 Integration"
+
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: Bucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - "s3:*"
+            Principal:
+              AWS:
+                Fn::Sub: "arn:${AWS::Partition}:iam::${AWS::AccountId}:user/rostskadat"
+            Resource:
+              - Fn::Sub: "arn:${AWS::Partition}:s3:::${Bucket}"
+              - Fn::Sub: "arn:${AWS::Partition}:s3:::${Bucket}/*"
+          - Effect: Allow
+            Action:
+              - "s3:GetObject"
+            Principal:
+              AWS:
+                Fn::Sub: "arn:${AWS::Partition}:iam::cloudfront:user/CloudFront Origin Access Identity ${S3OriginAccessIdentity}"
+              # It's harder to know who the CanonicalUser is refering to...
+              # CanonicalUser:
+              #   Fn::GetAtt: S3OriginAccessIdentity.S3CanonicalUserId
+            Resource:
+              Fn::Sub: "arn:${AWS::Partition}:s3:::${Bucket}/*"
+
+  EnIndexWebpage:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: Bucket
+        Key: en/index.html
+        ContentType: text/html
+        ACL: public-read
+      Body:
+        Fn::Sub: |
+          <!doctype html><html lang="en"><body>This page is in english</body></html>
+
+  EsIndexWebpage:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: Bucket
+        Key: es/index.html
+        ContentType: text/html
+        ACL: public-read
+      Body:
+        Fn::Sub: |
+          <!doctype html><html lang="en"><body>Esta pagina esta en castellano</body></html>
+
+  LambdaAtEdgeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/LambdaAtEdgeFunction
+      AutoPublishAlias: live
+      # Timeout is max 5 seconds
+      Timeout: 1
+      # By default edgelambda.amazonaws.com is not allowed to assume role...
+      Role:
+        Fn::GetAtt: LambdaAtEdgeFunctionRole.Arn
+
+  LambdaAtEdgeFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - edgelambda.amazonaws.com
+                - lambda.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+#arn:aws:iam::123456789012:role/aws-service-role/replicator.lambda.amazonaws.com/AWSServiceRoleForLambdaReplicator  
+#arn:aws:iam::123456789012:role/aws-service-role/logger.cloudfront.amazonaws.com/AWSServiceRoleForCloudFrontLogger
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        DefaultCacheBehavior:
+          CachePolicyId:
+            Ref: ManagedCachingDisabledId
+          # This element is deprecated but still required (!?!)
+          # ForwardedValues:
+          #   QueryString: true
+          LambdaFunctionAssociations:
+            - EventType: viewer-request
+              IncludeBody: false
+              LambdaFunctionARN:
+                # This is necessary in order to be able to reference the
+                # function's version in the distribution
+                Ref: LambdaAtEdgeFunction.Version
+          TargetOriginId: S3BucketOrigin
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject:
+          Fn::Sub: ${EnIndexWebpage.Key}
+        Enabled: true
+        Origins:
+          - DomainName:
+              Fn::GetAtt: Bucket.RegionalDomainName
+            Id: S3BucketOrigin
+            S3OriginConfig:
+              OriginAccessIdentity:
+                Fn::Sub: "origin-access-identity/cloudfront/${S3OriginAccessIdentity}"
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+Outputs:
+  Bucket:
+    Description: The Bucket
+    Value:
+      Ref: Bucket
+  
+  DistributionDomainName:
+    Description: The Distribution DomainName
+    Value:
+      Fn::GetAtt: Distribution.DomainName
+

@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  HighSeverityEvents. This stack call the lambda function when either a cloudwatch event happen or when a SNS notificacion is called.
+
+Parameters:
+  DetectorId:
+    Type: String
+    Description: "The GuardDuty Detector Id"
+    Default: "e2ba7f6d499568c4f5cddccd2a20fe76"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: CommonLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+  EventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "HighSeverityEvents from GuardDuty"
+      EventPattern:
+        source:
+          - "aws.guardduty"
+        detail-type:
+          - "GuardDuty Finding"
+        detail:
+          severity: [ 8 ]
+      State: "ENABLED"
+      Targets:
+        - Arn:
+            Fn::GetAtt: HighSeverityEventsFunction.Arn
+          Id: HighSeverityEventsFunctionV1
+
+  PermissionForEventsToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName:
+        Ref: HighSeverityEventsFunction
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn:
+        Fn::GetAtt: EventRule.Arn
+
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Subscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn:
+        Ref: Topic
+      Endpoint:
+        Fn::GetAtt: HighSeverityEventsFunction.Arn
+      Protocol: lambda
+
+  CommonLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/CommonLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  HighSeverityEventsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/HighSeverityEventsFunction
+
+Outputs:
+  FunctionArn:
+    Description: "HighSeverityEventsFunction Lambda Function ARN"
+    Value:
+      Fn::GetAtt: "HighSeverityEventsFunction.Arn"

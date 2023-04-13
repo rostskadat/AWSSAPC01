@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  DRSolution. Showcase a DR solution for an encrypted Redshift cluster
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "Redshift-DRSolution"
+    Description: Showcase a DR solution for an encrypted Redshift cluster
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "Redshift" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to the RedshiftCluster
+        Parameters:
+          - SnapshotClusterIdentifier
+          - SnapshotIdentifier
+
+Parameters:
+
+  SnapshotClusterIdentifier:
+    Description: The SnapshotClusterIdentifier
+    Type: String
+    Default: ''
+
+  SnapshotIdentifier:
+    Description: The SnapshotIdentifier
+    Type: String
+    Default: ''
+
+Conditions:
+  IsFromSnapshot:
+    Fn::And:
+      - Fn::Not:
+          - !Equals [ !Ref SnapshotClusterIdentifier, '' ]
+      - Fn::Not:
+          - !Equals [ !Ref SnapshotIdentifier, '' ]
+
+
+Resources:
+  Secret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: The Cluster credentials
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "root"}'
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  SecretTargetAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref Secret
+      TargetId: !Ref Cluster
+      TargetType: AWS::Redshift::Cluster
+
+  Cluster: 
+    Type: AWS::Redshift::Cluster
+    Properties:
+      ClusterType: single-node
+      DBName: dev
+      Encrypted: true
+      MasterUsername: !Sub '{{resolve:secretsmanager:${Secret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${Secret}:SecretString:password}}'
+      NodeType: dc2.large
+      SnapshotClusterIdentifier:
+        Fn::If:
+          - IsFromSnapshot
+          - !Ref SnapshotClusterIdentifier
+          - !Ref AWS::NoValue
+      SnapshotIdentifier:
+        Fn::If:
+          - IsFromSnapshot
+          - !Ref SnapshotIdentifier
+          - !Ref AWS::NoValue
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+Outputs:
+
+  Cluster:
+    Description: The Cluster
+    Value: !Ref Cluster

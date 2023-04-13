@@ -1,0 +1,38 @@
+{
+  "Records": [
+    {
+      "eventVersion": "2.1",
+      "eventSource": "aws:s3",
+      "awsRegion": "eu-west-1",
+      "eventTime": "2021-03-01T15:59:57.978Z",
+      "eventName": "ObjectCreated:Put",
+      "userIdentity": {
+        "principalId": "AWS:AIDAIG32FXIV6KU7KTP7W"
+      },
+      "requestParameters": {
+        "sourceIPAddress": "129.35.108.66"
+      },
+      "responseElements": {
+        "x-amz-request-id": "49C3EB096573BFF8",
+        "x-amz-id-2": "OItB50cw7REocsYRgK/J4TpCeLwUg94c1/kFl1WoLWL2yEmRFpx7EYrwmSP/6LPf7EmwzgP5VQ9Y0fN2K0UmmHbZjhC3yWLF"
+      },
+      "s3": {
+        "s3SchemaVersion": "1.0",
+        "configurationId": "279568f5-228d-4670-a2eb-ba2c7e24fa14",
+        "bucket": {
+          "name": "sapc01-facerekognition1-bucket-eu-west-1-123456789012",
+          "ownerIdentity": {
+            "principalId": "A1L66XQ8A8IMOE"
+          },
+          "arn": "arn:aws:s3:::sapc01-facerekognition1-bucket-eu-west-1-123456789012"
+        },
+        "object": {
+          "key": "face-demographics-walking.mp4",
+          "size": 6406124,
+          "eTag": "4a22291b8c4d74ed0d392db06ba6c9c6",
+          "sequencer": "00603D0F799AC28A11"
+        }
+      }
+    }
+  ]
+}

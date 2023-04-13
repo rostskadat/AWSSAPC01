@@ -1,0 +1,35 @@
+swagger: "2.0"
+info:
+  description: |
+    This is a sample server Petstore server. 
+    You can find out more about Swagger at [http://swagger.io](http://swagger.io) or on [irc.freenode.net, #swagger](http://swagger.io/irc/).
+    For this sample, you can use the api key `special-key` to test the authorization filters."
+  title: "OpenApiDefinition"
+paths:
+  /execute:
+    get:
+      summary: "HelloWorld Lambda function"
+      description: "Execute an 'Hello World' Lambda function"
+      operationId: "ExecuteFunction"
+      produces:
+      - "application/json"
+      responses:
+        200:
+          description: "successful operation"
+          schema:
+            $ref: "#/definitions/Message"
+      # Look at https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-swagger-extensions.html for more details
+      x-amazon-apigateway-integration:  
+        type: "aws_proxy"
+        httpMethod: "POST"
+        uri: "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:ExecuteFunction/invocations"
+        passthroughBehavior: "when_no_templates"
+        payloadFormatVersion": "1.0"
+definitions:
+  Message:
+    type: "object"
+    properties:
+      message:
+        type: "string"
+      location:
+        type: "string"    

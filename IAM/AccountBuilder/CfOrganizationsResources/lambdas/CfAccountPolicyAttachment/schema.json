@@ -1,0 +1,41 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema",
+    "$id": "http://example.com/example.json",
+    "type": "object",
+    "title": "The root schema",
+    "description": "The root schema comprises the entire JSON document.",
+    "default": {},
+    "examples": [
+        {
+            "PolicyId": "string",
+            "TargetId": "string"
+        }
+    ],
+    "required": [
+        "PolicyId",
+        "TargetId"
+    ],
+    "properties": {
+        "PolicyId": {
+            "$id": "#/properties/PolicyId",
+            "type": "string",
+            "title": "The PolicyId schema",
+            "description": "The unique identifier (ID) of the policy that you want to attach to the target. You can get the ID for the policy by calling the ListPolicies operation.",
+            "default": "",
+            "examples": [
+                "string"
+            ]
+        },
+        "TargetId": {
+            "$id": "#/properties/TargetId",
+            "type": "string",
+            "title": "The TargetId schema",
+            "description": "The unique identifier (ID) of the root, OU, or account that you want to attach the policy to. You can get the ID by calling the ListRoots , ListOrganizationalUnitsForParent , or ListAccounts operations.",
+            "default": "",
+            "examples": [
+                "string"
+            ]
+        }
+    },
+    "additionalProperties": true
+}

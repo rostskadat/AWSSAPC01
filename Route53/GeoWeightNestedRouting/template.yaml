@@ -1,0 +1,277 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+Description: >
+  GeoWeightNestedRouting. Showcase a nested geolocation and weight base routing.
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "Route53-GeoWeightNestedRouting"
+    Description: Showcase a nested geolocation and weight base routing
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01", "Route53"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Route53
+        Parameters:
+          - HostedZoneName
+          - SubDomainName
+
+Parameters:
+
+  HostedZoneId:
+    Description: The HostedZoneId
+    Type: String
+    Default: Z4OAYE8GXTF5F
+
+  HostedZoneName:
+    Description: "The hosted zone name"
+    Type: String
+    Default: domain.com
+
+  SubDomainName:
+    Description: "The subdomain of the API"
+    Type: String
+    Default: sapc01-nestedrouting
+
+  VpcId:
+    Description: "The VPC in which to put the load balancer"
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-9e9b9ffa
+
+  Subnets:
+    Description: "The subnet in which to start the instances"
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581"
+
+  FlaskPort:
+    Description: "The Port on which the Flask app is listening on"
+    Type: Number
+    Default: 80
+
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+Resources:
+
+  #
+  # These instances will appear directly in the Weighted Record as IP
+  #
+  EC2InstanceL1W1:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/SimpleFlaskApp/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ImageId: 
+          Ref: ImageId
+        SubnetId: 
+          Fn::Select: [ 0, Ref: Subnets ]
+        FlaskPort:
+          Ref: FlaskPort
+        DefRenderIndex: |
+          def render_index():
+            return "L1W1"
+
+  EC2InstanceL1W2:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/SimpleFlaskApp/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ImageId: 
+          Ref: ImageId
+        SubnetId: 
+          Fn::Select: [ 1, Ref: Subnets ]
+        FlaskPort:
+          Ref: FlaskPort
+        DefRenderIndex: |
+          def render_index():
+            return "L1W2"
+
+  #
+  # These instances will appear in the second Weighted Record through
+  # their respective LoadBalancer
+  #
+  EC2InstanceL2W1:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/SimpleFlaskApp/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ImageId: 
+          Ref: ImageId
+        SubnetId: 
+          Fn::Select: [ 0, Ref: Subnets ]
+        FlaskPort:
+          Ref: FlaskPort
+        DefRenderIndex: |
+          def render_index():
+            return "L2W1"
+
+  LoadBalancerL2W1:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/ApplicationLoadBalancer/template.yaml
+      Parameters:
+        VpcId: 
+          Ref: VpcId
+        Subnets: 
+          Fn::Join: [ ',', Ref: Subnets ]
+        InstanceId:
+          Fn::Sub: ${EC2InstanceL2W1.Outputs.InstanceId}
+        Port: 
+          Ref: FlaskPort
+
+  EC2InstanceL2W2:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/SimpleFlaskApp/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ImageId: 
+          Ref: ImageId
+        SubnetId: 
+          Fn::Select: [ 1, Ref: Subnets ]
+        FlaskPort:
+          Ref: FlaskPort
+        DefRenderIndex: |
+          def render_index():
+            return "L2W2"
+
+  LoadBalancerL2W2:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/ApplicationLoadBalancer/template.yaml
+      Parameters:
+        VpcId: 
+          Ref: VpcId
+        Subnets:
+          Fn::Join: [ ',', Ref: Subnets ]
+        InstanceId:
+          Fn::Sub: ${EC2InstanceL2W2.Outputs.InstanceId}
+        Port: 
+          Ref: FlaskPort
+
+
+  # Then let's create the Weighted records that will split the incoming request
+  # on a 50/50 ratio toward the corresponding bucket. We first do that for the 
+  # first set of bucket
+  RecordSetGroupWeightL1Wx:
+    Type: AWS::Route53::RecordSetGroup
+    Properties: 
+      HostedZoneId:
+        Ref: HostedZoneId
+      RecordSets: 
+        - Name: 
+            Fn::Sub: l1wx-${SubDomainName}.${HostedZoneName}
+          ResourceRecords:
+            - Fn::Sub: ${EC2InstanceL1W1.Outputs.InstancePublicIp}
+          SetIdentifier: WEIGHT_L1W1
+          Type: A
+          TTL: 900
+          Weight: 50
+        - Name: 
+            Fn::Sub: l1wx-${SubDomainName}.${HostedZoneName}
+          ResourceRecords:
+            - Fn::Sub: ${EC2InstanceL1W2.Outputs.InstancePublicIp}
+          SetIdentifier: WEIGHT_L1W2
+          Type: A
+          TTL: 900
+          Weight: 50
+
+  # The second record poits to the ELB instead of the Instance IP.
+  # To demonstrate the use of an AliasTarget instead of the ResourceRecords
+  RecordSetGroupWeightL2Wx:
+    Type: AWS::Route53::RecordSetGroup
+    Properties: 
+      HostedZoneId:
+        Ref: HostedZoneId
+      RecordSets: 
+        - AliasTarget:
+            DNSName:
+              Fn::GetAtt: LoadBalancerL2W1.Outputs.DNSName
+            HostedZoneId:
+              Fn::GetAtt: LoadBalancerL2W1.Outputs.CanonicalHostedZoneID
+          Name: 
+            Fn::Sub: l2wx-${SubDomainName}.${HostedZoneName}
+          SetIdentifier: WEIGHT_L2W1
+          Type: A
+          Weight: 50
+        - AliasTarget:
+            DNSName:
+              Fn::GetAtt: LoadBalancerL2W2.Outputs.DNSName
+            HostedZoneId:
+              Fn::GetAtt: LoadBalancerL2W2.Outputs.CanonicalHostedZoneID
+          Name: 
+            Fn::Sub: l2wx-${SubDomainName}.${HostedZoneName}
+          SetIdentifier: WEIGHT_L2W2
+          Type: A
+          Weight: 50
+
+  # Finally we create the top level that will create the GeoLocation record
+  # that will orientate the record according to the country.
+  RecordSetGroupGeoLocation:
+    Type: AWS::Route53::RecordSetGroup
+    DependsOn:
+      - RecordSetGroupWeightL1Wx
+      - RecordSetGroupWeightL2Wx
+    Properties: 
+      Comment: The nested routing structure
+      HostedZoneId:
+        Ref: HostedZoneId
+      RecordSets: 
+        - AliasTarget:
+            DNSName:
+              Fn::Sub: l1wx-${SubDomainName}.${HostedZoneName}
+            HostedZoneId:
+              Ref: HostedZoneId
+          GeoLocation: 
+            CountryCode: FR
+          # NOTE: the final dot
+          Name: 
+            Fn::Sub: ${SubDomainName}.${HostedZoneName}
+          SetIdentifier: GEOLOCATION_L1
+          Type: A
+        - AliasTarget:
+            DNSName:
+              Fn::Sub: l2wx-${SubDomainName}.${HostedZoneName}
+            HostedZoneId:
+              Ref: HostedZoneId
+          GeoLocation: 
+            CountryCode: "*"
+          # NOTE: the final dot
+          Name: 
+            Fn::Sub: ${SubDomainName}.${HostedZoneName}
+          SetIdentifier: GEOLOCATION_L2
+          Type: A
+
+Outputs:
+
+  FQDN:
+    Description: The FQDN
+    Value: 
+      Fn::Sub: ${SubDomainName}.${HostedZoneName}
+
+  IPRecord:
+    Description: The IPRecord
+    Value: 
+      Fn::Sub: l1wx-${SubDomainName}.${HostedZoneName}
+
+  ELBRecord:
+    Description: The ELBRecord
+    Value: 
+      Fn::Sub: l2wx-${SubDomainName}.${HostedZoneName}

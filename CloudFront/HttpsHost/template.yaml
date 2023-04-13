@@ -1,0 +1,186 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  HttpsHost. Showcase the handling of the Host header in an HTTPS Context
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "CloudFront-HttpsHost"
+    Description: Showcase the handling of the Host header in an HTTPS Context
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "CloudFront" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Route53 and ELB
+        Parameters:
+          - CloudFrontHostedZoneId
+          - HostedZoneName
+          - SubDomainName
+          - CertificateArn
+      - Label:
+          default: Parameters related to CloudFront
+        Parameters:
+          - ManagedCachingOptimizedId
+          - ManagedCachingDisabledId
+      - Label:
+          default: Parameters related to API Gateway
+        Parameters:
+          - StageName
+
+Parameters:
+  CloudFrontHostedZoneId:
+    Description: "Look at https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-route53-aliastarget-1.html#cfn-route53-aliastarget-hostedzoneid"
+    Type: String
+    Default: Z2FDTNDATAQYW2
+
+  HostedZoneName:
+    Description: "The hosted zone name"
+    Type: String
+    Default: domain.com
+
+  SubDomainName:
+    Description: "The subdomain of the API"
+    Type: String
+    Default: sapc01-httpshost
+
+  CertificateArn:
+    Description: "The ACM certificate Arn. Must be valid in the current region."
+    Type: String
+    Default: "arn:aws:acm:eu-west-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+
+  # Look at https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
+  ManagedCachingOptimizedId:
+    Description: "The Caching Policy Id to use. Defaul to the Managed-CachingOptimized Caching Policy"
+    Type: String
+    Default: "658327ea-f89d-4fab-a63d-7e88639e58f6"
+
+  ManagedCachingDisabledId:
+    Description: "The Caching Policy Id to use. Defaul to the Managed-CachingDisabled Caching Policy"
+    Type: String
+    Default: "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+
+  StageName:
+    Description: "The StageName for ApiGateway"
+    Type: String
+    Default: "Prod"
+
+Globals:
+
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  OriginApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Domain:
+        CertificateArn: 
+          Ref: CertificateArn
+        DomainName: 
+          Fn::Sub: "${SubDomainName}-origin.${HostedZoneName}"
+        Route53: 
+          HostedZoneName: 
+            # NOTE: the final dot
+            Fn::Sub: "${HostedZoneName}."
+      StageName: 
+        Ref: StageName
+
+  OriginFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/OriginFunction
+      Events:
+        Invoke:
+          Type: Api
+          Properties:
+            Path: /origin
+            Method: GET
+            RestApiId: 
+              Ref: OriginApi
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Aliases:
+          # NOTE: in order for CloudFront to answer for the domain
+          # '${SubDomainName}-www.${HostedZoneName}', we need to set it as an
+          # alias, as well as create a Route53 Record for it
+          - Fn::Sub: "${SubDomainName}-www.${HostedZoneName}"
+        DefaultCacheBehavior:
+          CachePolicyId: 
+            Ref: ManagedCachingDisabledId
+          # This element is deprecated but still required (!?!)
+          ForwardedValues: 
+            QueryString: false
+          TargetOriginId: OriginApi
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject:
+          Fn::Sub: "${StageName}/origin"
+        Enabled: true
+        Origins:
+          - CustomOriginConfig: 
+              OriginProtocolPolicy: "https-only"
+            DomainName:
+              Fn::Sub: "${OriginApi}.execute-api.${AWS::Region}.amazonaws.com"
+            Id: OriginApi
+        ViewerCertificate:
+          AcmCertificateArn:
+            Ref: CertificateArn
+          MinimumProtocolVersion: TLSv1.2_2018
+          SslSupportMethod: sni-only
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  CustomDomainDistribution:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget: 
+        DNSName: 
+          Fn::GetAtt: Distribution.DomainName
+        HostedZoneId: 
+          Ref: CloudFrontHostedZoneId
+      HostedZoneName:
+        # NOTE: the final dot
+        Fn::Sub: "${HostedZoneName}."
+      # NOTE: in order for CloudFront to answer for the domain
+      # '${SubDomainName}-www.${HostedZoneName}', we need to set it as an
+      # alias, as well as create a Route53 Record for it
+      Name: 
+        Fn::Sub: "${SubDomainName}-www.${HostedZoneName}"
+      Type: A
+
+Outputs:
+  Origin:
+    Description: The Origin
+    Value: 
+      Fn::Sub: "https://${OriginApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/origin"
+
+  CustomDomainOrigin:
+    Description: The Origin CustomDomain
+    Value: 
+      Fn::Sub: "https://${SubDomainName}-origin.${HostedZoneName}/origin"
+
+  Distribution:
+    Description: The Distribution
+    Value: 
+      Fn::Sub: "https://${Distribution.DomainName}/${StageName}/origin"
+
+  CustomDomainDistribution:
+    Description: The Distribution CustomDomain
+    Value: 
+      Fn::Sub: "https://${CustomDomainDistribution}/origin"
+
+

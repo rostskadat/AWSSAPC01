@@ -1,0 +1,28 @@
+{
+    "type": "object",
+    "required": [
+      "AccountId",
+      "TemplateUrl",
+      "Region",
+      "StackName"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "AccountId": {
+        "type": "string"
+      },
+      "TemplateUrl": {
+        "type": "string"
+      },
+      "Region": {
+        "type": "string"
+      },
+      "StackName": {
+        "type": "string"
+      },
+      "Parameters": {
+        "type": "string"
+      }
+    }
+  }
+  

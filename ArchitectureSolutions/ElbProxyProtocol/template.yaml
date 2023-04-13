@@ -1,0 +1,173 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ElbProxyProtocol. Showcase the use of the Proxy Protocol in an ELB
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "ELB-ElbProxyProtocol"
+    Description: Showcase the use of the Proxy Protocol in an ELB
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "ELB" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to AutoScalingGroup
+        Parameters:
+          - VpcId
+          - Subnets
+          - FlaskPort
+
+Parameters:
+
+  VpcId:
+    Description: "The VPC in which to put the load balancer"
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-9e9b9ffa
+
+  Subnets:
+    Description: "The subnet in which to start the instances"
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581"
+
+  NginxPort:
+    Description: "The Port on which the NGinx is listening"
+    Type: Number
+    Default: 80
+
+  FlaskPort:
+    Description: "The Port on which the Flask app is listening"
+    Type: Number
+    Default: 8000
+
+
+Resources:
+
+  #
+  # NOTE: Gunicorn is in charge of hanlding the Proxy Protocol (--prox-protocol option)
+  #
+  Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        SubnetId:
+          Fn::Select: [0, Ref: Subnets ]
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            #!/bin/bash
+            yum-config-manager --enable epel ; yum update -y
+            # Installing packages
+            amazon-linux-extras install -y nginx1
+            yum install -y jq python3 python3-pip
+            pip3 --disable-pip-version-check install gunicorn==20.0.4 Flask==1.1.2 Flask-Cors==3.0.10
+            # Configuring nginx and the Proxy Protocol
+            mkdir -p /var/www/html/
+            echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url='/app'" /></head><body><p>Please follow <a href="/app">this link</a>.</p></body></html>' > /var/www/html/index.html
+            cat > /etc/nginx/conf.d/flask.conf <<EOF
+            server {
+              # server_name <server_name/public ip>;
+              listen ${NginxPort} default_server proxy_protocol;
+              location / {
+                root /var/www/html/;
+                index index.html;
+              }
+              location /app {
+                rewrite ^/app/(.*) /\$1 break;
+                proxy_pass http://127.0.0.1:${FlaskPort};
+                proxy_set_header Host \$host;
+                proxy_set_header X-Real-IP \$proxy_protocol_addr;
+              }
+            }
+            EOF
+            # Configure FLASK App
+            mkdir /flask-hello-world
+            cat > /flask-hello-world/app.py <<EOF
+            import datetime, flask, flask_cors, json, logging, os
+            app = flask.Flask(__name__)
+            flask_cors.CORS(app)
+            gunicorn_error_logger = logging.getLogger('gunicorn.error')
+            app.logger.handlers.extend(gunicorn_error_logger.handlers)
+            app.logger.setLevel(logging.DEBUG)
+            app.logger.debug('Welcome to Flask')
+            @app.route('/')
+            def render_index():
+              headers = list(map(lambda i: {i[0]:i[1]}, flask.request.headers ))
+              created_at = datetime.datetime.utcnow().strftime("%Y-%m-%d'T'%H:%M:%S")
+              return json.dumps({ "created_at": created_at, "headers": headers })
+            @app.route('/health')
+            def render_health():
+              return "OK"
+            if __name__ == '__main__':
+              # This is not really used in this context...
+              app.run(debug=True, host='0.0.0.0', port=${FlaskPort})
+            EOF
+            cd /flask-hello-world && /usr/local/bin/gunicorn --bind 0.0.0.0:${FlaskPort} --log-file /var/log/gunicorn.log --log-level DEBUG --daemon app:app
+            # Starting everything... 
+            systemctl start nginx
+            systemctl enable nginx
+            systemctl status nginx
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Subnets:
+        Ref: Subnets
+      Type: network
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn:
+            Ref: TargetGroup
+      LoadBalancerArn:
+        Ref: LoadBalancer
+      Port: 
+        Ref: NginxPort
+      Protocol: TCP
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 
+        Ref: NginxPort
+      Protocol: TCP
+      VpcId:
+        Ref: VpcId
+      TargetGroupAttributes: 
+        - Key: proxy_protocol_v2.enabled
+          Value: true
+      Targets: 
+        - Id: 
+            Fn::Sub: '${Instance.Outputs.InstanceId}'
+      TargetType: instance
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+Outputs:
+
+  Instance:
+    Description: The Instance
+    Value: 
+      Fn::Sub: ${Instance.Outputs.InstancePublicDnsName}
+
+  LoadBalancerDNSName:
+    Description: The LoadBalancerDNSName
+    Value: 
+      Fn::Sub: ${LoadBalancer.DNSName}
+

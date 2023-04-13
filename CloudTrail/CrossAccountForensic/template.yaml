@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+Description: >
+  CrossAccountForensic. Showcase how to trace a DeleteBucket event from a CrossAccount Role
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "CloudTrail-CrossAccountForensic"
+    Description: Showcase how to trace a DeleteBucket event from a CrossAccount Role
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01", "CloudTrail"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Accounts
+        Parameters:
+          - RootAccount
+          - ChildAccount
+
+Parameters:
+
+  RootAccount:
+    Description: The Root Account
+    Type: String
+    Default: 123456789012
+
+  RootOU:
+    Description: The Root Organization Unit for Organization Trail
+    Type: String
+    Default: o-abcdefghij
+
+  ChildAccountId:
+    Description: The Child Account
+    Type: String
+    Default: 123456789012
+
+Resources:
+
+  LogsBucket: 
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  # NOTE: The bucket policy is prepared for an Organization Trail. However 
+  #   actually turning a trail into an Organization trail can only be done 
+  #   from the command line so far.
+  LogsBucketPolicy: 
+    Type: AWS::S3::BucketPolicy
+    Properties: 
+      Bucket: 
+        Ref: LogsBucket
+      PolicyDocument: 
+        Version: 2012-10-17
+        Statement: 
+          - Sid: "AWSCloudTrailAclCheck20150319"
+            Effect: "Allow"
+            Principal: 
+              Service: cloudtrail.amazonaws.com
+            Action: "s3:GetBucketAcl"
+            Resource: 
+              Fn::GetAtt: LogsBucket.Arn
+          - Sid: "AWSCloudTrailWrite20150319"
+            Effect: "Allow"
+            Principal: 
+              Service: cloudtrail.amazonaws.com
+            Action: "s3:PutObject"
+            Resource: 
+              - Fn::Sub: "${LogsBucket.Arn}/AWSLogs/${RootOU}/*"
+              - Fn::Sub: "${LogsBucket.Arn}/AWSLogs/${AWS::AccountId}/*"
+              - Fn::Sub: "${LogsBucket.Arn}/AWSLogs/${ChildAccountId}/*"
+            Condition: 
+              StringEquals: 
+                "s3:x-amz-acl": "bucket-owner-full-control"
+
+  RootTrail: 
+    Type: AWS::CloudTrail::Trail
+    DependsOn: LogsBucketPolicy
+    Properties: 
+      EventSelectors: 
+        - IncludeManagementEvents: true
+          ReadWriteType: All
+      S3BucketName:
+        Ref: LogsBucket
+      IsLogging: false
+
+  RoleToAssume:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+                - Ref: ChildAccountId
+            Action:
+              - sts:AssumeRole
+      Policies:
+      - PolicyName: FullControlOnS3Buckets
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            - Effect: "Allow"
+              Action:
+                - s3:DeleteBucket
+              Resource: 
+                - Fn::Sub: "arn:aws:s3:::to-be-deleted-${RootAccount}"
+
+Outputs:
+
+  RoleToAssume:
+    Description: The RoleToAssume
+    Value:
+      Fn::GetAtt: RoleToAssume.Arn
+
+  RootTrail:
+    Description: The RootTrail
+    Value:
+      Ref: RootTrail
+
+  RootLogsBucket:
+    Description: The LogsBucket
+    Value:
+      Ref: LogsBucket

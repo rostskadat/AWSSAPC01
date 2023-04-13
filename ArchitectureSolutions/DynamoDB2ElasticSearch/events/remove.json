@@ -1,0 +1,61 @@
+{
+    "Records": [
+        {
+            "eventID": "1360afe13d4af710b3baa9f55a081a65",
+            "eventName": "REMOVE",
+            "eventVersion": "1.1",
+            "eventSource": "aws:dynamodb",
+            "awsRegion": "eu-west-1",
+            "dynamodb": {
+                "ApproximateCreationDateTime": 1612970726.0,
+                "Keys": {
+                    "id": {
+                        "S": "NEXR00015020"
+                    }
+                },
+                "SequenceNumber": "10541100000000006956165492",
+                "SizeBytes": 14,
+                "StreamViewType": "NEW_IMAGE"
+            },
+            "eventSourceARN": "arn:aws:dynamodb:eu-west-1:123456789012:table/SAPC01-DynamoDB2ElasticSearch-Table-17AFPYU9OZ9C0/stream/2021-02-09T12:36:18.724"
+        },
+        {
+            "eventID": "09198995ddb98d27b2c698d63c0fc85d",
+            "eventName": "REMOVE",
+            "eventVersion": "1.1",
+            "eventSource": "aws:dynamodb",
+            "awsRegion": "eu-west-1",
+            "dynamodb": {
+                "ApproximateCreationDateTime": 1612970726.0,
+                "Keys": {
+                    "id": {
+                        "S": "FR0012830933"
+                    }
+                },
+                "SequenceNumber": "10541200000000006956165567",
+                "SizeBytes": 14,
+                "StreamViewType": "NEW_IMAGE"
+            },
+            "eventSourceARN": "arn:aws:dynamodb:eu-west-1:123456789012:table/SAPC01-DynamoDB2ElasticSearch-Table-17AFPYU9OZ9C0/stream/2021-02-09T12:36:18.724"
+        },
+        {
+            "eventID": "10c800f70ea2149fed9fbf76316c7e0a",
+            "eventName": "REMOVE",
+            "eventVersion": "1.1",
+            "eventSource": "aws:dynamodb",
+            "awsRegion": "eu-west-1",
+            "dynamodb": {
+                "ApproximateCreationDateTime": 1612970726.0,
+                "Keys": {
+                    "id": {
+                        "S": "LU0556462793"
+                    }
+                },
+                "SequenceNumber": "10541300000000006956165568",
+                "SizeBytes": 14,
+                "StreamViewType": "NEW_IMAGE"
+            },
+            "eventSourceARN": "arn:aws:dynamodb:eu-west-1:123456789012:table/SAPC01-DynamoDB2ElasticSearch-Table-17AFPYU9OZ9C0/stream/2021-02-09T12:36:18.724"
+        }
+    ]
+}

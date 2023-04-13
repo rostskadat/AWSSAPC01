@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  CfStackAssumeRole. A Custom Resource to create stacks in other region / with another role
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "CloudFormation-CfStackAssumeRole"
+    Description: A Custom Resource to create stacks in other region / with another role
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "CloudFormation" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: CfCloudFormationResourcesLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  CfCloudFormationResourcesLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/CfCloudFormationResourcesLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  CfStackAssumeRoleFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      FunctionName: CfStackAssumeRoleFunction
+      Description: A CloudFormation Custom Resource to create stack in other region and / or role
+      CodeUri: lambdas/CfStackAssumeRoleFunction
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - "arn:aws:iam::aws:policy/CloudFrontFullAccess"
+
+Outputs:
+
+  CfStackAssumeRoleFunction:
+    Description: "CfStackAssumeRoleFunction Lambda Function ARN"
+    Value: 
+      Fn::GetAtt: "CfStackAssumeRoleFunction.Arn"

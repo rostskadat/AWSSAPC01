@@ -1,0 +1,39 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform:
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+Description: >
+  PreSignedURL. Showcase using presigned url for download and upload
+
+Resources:
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  S3Object:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: Bucket
+        Key: s3object
+        ContentType: text/plain
+      Body: |
+        Hello World!
+
+Outputs:
+  Bucket:
+    Description: "Bucket Id"
+    Value:
+      Ref: Bucket
+
+  S3Object:
+    Description: "S3Object Id"
+    Value:
+      Ref: S3Object
+

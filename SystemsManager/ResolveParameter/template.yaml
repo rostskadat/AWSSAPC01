@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ResolveParameter
+
+Parameters:
+
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+Resources:
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/job-function/ViewOnlyAccess
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - Ref: InstanceRole
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId:
+          Ref: LaunchTemplate
+        Version:
+          Fn::GetAtt: LaunchTemplate.LatestVersionNumber
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Arn:
+            Fn::GetAtt: InstanceProfile.Arn
+        ImageId:
+          Ref: ImageId
+        InstanceType: t3.micro
+#        NetworkInterfaces:
+#          - DeviceIndex: "0"
+#            AssociatePublicIpAddress: true
+#            SubnetId:
+#              Ref: SubnetId
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: PLATFORM
+                Value: SAPC01
+        UserData:
+          Fn::Base64:
+            Fn::Sub: |
+              #!/bin/bash
+              yum-config-manager --enable epel ;  yum update -y ; yum install -y aws-cfn-bootstrap
+              TOKEN=$(curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+              cat <<EOF
+              Hello from $(uname -a). 
+              ImageId from stack is '${ImageId}'
+              ImageId from metadata service '$(curl -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/ami-id)'
+              ImageId from SSM {{resolve:ssm:/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2}}
+              EOF
+
+Outputs:
+  InstanceId:
+    Description: "The newly created instance"
+    Value:
+      Ref: Instance
+

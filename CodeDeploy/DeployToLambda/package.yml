@@ -1,0 +1,94 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'DeployToLambda. Showcase using CodeDeploy to update Lambda function
+
+  '
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: CodeDeploy-DeployToLambda
+    Description: Showcase using CodeDeploy to update Lambda function
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: s3://aws-sam-cli-managed-default-samclisourcebucket-1xtx4sl8voopg/b500fb5ae7e8d5e2263de2a1824c8c79
+    Labels:
+    - SAPC01
+    - CodeDeploy
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: '0.0.1'
+    SourceCodeUrl: https://github.com/rostskadat
+Resources:
+  myDateTimeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1xtx4sl8voopg/9b39e2d1c48ec51f424dc0e3be5d8e7c
+      Handler: myDateTimeFunction.handler
+      Runtime: nodejs10.x
+      AutoPublishAlias: live
+      Policies:
+      - Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action:
+          - lambda:InvokeFunction
+          Resource: '*'
+      DeploymentPreference:
+        Type: Linear10PercentEvery1Minute
+        Hooks:
+          PreTraffic:
+            Ref: beforeAllowTraffic
+          PostTraffic:
+            Ref: afterAllowTraffic
+  beforeAllowTraffic:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: beforeAllowTraffic.handler
+      Policies:
+      - Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - codedeploy:PutLifecycleEventHookExecutionStatus
+          Resource:
+            Fn::Sub: arn:${AWS::Partition}:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${ServerlessDeploymentApplication}/*
+      - Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - lambda:InvokeFunction
+          Resource:
+            Ref: myDateTimeFunction.Version
+      Runtime: nodejs10.x
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1xtx4sl8voopg/fe320eca9b2af4a04ae141295b724a9a
+      FunctionName: CodeDeployHook_beforeAllowTraffic
+      Timeout: 5
+      Environment:
+        Variables:
+          NewVersion:
+            Ref: myDateTimeFunction.Version
+  afterAllowTraffic:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: afterAllowTraffic.handler
+      Policies:
+      - Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - codedeploy:PutLifecycleEventHookExecutionStatus
+          Resource:
+            Fn::Sub: arn:${AWS::Partition}:codedeploy:${AWS::Region}:${AWS::AccountId}:deploymentgroup:${ServerlessDeploymentApplication}/*
+      - Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - lambda:InvokeFunction
+          Resource:
+            Ref: myDateTimeFunction.Version
+      Runtime: nodejs10.x
+      CodeUri: s3://aws-sam-cli-managed-default-samclisourcebucket-1xtx4sl8voopg/0d28caf53f9c5afb99c00746571d3a10
+      FunctionName: CodeDeployHook_afterAllowTraffic
+      Timeout: 5
+      Environment:
+        Variables:
+          NewVersion:
+            Ref: myDateTimeFunction.Version

@@ -1,0 +1,337 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  EC2Instance: This SAM Nested Application (c.f. https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-template-nested-applications.html)
+  create an EC2Instance.
+Metadata:
+
+  AWS::ServerlessRepo::Application:
+    Name: EC2Instance
+    Description: Launch a sensibly configured EC2Instance in the default VPC.
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ 'SAPC01' ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to the parent stack
+        Parameters:
+          - ParentStackName
+      - Label:
+          default: Parameters related to the EC2 Instance. If the CreateInstance is true, and instance will be started
+        Parameters:
+          - ImageId
+          - InstanceType
+          - KeyName
+          - ManagedPolicyArns
+          - UserData
+          - VolumeSize
+          - ExtraVolume1
+          - ExtraVolume2
+          - CreateInstance
+          - SubnetId
+          - SecurityGroupIds
+          - IsPublic
+          - CanHibernate
+
+Parameters:
+  ParentStackName:
+    Description: "The name of the parent stack in order to set the permission properly"
+    Type: String
+
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+#    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+#    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+    Type: "String"
+    Default: "ami-0fc970315c2d38f01" # eu-west-1
+
+  InstanceType:
+    Description: "The Instance Type to spin up"
+    Type: String
+    Default: "t3.micro"
+
+  KeyName:
+    Description: "The Key to use to connect to the EC2 Instance"
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: "SAPC01"
+
+  ManagedPolicyArns:
+    Description: "A comma separated list of IAM Policy ARNs to attach to the Instance"
+    Type: String
+    Default: "arn:aws:iam::aws:policy/job-function/ViewOnlyAccess"
+
+  UserData:
+    Description: "The user data to start the instance with"
+    Type: String
+    Default: ''
+
+  VolumeSize:
+    Description: "The size of the EBS Volume attached to the instance"
+    Type: Number
+    Default: 32
+
+  ExtraVolume1:
+    Description: The type of extra volume
+    Type: String
+    AllowedValues: [ 'ephemeral', 'ebs', '' ]
+    Default: ''
+
+  ExtraVolume2:
+    Description: The type of extra volume
+    Type: String
+    AllowedValues: [ 'ephemeral', 'ebs', '' ]
+    Default: ''
+
+  CreateInstance:
+    Description: "Indicate whether an EC2Instance should be spun or if we are just interested in the LaunchTemplate"
+    Type: String
+    AllowedValues: [ true, false ]
+    Default: true
+
+  SubnetId:
+    Description: The SubnetId
+    Type: String
+    Default: ''
+
+  SecurityGroupIds:
+    Description: The Comma separated list of security group Ids
+    Type: String
+    Default: ''
+
+  IsPublic:
+    Description: "Indicate whether the SubnetId is Public or not"
+    Type: String
+    AllowedValues: [ true, false ]
+    Default: true
+
+  CanHibernate:
+    Description: "Indicate whether the Instance can hibernate or not"
+    Type: String
+    AllowedValues: [ true, false ]
+    Default: false
+
+Conditions:
+  LaunchInstance:
+    Fn::Equals: [ Ref: CreateInstance, true ]
+  HasExtra1Ephemeral:
+    Fn::And:
+      - Fn::Equals: [ Ref: ExtraVolume1, 'ephemeral' ]
+      - Fn::Equals: [ Ref: InstanceType, 'm3.medium' ]
+  HasExtra1Ebs:
+    Fn::Equals: [ Ref: ExtraVolume1, 'ebs' ]
+  HasExtra2Ephemeral:
+    Fn::And:
+      - Fn::Equals: [ Ref: ExtraVolume2, 'ephemeral' ]
+      - Fn::Equals: [ Ref: InstanceType, 'm3.medium' ]
+  HasExtra2Ebs:
+    Fn::Equals: [ Ref: ExtraVolume2, 'ebs' ]
+  HasUserData:
+    Fn::Not:
+      - Fn::Equals: [ Ref: UserData, '' ]
+  HasSubnetId:
+    Fn::Not:
+      - Fn::Equals: [ Ref: SubnetId, '' ]
+  HasSecurityGroupIds:
+    Fn::Not:
+      - Fn::Equals: [ Ref: SecurityGroupIds, '' ]
+  LaunchPublicInstance:
+    Fn::And:
+      - Fn::Equals: [ Ref: CreateInstance, true ]
+      - Fn::Equals: [ Ref: IsPublic, true ]
+  HasHibernation:
+    Fn::Equals: [ Ref: CanHibernate, true ]
+
+
+Resources:
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Description: Role created and associated with the EC2 Instance.
+      Path: "/"
+      ManagedPolicyArns:
+        Fn::Split:
+          - ","
+          - Ref: ManagedPolicyArns
+      Policies:
+        - PolicyName: AllowDescribeStackResourceOnParentStack
+          PolicyDocument: 
+            Version: 2012-10-17
+            Statement:
+              - Effect: "Allow"
+                Action: 
+                  - "cloudformation:DescribeStackResource"
+                Resource:
+                  - Fn::Sub: "arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${ParentStackName}/*"
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - Ref: InstanceRole
+
+  Instance:
+    Type: AWS::EC2::Instance
+    DependsOn: InstanceProfile
+    Condition: LaunchInstance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId:
+          Ref: LaunchTemplate
+        Version:
+          Fn::GetAtt: LaunchTemplate.LatestVersionNumber
+      SubnetId: 
+        Fn::If:
+          - HasSubnetId
+          - Ref: SubnetId
+          - Ref: AWS::NoValue
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        BlockDeviceMappings:
+          - DeviceName: "/dev/xvda"
+            Ebs:
+              DeleteOnTermination: true
+              Encrypted: 
+                Ref: CanHibernate
+              VolumeSize: 
+                Ref: VolumeSize
+              
+          - Fn::If:
+              - HasExtra1Ephemeral
+              - DeviceName: "/dev/sdb"
+                VirtualName: ephemeral0
+              - DeviceName: "/dev/sdb"
+                NoDevice: ""
+          - Fn::If:
+              - HasExtra1Ebs
+              - DeviceName: "/dev/sdb"
+                Ebs:
+                  DeleteOnTermination: true
+                  Encrypted: 
+                    Ref: CanHibernate
+                  VolumeSize: 
+                    Ref: VolumeSize
+              - DeviceName: "/dev/sdb"
+                NoDevice: ""
+          - Fn::If:
+              - HasExtra2Ephemeral
+              - DeviceName: "/dev/sdc"
+                VirtualName: ephemeral1
+              - DeviceName: "/dev/sdc"
+                NoDevice: ""
+          - Fn::If:
+              - HasExtra2Ebs
+              - DeviceName: "/dev/sdc"
+                Ebs:
+                  DeleteOnTermination: true
+                  Encrypted: 
+                    Ref: CanHibernate
+                  VolumeSize: 
+                    Ref: VolumeSize
+              - DeviceName: "/dev/sdc"
+                NoDevice: ""
+        HibernationOptions:
+          Configured: 
+            Ref: CanHibernate
+        IamInstanceProfile:
+          Arn:
+            Fn::GetAtt: InstanceProfile.Arn
+        ImageId:
+          Ref: ImageId
+        InstanceType:
+          Ref: InstanceType
+        KeyName: 
+          Ref: KeyName
+        SecurityGroupIds:
+          Fn::If:
+            - HasSecurityGroupIds
+            - Fn::Split:
+                - ','
+                - Ref: SecurityGroupIds
+            - Ref: AWS::NoValue
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: PLATFORM
+                Value: SAPC01
+              - Key: Name
+                Value: 
+                  Fn::Sub: ${ParentStackName}-MainInstance
+          - ResourceType: volume
+            Tags:
+              - Key: PLATFORM
+                Value: SAPC01
+              - Key: Name
+                Value: 
+                  Fn::Sub: ${ParentStackName}-MainVolume
+        UserData:
+          Fn::If:
+            - HasUserData
+            - Fn::Base64:
+                Ref: UserData
+            - Ref: AWS::NoValue
+
+Outputs:
+
+  StackName:
+    Description: The name of that stack
+    Value:
+      Ref: AWS::StackName
+
+  StackId:
+    Description: The Id of that stack
+    Value:
+      Ref: AWS::StackId
+
+  InstanceId:
+    Condition: LaunchInstance
+    Description: The EC2 Instance Id
+    Value:
+      Ref: Instance
+
+  InstancePublicDnsName:
+    Condition: LaunchPublicInstance
+    Description: The EC2 Instance PublicDnsName
+    Value:
+      Fn::GetAtt: Instance.PublicDnsName
+
+  InstancePublicIp:
+    Condition: LaunchPublicInstance
+    Description: The EC2 Instance PublicIp
+    Value:
+      Fn::GetAtt: Instance.PublicIp
+
+  InstancePrivateIp:
+    Condition: LaunchInstance
+    Description: The EC2 Instance PrivateIp
+    Value:
+      Fn::GetAtt: Instance.PrivateIp
+
+  LaunchTemplateId:
+    Description: The LaunchTemplate Id
+    Value:
+      Ref: LaunchTemplate
+
+  LaunchTemplateVersion:
+    Description: The LaunchTemplate Version
+    Value:
+      Fn::GetAtt: LaunchTemplate.LatestVersionNumber

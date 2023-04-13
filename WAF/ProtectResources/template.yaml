@@ -1,0 +1,274 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+Description: >
+  ProtectCloudFront. Showcase the use of WAF to protect a CloudFront distribution with backend S3 and ALB
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "WAF-ProtectCloudFront"
+    Description: Showcase the use of WAF to protect a CloudFront distribution with backend S3 and ALB
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "WAF" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to CloudFront
+        Parameters:
+          - ManagedCachingOptimizedId
+          - ManagedCachingDisabledId
+
+Parameters:
+  # Look at https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
+  ManagedCachingOptimizedId:
+    Description: "The Caching Policy Id to use. Default to the Managed-CachingOptimized Caching Policy"
+    Type: String
+    Default: "658327ea-f89d-4fab-a63d-7e88639e58f6"
+
+  ManagedCachingDisabledId:
+    Description: "The Caching Policy Id to use. Default to the Managed-CachingDisabled Caching Policy"
+    Type: String
+    Default: "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+
+  HostedZoneName:
+    Description: "The hosted zone name"
+    Type: String
+    Default: domain.com
+
+  SubDomainName:
+    Description: "The subdomain of the API"
+    Type: String
+    Default: sapc01-waf
+
+  StageName:
+    Description: "The API Stage name"
+    Type: String
+    Default: prod
+
+  CertificateArn:
+    Description: "The ACM certificate Arn. Must be valid in the current region."
+    Type: String
+    Default: "arn:aws:acm:us-east-1:123456789012:certificate/8688df35-d3bc-48e2-801f-c5b95c5ef2a5"
+
+Resources:
+
+  DistributionWebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      DefaultAction:
+        Block: {}
+      Description: !Sub "WebACL for ${AWS::StackName}"
+      Rules:
+        - Action:
+            Allow: {}
+          Name: CheckRequiredHeader
+          Priority: 0
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: CheckRequiredHeader
+          Statement:
+            ByteMatchStatement:
+              FieldToMatch:
+                SingleHeader:
+                  Name: x-is-cloudfront-origin
+              PositionalConstraint: EXACTLY
+              SearchString: "true"
+              TextTransformations:
+                - Priority: 0
+                  Type: NONE
+      Scope: CLOUDFRONT
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: WebACL
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        CacheBehaviors: 
+          - CachePolicyId: !Ref ManagedCachingOptimizedId
+            PathPattern: "static/*"
+            TargetOriginId: StaticOrigin
+            ViewerProtocolPolicy: redirect-to-https
+          - CachePolicyId: !Ref ManagedCachingDisabledId
+            PathPattern: "dynamic/*"
+            TargetOriginId: DynamicOrigin
+            ViewerProtocolPolicy: redirect-to-https
+        DefaultCacheBehavior: 
+          CachePolicyId: !Ref ManagedCachingOptimizedId
+          TargetOriginId: StaticOrigin
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: !Sub ${IndexWebpage.Key}
+        Enabled: true
+        Origins:
+          - DomainName: !GetAtt Bucket.RegionalDomainName
+            Id: StaticOrigin
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${S3OriginAccessIdentity}"
+          - CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+            DomainName: !Sub "${Api}.execute-api.${AWS::Region}.amazonaws.com"
+            Id: DynamicOrigin
+            OriginCustomHeaders: 
+              - HeaderName: "x-is-cloudfront-origin"
+                HeaderValue: "true"
+            # We also add the stagename to the final path despite it not being
+            # present in the CloudFront URL
+            OriginPath: !Sub "/${StageName}"
+        #WebACLId: !Ref DistributionWebACL
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  S3OriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: "CloudFront::CloudFrontOriginAccessIdentity for S3 Integration"
+
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: Bucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - "s3:*"
+            Principal:
+              AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:user/rostskadat"
+            Resource:
+              - !Sub "arn:${AWS::Partition}:s3:::${Bucket}"
+              - !Sub "arn:${AWS::Partition}:s3:::${Bucket}/*"
+          - Effect: Allow
+            Action:
+              - "s3:GetObject"
+            Principal:
+              AWS: !Sub "arn:${AWS::Partition}:iam::cloudfront:user/CloudFront Origin Access Identity ${S3OriginAccessIdentity}"
+              # It's harder to know who the CanonicalUser is refering to...
+              # CanonicalUser: !GetAtt S3OriginAccessIdentity.S3CanonicalUserId
+            Resource: !Sub "arn:${AWS::Partition}:s3:::${Bucket}/*"
+
+  IndexWebpage:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: Bucket
+        Key: static/index.html
+        ContentType: text/html
+      Body:
+        Fn::Sub: |
+          <!doctype html><html lang="en"><body>This is the static content page</body></html>
+
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      Domain: 
+        CertificateArn: !Ref CertificateArn
+        DomainName: 
+          Fn::Sub: "${SubDomainName}.${HostedZoneName}"
+        Route53: 
+          # NOTE: the final dot
+          HostedZoneName: !Sub "${HostedZoneName}."
+      StageName: !Ref StageName
+
+  DynamicContentFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      Events:
+        Invoke:
+          Type: Api
+          Properties:
+            Path: /dynamic/index.html
+            Method: GET
+            RestApiId: 
+              Ref: Api
+      Handler: index.lambda_handler
+      InlineCode: |
+        def lambda_handler(event, context):
+          return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "text/html"},
+            "body": "<!doctype html><html lang='en'><body>This is the dynamic content page</body></html>",
+          }
+      Runtime: python3.7
+      Tags:
+        PLATFORM: SAPC01
+
+  ApiGatewayWebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      DefaultAction:
+        Block: {}
+      Description: !Sub "WebACL for ${AWS::StackName}"
+      Rules:
+        - Action:
+            Allow: {}
+          Name: CheckRequiredHeader
+          Priority: 0
+          VisibilityConfig:
+            SampledRequestsEnabled: true
+            CloudWatchMetricsEnabled: true
+            MetricName: CheckRequiredHeader
+          Statement:
+            ByteMatchStatement:
+              FieldToMatch:
+                SingleHeader:
+                  Name: x-is-cloudfront-origin
+              PositionalConstraint: EXACTLY
+              SearchString: "true"
+              TextTransformations:
+                - Priority: 0
+                  Type: NONE
+      Scope: REGIONAL
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      VisibilityConfig:
+        SampledRequestsEnabled: true
+        CloudWatchMetricsEnabled: true
+        MetricName: WebACL
+
+  WebACLAssociationApiGateway:
+    Type: AWS::WAFv2::WebACLAssociation
+    Properties: 
+      ResourceArn: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}:${AWS::AccountId}:/restapis/${Api}/stages/${StageName}"
+      WebACLArn: !GetAtt ApiGatewayWebACL.Arn
+
+Outputs:
+
+  DistributionStaticUrl:
+    Description: The Url
+    Value: !Sub "https://${Distribution.DomainName}/static/index.html"
+
+  DistributionDynamicUrl:
+    Description: The Url
+    Value: !Sub "https://${Distribution.DomainName}/dynamic/index.html"
+
+  DirectDynamicUrl:
+    Description: The DirectDynamic Url
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/dynamic/index.html"
+  
+  DirectStaticUrl:
+    Description: The DirectStatic Url
+    Value: !Sub "https://${IndexWebpage.Bucket}.s3.${AWS::Region}.amazonaws.com/${IndexWebpage.Key}"

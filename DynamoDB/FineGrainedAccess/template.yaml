@@ -1,0 +1,154 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  FineGrainedAccess. Showcase the use of fine grained access control with DynamoDB
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "DynamoDB-FineGrainedAccess"
+    Description: Showcase the use of fine grained access control with DynamoDB
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "DynamoDB" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Route53
+        Parameters:
+          - HostedZoneName
+          - SubDomainName
+          - CertificateArn
+      - Label:
+          default: Parameters related to API GateWay
+        Parameters:
+          - StageName
+
+Parameters:
+  HostedZoneName:
+    Description: "The hosted zone name"
+    Type: String
+    Default: domain.com
+
+  SubDomainName:
+    Description: "The subdomain of the API"
+    Type: String
+    Default: sapc01-ddb-finegrainedaccess
+
+  CertificateArn:
+    Description: "The ACM certificate Arn. Must be valid in the current region."
+    Type: String
+    Default: "arn:aws:acm:eu-west-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+
+  StageName:
+    Description: "The StageName for ApiGateway"
+    Type: String
+    Default: "Prod"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: FineGrainedAccessLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  GameScores:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      Tags: 
+        PLATFORM: SAPC01
+
+  FineGrainedAccessLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/FineGrainedAccessLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  GetGameScoresFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/GetGameScoresFunction
+      Environment:
+        Variables: 
+          TABLE_NAME: 
+            Ref: GameScores
+      Events:
+        Invoke:
+          Type: Api
+          Properties:
+            Path: "/GameScores"
+            Method: GET
+            RestApiId: 
+              Ref: Api
+      Policies: 
+        - Version: 2012-10-17
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:BatchGetItem
+                - dynamodb:Query
+                - dynamodb:Scan
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:DeleteItem
+                - dynamodb:BatchWriteItem
+              Resource:
+                - Fn::GetAtt: GameScores.Arn
+              Condition:
+                ForAllValues:StringEquals:
+                  dynamodb:LeadingKeys:
+                  # Since I do not have WebIdentity 
+                  #- "${www.amazon.com:user_id}"
+                    - "${aws:username}"
+                    # - "${aws:SourceIp}"
+                # Only for Query and Scan... 
+                  # dynamodb:Attributes:
+                  # - id
+                  # - score
+                # StringEqualsIfExists:
+                #   dynamodb:Select: SPECIFIC_ATTRIBUTES
+
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      Domain: 
+        CertificateArn: 
+          Ref: CertificateArn
+        DomainName: 
+          Fn::Sub: "${SubDomainName}.${HostedZoneName}"
+        Route53: 
+          HostedZoneName: 
+            # NOTE: the final dot
+            Fn::Sub: "${HostedZoneName}."
+      StageName: 
+        Ref: StageName
+
+Outputs:
+
+  Function:
+    Description: The Function
+    Value: 
+      Ref: GetGameScoresFunction
+
+  ApiUrl:
+    Description: The ApiUrl
+    Value: 
+      Fn::Sub: "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/GameScores"
+
+  ApiFriendlyUrl:
+    Description: The ApiFriendlyUrl
+    Value: 
+      Fn::Sub: "https://${SubDomainName}.${HostedZoneName}/GameScores"

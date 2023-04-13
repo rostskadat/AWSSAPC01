@@ -1,0 +1,558 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+  - Yaml2Json
+Description: >
+  AccountBuilder template
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Function names for the Custom Resources Lambdas 
+        Parameters:
+          - CfOrganizationalUnit
+          - CfAccount
+          - CfAccountPolicy
+          - CfAccountBaselineAssociation
+          - CfAccountBaselineAssociationRoleName
+      - Label:
+          default: Support info for ServiceCatalog products
+        Parameters:
+          - SupportEmail
+          - SupportUrl
+          - SupportDescription
+      - Label:
+          default: Child Account baseline Cloudformation stack Parameters
+        Parameters:
+          - MasterAccountId
+          - UserName
+          - UserPassword
+          - VpcCidrBlock
+          - SubnetPublicAZACidrBlock
+          - SubnetPublicAZBCidrBlock
+          - SubnetPrivateAZACidrBlock
+          - SubnetPrivateAZBCidrBlock
+
+Parameters:
+  CfOrganizationalUnit:
+    Type: String
+    Description: The Name of the Lambda function that create the CfOrganizationalUnit resource
+    Default: "CfOrganizationalUnit"
+
+  CfAccount:
+    Type: String
+    Description: The Name of the Lambda function that create the CfAccount resource
+    Default: "CfAccount"
+
+  CfAccountPolicy:
+    Type: String
+    Description: The Name of the Lambda function that create the CfAccountPolicy resource
+    Default: "CfAccountPolicy"
+
+  CfAccountBaselineAssociation:
+    Type: String
+    Description: The Name of the Lambda function that create the CfAccountBaselineAssociation resources
+    Default: "CfAccountBaselineAssociation"
+
+  CfAccountBaselineAssociationRoleName:
+    Type: String
+    Description: The Name of the IAM Role for which to add the STS assume policy document
+    Default: "CfAccountBaselineAssociationRole-eu-west-1"
+
+  SupportEmail: 
+    Type: String
+    Description: "The email address for product support within the organization"
+    Default: "rostskadat@gmail.com"
+
+  SupportUrl: 
+    Type: String
+    Description: "The URL for product support within the organization"
+    Default: "https://www.amazon.com"
+
+  SupportDescription: 
+    Type: String
+    Description: "The description of the Support Despartment"
+    Default: "Contact Support in case of trouble"
+
+  MasterAccountId:
+    Type: Number
+    Description: The Master Account Id
+    Default: 123456789012
+
+  UserName:
+    Type: String
+    Description: Username for the newly created IAM User
+    Default: "AF090536"
+
+  UserPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 1
+    Description: Password for the newly created IAM User
+    Default: "Passw0rd"
+
+  VpcCidrBlock:
+    Type: String
+    Description: The Cidr block for the VPC created within the VPC
+    Default: "10.0.20.0/22"
+
+  SubnetPublicAZACidrBlock:
+    Type: String
+    Description: The Cidr block for the Public subnet in AZA
+    Default: "10.0.20.0/24"
+
+  SubnetPublicAZBCidrBlock:
+    Type: String
+    Description: The Cidr block for the Public subnet in AZB
+    Default: "10.0.21.0/24"
+
+  SubnetPrivateAZACidrBlock:
+    Type: String
+    Description: The Cidr block for the Private subnet in AZA
+    Default: "10.0.22.0/24"
+
+  SubnetPrivateAZBCidrBlock:
+    Type: String
+    Description: The Cidr block for the Private subnet in AZB
+    Default: "10.0.23.0/24"
+
+Resources:
+
+  RootOrganizationalUnit:
+    Type: Custom::CfOrganizationalUnit
+    Version: "1.0"
+    Properties:
+      ServiceToken:
+        Fn::Sub: "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${CfOrganizationalUnit}"
+      Name: "Architecture Department"
+
+  ChildOrganizationalUnit:
+    Type: Custom::CfOrganizationalUnit
+    Version: "1.0"
+    Properties:
+      ServiceToken:
+        Fn::Sub: "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${CfOrganizationalUnit}"
+      ParentId:
+        Ref: RootOrganizationalUnit
+      Name: "Architecture Labs"
+
+  Account:
+    Type: Custom::CfAccount
+    Version: "1.0"
+    Properties:
+      ServiceToken:
+        Fn::Sub: "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${CfAccount}"
+      AccountName: "AF090536-CfAccount"
+      Email: "rostskadat+af090536-test2@gmail.com"
+      IamUserAccessToBilling: "DENY"
+      DestinationParentId:
+        Ref: ChildOrganizationalUnit
+
+  ServiceControlPolicy:
+    Type: Custom::CfAccountPolicy
+    Version: "1.0"
+    Properties:
+      ServiceToken:
+        Fn::Sub: "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${CfAccountPolicy}"
+      Content: '{"Version":"2012-10-17","Statement":[{"Sid":"FullAWSAccess","Effect":"Allow","Action":"*","Resource":"*"}]}'
+      Description: "This is an Account Policy created from a CloudFormation template"
+      Name: "CfAccountPolicyExample"
+      Type: "SERVICE_CONTROL_POLICY"
+
+  #
+  # This is the source bucket used to store the Account baseline Cloudformtion 
+  # stack.
+  #
+  SourceBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  #
+  # In order to allow StackSet we need to create the 
+  #
+  StackSetAdministrationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: AWSCloudFormationStackSetAdministrationRole
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: AssumeRole-AWSCloudFormationStackSetExecutionRole
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  - "arn:*:iam::*:role/AWSCloudFormationStackSetExecutionRole"
+
+  #
+  # The Account baseline Cloudformtion stack. Typically it would create an IAM 
+  # user in the administrator group, create a VPC with some default subnets, 
+  # etc...
+  #
+  AccountBaseline:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: SourceBucket
+        Key: AccountBaseline.yaml
+        ContentType: application/yaml
+      Body: 
+        Fn::Sub: |
+          AWSTemplateFormatVersion: 2010-09-09
+          Description: Baseline IAM resources for new account
+          Parameters:
+            MasterAccountId:
+              Type: Number
+              Description: The Account Id of the Master Account
+            UserName:
+              Type: String
+              Description: Username for the newly created IAM User
+            UserPassword:
+              Type: String
+              NoEcho: true
+              MinLength: 1
+              Description: Password for the newly created IAM User
+            VpcCidrBlock:
+              Type: String
+              Description: The Cidr block for the VPC created within the VPC
+            SubnetPublicAZACidrBlock:
+              Type: String
+              Description: The Cidr block for the Public subnet in AZA
+            SubnetPublicAZBCidrBlock:
+              Type: String
+              Description: The Cidr block for the Public subnet in AZB
+            SubnetPrivateAZACidrBlock:
+              Type: String
+              Description: The Cidr block for the Private subnet in AZA
+            SubnetPrivateAZBCidrBlock:
+              Type: String
+              Description: The Cidr block for the Private subnet in AZB
+          Resources:
+            # 
+            # IAM User creation and configuration
+            #
+            User:
+              Type: "AWS::IAM::User"
+              Properties:
+                UserName:
+                  Ref: UserName
+                Path: /
+                LoginProfile:
+                  Password:
+                    Ref: UserPassword
+
+            UserGroup:
+              Type: "AWS::IAM::Group"
+              Properties:
+                ManagedPolicyArns:
+                  - "arn:aws:iam::aws:policy/AdministratorAccess"
+                GroupName: Users
+                Path: /
+
+            AddUserToGroup:
+              Type: "AWS::IAM::UserToGroupAddition"
+              Properties:
+                GroupName:
+                  Ref: UserGroup
+                Users:
+                  - Ref: User
+
+            #
+            # This role created to allows stack sets operation. 
+            # cf.: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/stacksets-prereqs.html
+            #
+            StackSetExecutionRole:
+              Type: AWS::IAM::Role
+              Properties:
+                RoleName: AWSCloudFormationStackSetExecutionRole
+                AssumeRolePolicyDocument:
+                  Version: 2012-10-17
+                  Statement:
+                    - Effect: Allow
+                      Principal:
+                        AWS:
+                          - Ref: MasterAccountId
+                      Action:
+                        - sts:AssumeRole
+                Path: /
+                ManagedPolicyArns:
+                  - Fn::Sub: "arn:${AWS::Partition}:iam::aws:policy/AdministratorAccess"
+            EC2LinuxProduct:
+              Type: "AWS::ServiceCatalog::CloudFormationProduct"
+              Properties:
+                AcceptLanguage: "en"
+                Description: "This product builds one Amazon Linux EC2 instance and create a SSM patch baseline, maintenance window, and patch task to scan for and install operating system updates the EC2 instance."
+                Distributor: "Amazon"
+                Name: "Amazon Elastic Compute Cloud (EC2) Linux"
+                Owner: "IT Services"
+                SupportEmail: "${SupportEmail}"
+                SupportUrl: "${SupportUrl}"
+                SupportDescription: "${SupportDescription}"
+                ProvisioningArtifactParameters:
+                  - Description: "June 2018"
+                    Name: "June 2018"
+                    Info:
+                      LoadTemplateFromURL: "https://raw.githubusercontent.com/aws-samples/aws-service-catalog-reference-architectures/master/ec2/sc-ec2-linux-ra.json"
+            VPCProduct:
+              Type: "AWS::ServiceCatalog::CloudFormationProduct"
+              Properties:
+                AcceptLanguage: "en"
+                Description: "This product builds one Amazon VPC with Public Subnets, Private Subnets, Route Tables, NAT Gateway and Internet Gateway"
+                Distributor: "Amazon"
+                Name: "Amazon VPC"
+                Owner: "IT Services"
+                SupportEmail: "${SupportEmail}"
+                SupportUrl: "${SupportUrl}"
+                SupportDescription: "${SupportDescription}"
+                ProvisioningArtifactParameters:
+                  - Description: "June 2018"
+                    Name: "June 2018"
+                    Info:
+                      LoadTemplateFromURL: "https://raw.githubusercontent.com/aws-samples/aws-service-catalog-reference-architectures/master/vpc/sc-vpc-ra.json"
+            RDSMySQLProduct:
+              Type: "AWS::ServiceCatalog::CloudFormationProduct"
+              Properties:
+                AcceptLanguage: "en"
+                Description: "This product allows the user to launch a RDS MySQL DB as either single instance databases or multi-availability zone databases."
+                Distributor: "Amazon"
+                Name: "RDS MySQL Product"
+                Owner: "IT Services"
+                SupportEmail: "${SupportEmail}"
+                SupportUrl: "${SupportUrl}"
+                SupportDescription: "${SupportDescription}"
+                ProvisioningArtifactParameters:
+                  - Description: "June 2018"
+                    Name: "June 2018"
+                    Info:
+                      LoadTemplateFromURL: "https://raw.githubusercontent.com/aws-samples/aws-service-catalog-reference-architectures/master/rds/sc-rds-mssql-ra.json"
+            S3BucketProduct:
+              Type: "AWS::ServiceCatalog::CloudFormationProduct"
+              Properties:
+                AcceptLanguage: "en"
+                Description: "This product allows the user to create an S3 Bucket locking down the access to a specific CIDR."
+                Distributor: "Amazon"
+                Name: "S3 Bucket Product"
+                Owner: "IT Services"
+                SupportEmail: "${SupportEmail}"
+                SupportUrl: "${SupportUrl}"
+                SupportDescription: "${SupportDescription}"
+                ProvisioningArtifactParameters:
+                  - Description: "June 2018"
+                    Name: "June 2018"
+                    Info:
+                      LoadTemplateFromURL: "https://raw.githubusercontent.com/aws-samples/aws-service-catalog-reference-architectures/master/s3/sc-s3-cidr-ra.json"
+            BaselinePortfolio:
+              Type: "AWS::ServiceCatalog::Portfolio"
+              Properties:
+                DisplayName: "FirstPortfolio"
+                AcceptLanguage: "en"
+                ProviderName: "Amazon"
+            LinuxAssociation:
+              Type: "AWS::ServiceCatalog::PortfolioProductAssociation"
+              Properties:
+                ProductId:
+                  Ref: EC2LinuxProduct
+                PortfolioId:
+                  Ref: BaselinePortfolio
+            VPCAssociation:
+              Type: "AWS::ServiceCatalog::PortfolioProductAssociation"
+              Properties:
+                ProductId:
+                  Ref: VPCProduct
+                PortfolioId:
+                  Ref: BaselinePortfolio
+            RDSMySQLAssociation:
+              Type: "AWS::ServiceCatalog::PortfolioProductAssociation"
+              Properties:
+                ProductId:
+                  Ref: RDSMySQLProduct
+                PortfolioId:
+                  Ref: BaselinePortfolio
+            S3BucketAssociation:
+              Type: "AWS::ServiceCatalog::PortfolioProductAssociation"
+              Properties:
+                ProductId:
+                  Ref: S3BucketProduct
+                PortfolioId:
+                  Ref: BaselinePortfolio
+            PortfolioPrincipalAssociationforAdmin:
+              Type: "AWS::ServiceCatalog::PortfolioPrincipalAssociation"
+              Properties:
+                PrincipalARN:
+                  Fn::GetAtt: User.Arn
+                PortfolioId:
+                  Ref: BaselinePortfolio
+                PrincipalType: IAM
+            PortfolioPrincipalAssociationforGroup:
+              Type: "AWS::ServiceCatalog::PortfolioPrincipalAssociation"
+              Properties:
+                PrincipalARN:
+                  Fn::GetAtt: UserGroup.Arn
+                PortfolioId:
+                  Ref: BaselinePortfolio
+                PrincipalType: IAM
+
+  # This bucket policy is necessary to allow Account to access the template
+  SourceBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties: 
+      Bucket: 
+        Ref: SourceBucket
+      PolicyDocument: 
+        Fn::Sub: 
+          Fn::Yaml2Json:
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: "Allow"
+                Principal:
+                  AWS: 
+                    - "arn:aws:iam::${Account}:role/OrganizationAccountAccessRole"
+                Action: 
+                  - "s3:GetObject"
+                  - "s3:ListBucket"
+                  - "s3:GetBucketLocation"
+                  - "s3:GetObjectVersion"
+                  - "s3:GetLifecycleConfiguration"
+                Resource: 
+                  - "arn:aws:s3:::${SourceBucket}"
+                  - "arn:aws:s3:::${SourceBucket}/${AccountBaseline.Key}"
+
+  #
+  # This inline policy will be attached to the CfAccountBaselineAssociation in
+  # order to be able to assume the OrganizationAccountAccessRole and thus 
+  # allow it to modify the Account
+  #
+  AccountBaselineAssociationPolicy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyDocument: 
+        Fn::Sub: 
+          Fn::Yaml2Json:
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: "Allow"
+                Action: "sts:AssumeRole"
+                Resource: "arn:aws:iam::${Account}:role/OrganizationAccountAccessRole"
+      PolicyName: 
+        Fn::Sub: "AllowToAssumeRoleInAccount${Account}"
+      Roles: 
+        - Ref: CfAccountBaselineAssociationRoleName
+
+  #
+  # The AccountBaselineAssociation is the link between the an Account and its 
+  # initial stack. This could be done by a CloudFormation::StackStet also...
+  #
+  AccountBaselineAssociation:
+    Type: Custom::CfAccountBaselineAssociation
+    DependsOn: 
+      - AccountBaselineAssociationPolicy
+      - SourceBucketPolicy
+    Version: "1.0"
+    Properties:
+      ServiceToken:
+        Fn::Sub: "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:${CfAccountBaselineAssociation}"
+      AccountId:
+        Ref: Account
+      TemplateUrl: 
+        Fn::Sub: "https://${AccountBaseline.Bucket}.s3-${AWS::Region}.amazonaws.com/${AccountBaseline.Key}"
+      Region: 
+        Fn::Sub: "${AWS::Region}"
+      StackName: "AccountBaseline"
+      AccountRoleName: "OrganizationAccountAccessRole"
+      Parameters:
+        - ParameterKey: MasterAccountId
+          ParameterValue:
+            Ref: MasterAccountId
+        - ParameterKey: UserName
+          ParameterValue:
+            Ref: UserName
+        - ParameterKey: UserPassword
+          ParameterValue:
+            Ref: UserPassword
+        - ParameterKey: VpcCidrBlock
+          ParameterValue:
+            Ref: VpcCidrBlock
+        - ParameterKey: SubnetPublicAZACidrBlock
+          ParameterValue:
+            Ref: SubnetPublicAZACidrBlock
+        - ParameterKey: SubnetPublicAZBCidrBlock
+          ParameterValue:
+            Ref: SubnetPublicAZBCidrBlock
+        - ParameterKey: SubnetPrivateAZACidrBlock
+          ParameterValue:
+            Ref: SubnetPrivateAZACidrBlock
+        - ParameterKey: SubnetPrivateAZBCidrBlock
+          ParameterValue:
+            Ref: SubnetPrivateAZBCidrBlock
+
+Outputs:
+  RootOrganizationalUnit:
+    Description: The RootOrganizationalUnit Id
+    Value:
+      Ref: RootOrganizationalUnit
+
+  RootOrganizationalUnitArn:
+    Description: The RootOrganizationalUnit Arn
+    Value:
+      Fn::GetAtt: RootOrganizationalUnit.Arn
+
+  RootOrganizationalUnitName:
+    Description: The RootOrganizationalUnit Name
+    Value:
+      Fn::GetAtt: RootOrganizationalUnit.Name
+
+  ChildOrganizationalUnit:
+    Description: The ChildOrganizationalUnit Id
+    Value:
+      Ref: ChildOrganizationalUnit
+
+  ChildOrganizationalUnitArn:
+    Description: The ChildOrganizationalUnit Arn
+    Value:
+      Fn::GetAtt: ChildOrganizationalUnit.Arn
+
+  ChildOrganizationalUnitName:
+    Description: The ChildOrganizationalUnit Name
+    Value:
+      Fn::GetAtt: ChildOrganizationalUnit.Name
+
+  AccountId:
+    Description: The Account Id
+    Value:
+      Ref: Account
+
+  AccountArn:
+    Description: The Account Arn
+    Value:
+      Fn::GetAtt: Account.Arn
+
+  AccountName:
+    Description: The Account Name
+    Value:
+      Fn::GetAtt: Account.Name
+
+  AccountEmail:
+    Description: The Account Email
+    Value:
+      Fn::GetAtt: Account.Email
+
+  AccountBaseline:
+    Description: The AccountBaseline S3 Url
+    Value:
+      Fn::Sub: "s3://${AccountBaseline.Bucket}/${AccountBaseline.Key}"

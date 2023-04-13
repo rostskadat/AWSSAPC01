@@ -1,0 +1,135 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+Description: >
+  OperateInstances. Demonstrate how to operate an instance without a SSH Key Deployed.
+  BEWARE it uses the SamPolicyTemplateTranslator Macro
+
+Parameters:
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+  SubnetId:
+    Description: "The subnet wheer to deploy the instance (DMZ)"
+    Type: String
+    Default: "subnet-055e76cd94da374ae"
+
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+    DeletionPolicy: Delete
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+                - "ssm.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - Fn::Sub: "arn:${AWS::Partition}:iam::aws:policy/AmazonEC2FullAccess"
+        - Fn::Sub: "arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore"
+      Policies:
+        - S3CrudPolicy:
+            BucketName:
+              Ref: Bucket
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - Ref: InstanceRole
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId:
+          Ref: LaunchTemplate
+        Version:
+          Fn::GetAtt: LaunchTemplate.LatestVersionNumber
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          default: [Install]
+        Install:
+          files:
+            /root/startup.sh:
+              content: |
+                #!/bin/bash
+                echo "Starting up $(uname -n)"
+              mode: "000700"
+              owner: root
+              group: root
+          commands:
+            01_startup:
+              command: "bash /root/startup.sh"
+    Properties:
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Arn:
+            Fn::GetAtt: InstanceProfile.Arn
+        ImageId:
+          Ref: ImageId
+        InstanceType: t3.micro
+        NetworkInterfaces:
+          - DeviceIndex: "0"
+            AssociatePublicIpAddress: true
+            SubnetId:
+              Ref: SubnetId
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: PLATFORM
+                Value: SAPC01
+        UserData:
+          Fn::Base64:
+            Fn::Sub: |
+              #!/bin/bash
+              yum-config-manager --enable epel ;  yum update -y ; yum install -y aws-cfn-bootstrap
+              /opt/aws/bin/cfn-init --verbose --region ${AWS::Region} --stack ${AWS::StackName} --resource LaunchTemplate --role ${InstanceRole}
+
+  Association:
+    DependsOn: Instance
+    Type: AWS::SSM::Association
+    Properties:
+      Name: AWS-RunShellScript
+      WaitForSuccessTimeoutSeconds: "300"
+      Targets:
+        - Key: InstanceIds
+          Values:
+            - Ref: Instance
+      OutputLocation:
+        S3Location:
+          OutputS3BucketName:
+            Ref: Bucket
+          OutputS3KeyPrefix: "logs/"
+      Parameters:
+        commands:
+          - |
+            echo "Hello from association..."
+
+Outputs:
+  Bucket:
+    Description: "The S3 bucket where logs are stored"
+    Value:
+      Fn::Sub: "s3://${Bucket}/logs/${Association.AssociationId}/${Instance}/awsrunShellScript/0.awsrunShellScript/stdout"
+

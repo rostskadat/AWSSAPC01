@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  BlockAnIP. Showcase how to block an IP
+
+Resources:
+
+  BadActorInstance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ManagedPolicyArns: "arn:aws:iam::aws:policy/PowerUserAccess"
+
+  GoodActorInstance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ManagedPolicyArns: "arn:aws:iam::aws:policy/PowerUserAccess"
+
+Outputs:
+
+  BadActorInstance:
+    Description: BadActorInstance Public DNS
+    Value: 
+      Fn::GetAtt: BadActorInstance.Outputs.InstancePublicDnsName
+
+  GoodActorInstance:
+    Description: GoodActorInstance Public DNS
+    Value: 
+      Fn::GetAtt: GoodActorInstance.Outputs.InstancePublicDnsName
+
+

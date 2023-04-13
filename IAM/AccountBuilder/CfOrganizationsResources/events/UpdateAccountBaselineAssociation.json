@@ -1,0 +1,90 @@
+{
+    "RequestType": "Update",
+    "ServiceToken": "arn:aws:lambda:eu-west-1:123456789012:function:CfAccountBaselineAssociation",
+    "ResponseURL": "https://cloudformation-custom-resource-response-euwest1.s3-eu-west-1.amazonaws.com/arn%3Aaws%3Acloudformation%3Aeu-west-1%3A123456789012%3Astack/CfOrganizations/ccfb3c40-0a5f-11eb-b9f8-0aac2484be2a%7CAccountBaselineAssociation%7Ce6331e43-32e9-462e-8585-f6476655b175?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20201016T142304Z&X-Amz-SignedHeaders=host&X-Amz-Expires=7200&X-Amz-Credential=AKIAJ7MCS7PVEUOADEEA%2F20201016%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Signature=388863fc9ed2b3e33f35bc8a770572220ba267fc2c003c7de373136e85a942f4",
+    "StackId": "arn:aws:cloudformation:eu-west-1:123456789012:stack/CfOrganizations/ccfb3c40-0a5f-11eb-b9f8-0aac2484be2a",
+    "RequestId": "e6331e43-32e9-462e-8585-f6476655b175",
+    "LogicalResourceId": "AccountBaselineAssociation",
+    "PhysicalResourceId": "arn:aws:cloudformation:eu-west-1:610150951079:stack/AccountBaseline/778d5e10-0c5c-11eb-b215-02c4fae2d862",
+    "ResourceType": "Custom::CfAccountBaselineAssociation",
+    "ResourceProperties": {
+        "ServiceToken": "arn:aws:lambda:eu-west-1:123456789012:function:CfAccountBaselineAssociation",
+        "TemplateUrl": "https://cforganizations-sourcebucket-l7nqemn51acm.s3-eu-west-1.amazonaws.com/AccountBaseline.yaml",
+        "Parameters": [
+            {
+                "ParameterValue": "123456789012",
+                "ParameterKey": "MasterAccountId"
+            },
+            {
+                "ParameterValue": "AF090536",
+                "ParameterKey": "UserName"
+            },
+            {
+                "ParameterValue": "Passw0rd",
+                "ParameterKey": "UserPassword"
+            },
+            {
+                "ParameterValue": "10.0.20.0/22",
+                "ParameterKey": "VpcCidrBlock"
+            },
+            {
+                "ParameterValue": "10.0.20.0/24",
+                "ParameterKey": "SubnetPublicAZACidrBlock"
+            },
+            {
+                "ParameterValue": "10.0.21.0/24",
+                "ParameterKey": "SubnetPublicAZBCidrBlock"
+            },
+            {
+                "ParameterValue": "10.0.22.0/24",
+                "ParameterKey": "SubnetPrivateAZACidrBlock"
+            },
+            {
+                "ParameterValue": "10.0.23.0/24",
+                "ParameterKey": "SubnetPrivateAZBCidrBlock"
+            }
+        ],
+        "AccountId": "610150951079",
+        "Region": "eu-west-1",
+        "AccountRoleName": "OrganizationAccountAccessRole",
+        "StackName": "AccountBaseline"
+    },
+    "OldResourceProperties": {
+        "ServiceToken": "arn:aws:lambda:eu-west-1:123456789012:function:CfAccountBaselineAssociation",
+        "TemplateUrl": "https://cforganizations-sourcebucket-l7nqemn51acm.s3-eu-west-1.amazonaws.com/AccountBaseline.yaml",
+        "Parameters": [
+            {
+                "ParameterValue": "AF090536",
+                "ParameterKey": "UserName"
+            },
+            {
+                "ParameterValue": "Passw0rd",
+                "ParameterKey": "UserPassword"
+            },
+            {
+                "ParameterValue": "10.0.20.0/22",
+                "ParameterKey": "VpcCidrBlock"
+            },
+            {
+                "ParameterValue": "10.0.20.0/24",
+                "ParameterKey": "SubnetPublicAZACidrBlock"
+            },
+            {
+                "ParameterValue": "10.0.21.0/24",
+                "ParameterKey": "SubnetPublicAZBCidrBlock"
+            },
+            {
+                "ParameterValue": "10.0.22.0/24",
+                "ParameterKey": "SubnetPrivateAZACidrBlock"
+            },
+            {
+                "ParameterValue": "10.0.23.0/24",
+                "ParameterKey": "SubnetPrivateAZBCidrBlock"
+            }
+        ],
+        "AccountId": "610150951079",
+        "Region": "eu-west-1",
+        "AccountRoleName": "OrganizationAccountAccessRole",
+        "StackName": "AccountBaseline"
+    }
+}

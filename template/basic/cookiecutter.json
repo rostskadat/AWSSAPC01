@@ -1,0 +1,7 @@
+{
+    "project_name": "Name of the project",
+    "runtime": "python3.8",
+    "service": "Name of the AWS Service the project is about",
+    "author": "Author",
+    "description": "Short description of the project"
+}

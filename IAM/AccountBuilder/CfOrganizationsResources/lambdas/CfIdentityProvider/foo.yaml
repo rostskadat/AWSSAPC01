@@ -1,0 +1,186 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: Create SAML provider
+
+Parameters:
+  FederationName:
+    Type: String
+    Description: Name of SAML provider being created in IAM
+  FederationBucket:
+    Type: String
+    Description: Bucket containing federation metadata
+  FederationFile:
+    Type: String
+    Description: Name of file containing the federation metadata
+
+Resources:
+  FederatedReadOnlyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: Federated-ReadOnly
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRoleWithSAML
+            Principal:
+              Federated: !Sub arn:aws:iam::${AWS::AccountId}:saml-provider/${FederationName}
+            Condition:
+              StringEquals:
+                SAML:aud: https://signin.aws.amazon.com/saml
+      Path: '/'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/ReadOnlyAccess
+
+  SAMLProviderCustomResourceLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: 'arn:aws:logs:*:*:log-group:/aws/lambda/*-SAMLProviderCustomResourceLambda-*:*'
+              - Effect: Allow
+                Action:
+                  - iam:CreateSAMLProvider
+                  - iam:DeleteSAMLProvider
+                Resource: !Sub arn:aws:iam::${AWS::AccountId}:saml-provider/${FederationName}
+              - Effect: Allow
+                Action:
+                  - iam:ListSAMLProviders
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                Resource: !Sub 'arn:aws:s3:::${FederationBucket}/*'
+
+  CustomResource:
+    Type: Custom::CustomResource
+    DependsOn:
+      - SAMLProviderCustomResourceLambda
+      - SAMLProviderCustomResourceLambdaExecutionRole
+    Properties:
+      ServiceToken: !GetAtt SAMLProviderCustomResourceLambda.Arn
+
+  SAMLProviderCustomResourceLambda:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Handler: index.lambda_handler
+      Role: !GetAtt SAMLProviderCustomResourceLambdaExecutionRole.Arn
+      Runtime: python3.7
+      Timeout: 300
+      Environment:
+        Variables:
+          FEDERATION_NAME: !Ref FederationName
+          FEDERATION_BUCKET: !Ref FederationBucket
+          FEDERATION_FILE: !Ref FederationFile
+      Code:
+        ZipFile: |
+          import boto3, json, os, urllib.request, ssl, time, traceback
+
+
+          BUCKET = os.getenv('FEDERATION_BUCKET')
+          FILE = os.getenv('FEDERATION_FILE')
+          NAME = os.getenv('FEDERATION_NAME')
+
+
+          class SAMLProvider(object):
+              def __init__(self):
+                  self.iam_client = boto3.client('iam')
+                  self.existing_providers = []
+                  self._list_saml_providers()
+                  self.s3 = boto3.resource('s3')
+
+              def get_federation_metadata(self):
+                  try:
+                      self.s3.Bucket(BUCKET).download_file(FILE, '/tmp/' + FILE)
+                      handle = open('/tmp/' + FILE)
+                      data = handle.read()
+                      handle.close()
+                      os.remove('/tmp/' + FILE)
+                      return data
+                  except:
+                      traceback.print_exc()
+                      raise
+
+              def _list_saml_providers(self):
+                  providers = []
+                  response = self.iam_client.list_saml_providers()
+                  for provider in response['SAMLProviderList']:
+                      self.existing_providers.append(provider['Arn'])
+
+              def add_saml_provider(self, name):
+                  for arn in self.existing_providers:
+                      if arn.split('/')[1] == name:
+                          print(name + ' already exists as a provider')
+                          return False
+                  response = self.iam_client.create_saml_provider(SAMLMetadataDocument=self.get_federation_metadata(), Name=name)
+                  print('Create response: ' + str(response))
+                  return True
+
+              def delete_saml_provider(self, name):
+                  for arn in self.existing_providers:
+                      if arn.split('/')[1] == name:
+                          response = self.iam_client.delete_saml_provider(SAMLProviderArn=arn)
+                          print('Delete response: ' + str(response))
+
+          def send_response(event, context, response_status, response_data):
+              response_body = json.dumps({
+                  'Status': response_status,
+                  'Reason': 'See the details in CloudWatch Log Stream: ' + context.log_stream_name,
+                  'PhysicalResourceId': context.log_stream_name,
+                  'StackId': event['StackId'],
+                  'RequestId': event['RequestId'],
+                  'LogicalResourceId': event['LogicalResourceId'],
+                  'Data': response_data
+              })
+              print('ResponseURL: %s', event['ResponseURL'])
+              print('ResponseBody: %s', response_body)
+              try:
+                  opener = urllib.request.build_opener(urllib.request.HTTPHandler)
+                  request = urllib.request.Request(event['ResponseURL'], data=response_body.encode())
+                  request.add_header('Content-Type', '')
+                  request.add_header('Content-Length', len(response_body))
+                  request.get_method = lambda: 'PUT'
+                  response = opener.open(request)
+                  print("Status code: %s", response.getcode())
+                  print("Status message: %s", response.msg)
+              except:
+                  traceback.print_exc()
+
+
+          def lambda_handler(event, context):
+              print(event)
+              print(context)
+              saml = SAMLProvider()
+              try:
+                  if event['RequestType'] == 'Create':
+                      saml.add_saml_provider(NAME)
+                      send_response(event, context, 'SUCCESS', {"Message": "Resource creation successful!"})
+                  if event['RequestType'] == 'Update':
+                      saml.delete_saml_provider(NAME)
+                      time.sleep(10)
+                      saml.add_saml_provider(NAME)
+                      send_response(event, context, 'SUCCESS', {"Message": "Resource update successful!"})
+                  if event['RequestType'] == 'Delete':
+                      saml.delete_saml_provider(NAME)
+                      send_response(event, context, 'SUCCESS', {"Message": "Resource deletion successful!"})
+              except:
+                  send_response(event, context, "FAILED", {"Message": "Exception during processing"})
+                  traceback.print_exc()

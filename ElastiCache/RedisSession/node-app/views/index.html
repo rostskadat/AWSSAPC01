@@ -1,0 +1,30 @@
+{% extends "base.html" %} 
+{% block main %} 
+{% if items|length > 0 %}
+<table class="table table-hovered">
+    <thead class="thead-dark">
+        <tr>
+            <th scope="col">ID</th>
+            <th scope="col">Image</th>
+            <th scope="col">Description</th>
+            <th scope="col">&nbsp;</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in items %}
+        <tr>
+            <th scope="row">{{ item.id }}</th>
+            <td><img src="/assets/img/{{ item.image }}" class="rounded-circle item-img" alt=""></td>
+            <td>{{ item.description }}</td>
+            <td>
+                <a href="/edit/{{ item.id }}" target="_blank" rel="noopener" class="btn btn-sm btn-success">Edit</a>
+                <a href="/delete/{{ item.id }}" class="btn btn-sm btn-danger">Delete</a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p class="text-center">No Items found. Go <a href="/add">here</a> to add items.</p>
+{% endif %} 
+{% endblock %}

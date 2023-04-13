@@ -1,0 +1,89 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  InspectorCVE. Showcase the use of AWS Inspector to analyse AMI for the latest CVE Alert}
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "Inspector-InspectorCVE"
+    Description: Showcase the use of AWS Inspector to analyse AMI for the latest CVE Alert}
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01", "Inspector"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+Resources:
+
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ManagedPolicyArns: "arn:aws:iam::aws:policy/PowerUserAccess"
+
+  ResourceGroup:
+    Type: AWS::Inspector::ResourceGroup
+    Properties: 
+      ResourceGroupTags: 
+        - Key: PLATFORM
+          Value: SAPC01
+        - Key: "aws:cloudformation:stack-name"
+          Value:
+            Fn::GetAtt: EC2Instance.Outputs.StackName
+
+  AssessmentTarget:
+    Type: AWS::Inspector::AssessmentTarget
+    Properties: 
+      ResourceGroupArn: 
+        Ref: ResourceGroup
+
+  AssessmentTemplate:
+    Type: AWS::Inspector::AssessmentTemplate
+    Properties: 
+      AssessmentTargetArn: 
+        Fn::GetAtt: AssessmentTarget.Arn
+      DurationInSeconds: 3600
+      RulesPackageArns: 
+        # The result of `aws inspector describe-rules-packages --rules-package-arns $(aws inspector list-rules-packages --query rulesPackageArns --output text)`
+        # ONLY interested in CVE
+        - "arn:aws:inspector:eu-west-1:357557129151:rulespackage/0-ubA5XvBh"
+
+  TriggerAWSInspectorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: AllowInspectorAssessment
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - inspector:StartAssessmentRun
+                Resource: "*"
+
+  TriggerAWSInspector:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Trigger running AWS Inspector
+      ScheduleExpression: "rate(1 day)"
+      State: ENABLED
+      Targets:
+        - Id: TriggerAWSInspector
+          Arn:
+            Fn::GetAtt: AssessmentTemplate.Arn
+          RoleArn:
+            Fn::GetAtt: TriggerAWSInspectorRole.Arn

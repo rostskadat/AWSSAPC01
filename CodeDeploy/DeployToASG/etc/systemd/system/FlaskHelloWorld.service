@@ -1,0 +1,12 @@
+[Unit]
+Description=A HelloWorld Flask application
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/flask-hello-world/src
+ExecStart=/usr/local/bin/gunicorn --bind 0.0.0.0:80 --workers 4 application:application 
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

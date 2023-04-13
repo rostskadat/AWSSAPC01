@@ -1,0 +1,31 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ByteRangeFetch. Showcase the use of Byte Range when calling S3::GetObject API.
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "S3-ByteRangeFetch"
+    Description: Showcase the use of Byte Range when calling S3::GetObject API.
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "S3" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+Resources:
+  
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+Outputs:
+  Bucket:
+    Description: The Bucket
+    Value: 
+      Ref: Bucket

@@ -1,0 +1,261 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  OpsWorksHelloWorld. Simple Hello World OpsWorks stack
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "OpsWorksHelloWorld"
+    Description: Simple Hello World OpsWorks stack
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01", "OpsWorks"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to OpsWorks
+        Parameters:
+          - PublicSubnets
+          - PrivateSubnets
+          - AppSecurityGroupIds
+          - KeyName
+          - BucketName
+
+Parameters:
+
+  PublicSubnets:
+    Description: The Public Subnets
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581"
+
+  PrivateSubnets:
+    Description: The Public Subnets
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-061b4aea8122da878,subnet-02df09930032b188a"
+
+  AppSecurityGroupIds:
+    Description: The SecurityGroup Names (AWS-OpsWorks-WebApp)
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Default: "sg-0b82d81be07f153cb"
+
+  KeyName:
+    Description: The SSH KeyName to deploy
+    Type: String
+    Default: SAPC01
+
+  BucketName:
+    Description: The S3 BucketName where the cookbooks can be downloaded
+    Type: String
+
+Resources:
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub ${AWS::StackId}
+      # To be able to bootstrap it locally... NOT FOR PRODUCTION
+      SubnetIds: !Ref PublicSubnets
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Secret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: The DBInstance MasterUserPassword
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "root"}'
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  SecretTargetAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref Secret
+      TargetId: !Ref DBInstance
+      TargetType: AWS::RDS::DBInstance
+
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    Properties:
+      AllocatedStorage: 8
+      DBInstanceClass: db.m4.large
+      DBName: dev
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      Engine: MySQL
+      MasterUsername: !Sub "{{resolve:secretsmanager:${Secret}:SecretString:username}}"
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${Secret}:SecretString:password}}"
+      # To be able to bootstrap it locally... NOT FOR PRODUCTION
+      PubliclyAccessible: true
+
+  # OpsWorks only support Classic LoadBalancer (https://docs.aws.amazon.com/opsworks/latest/userguide/layers-elb.html)
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      CrossZone: true
+      HealthCheck:
+        Target: HTTP:80/health
+        HealthyThreshold: 2
+        UnhealthyThreshold: 3
+        Interval: 10
+        Timeout: 5
+      Listeners:
+        # BEWARE: InstancePort defined @ node-mysql-crud-app/app.js
+        - InstancePort: 80
+          InstanceProtocol: HTTP
+          LoadBalancerPort: 80
+          Protocol: HTTP
+      Scheme: internet-facing
+      Subnets: !Ref PublicSubnets
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies: 
+        - PolicyName: AllowAccessToSecret
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement: 
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref Secret
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - !Ref InstanceRole
+
+  Stack:
+    Type: AWS::OpsWorks::Stack
+    Properties:
+      AgentVersion: LATEST
+      ConfigurationManager:
+        Name: Chef
+        Version: "12"
+      CustomCookbooksSource:
+        Type: archive
+        Url: !Sub "https://${BucketName}.s3-${AWS::Region}.amazonaws.com/cookbook.tar.gz"
+      DefaultAvailabilityZone: !Sub "${AWS::Region}a"
+      DefaultInstanceProfileArn: !GetAtt InstanceProfile.Arn
+      DefaultOs: Amazon Linux 2
+      DefaultRootDeviceType: ebs
+      DefaultSshKeyName: !Ref KeyName
+      Name: CfOpsWorksStack
+      RdsDbInstances:
+        - DbPassword: !Sub "{{resolve:secretsmanager:${Secret}:SecretString:password}}"
+          DbUser: !Sub "{{resolve:secretsmanager:${Secret}:SecretString:username}}"
+          RdsDbInstanceArn: !Sub "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:db:${DBInstance}"
+      ServiceRoleArn: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-opsworks-service-role"
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      UseCustomCookbooks: true
+      UseOpsworksSecurityGroups: true
+
+  AppLayer:
+    Type: AWS::OpsWorks::Layer
+    Properties:
+      AutoAssignElasticIps: false
+      # Required otherwise "setup" does not seem to work
+      AutoAssignPublicIps: true
+      CustomRecipes:
+        Configure: 
+          - node-mysql-crud-app::configure
+        Deploy:
+          - node-mysql-crud-app::deploy
+        Setup: 
+          - node-mysql-crud-app::setup
+        Shutdown: 
+          - node-mysql-crud-app::shutdown
+        Undeploy: 
+          - node-mysql-crud-app::undeploy
+      CustomSecurityGroupIds: !Ref AppSecurityGroupIds
+      EnableAutoHealing: true
+      Name: AppLayer
+      Shortname: app-layer
+      StackId: !Ref Stack
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      Type: custom
+
+  ElasticLoadBalancerAttachment: 
+    Type: AWS::OpsWorks::ElasticLoadBalancerAttachment
+    Properties: 
+      ElasticLoadBalancerName: !Ref LoadBalancer
+      LayerId: !Ref AppLayer
+
+  App: 
+    Type: AWS::OpsWorks::App
+    DependsOn: SecretTargetAttachment
+    Properties: 
+      # This information will be available within the cookbook under 
+      # app["app_source"]["url"]
+      AppSource: 
+        Type: archive
+        Url: !Sub "https://${BucketName}.s3-${AWS::Region}.amazonaws.com/node-mysql-crud-app.tar.gz"
+      DataSources: 
+        - Arn: !Sub "arn:${AWS::Partition}:rds:${AWS::Region}:${AWS::AccountId}:db:${DBInstance}"
+          DatabaseName: !Sub "{{resolve:secretsmanager:${Secret}:SecretString:dbname}}"
+          Type: RdsDbInstance
+      Environment: 
+        - Key: REGION
+          Value: !Ref AWS::Region
+        - Key: SECRET_ARN
+          Value: !Ref Secret
+      Name: node-mysql-crud-app
+      StackId: !Ref Stack
+      Type: other
+
+  Instance:
+    Type: AWS::OpsWorks::Instance
+    Properties:
+      InstanceType: t3.medium
+      LayerIds:
+        - !Ref AppLayer
+      RootDeviceType: ebs
+      SshKeyName: !Ref KeyName
+      StackId: !Ref Stack
+      VirtualizationType: hvm
+
+Outputs:
+  Stack:
+    Description: The Stack
+    Value: !Ref Stack
+
+  LoadBalancer:
+    Description: The LoadBalancer
+    Value: !Ref LoadBalancer
+
+  DBInstance:
+    Description: The DBInstance
+    Value: !Ref DBInstance
+
+  Secret:
+    Description: The Secret
+    Value: !Ref Secret
+
+  InstancePublicDnsName:
+    Description: The Instance PublicDnsName
+    Value: !GetAtt Instance.PublicDnsName

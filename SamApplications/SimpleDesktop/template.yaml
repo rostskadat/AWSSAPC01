@@ -1,0 +1,276 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  SimpleDesktop: This SAM Nested Application (c.f. https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-template-nested-applications.html)
+  create an EC2 Instance with the mate-desktop preinstalled as per https://aws.amazon.com/premiumsupport/knowledge-center/ec2-linux-2-install-gui/
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: SimpleDesktop
+    Description: Launch an EC2Instance with the mate-desktop preinstalled
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to the parent stack
+        Parameters:
+          - ParentStackName
+      - Label:
+          default: Parameters related to the EC2 Instance.
+        Parameters:
+          - ImageId
+          - InstanceType
+          - KeyName
+          - ManagedPolicyArns
+          - VolumeSize
+          - ExtraVolume1
+          - ExtraVolume2
+          - SubnetId
+          - IsPublic
+          - CanHibernate
+          - VncPassword
+          - ExtraUserData
+
+Parameters:
+  ParentStackName:
+    Description: "The name of the parent stack in order to set the permission properly"
+    Type: String
+
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: String
+    Default: ""
+
+  InstanceType:
+    Description: "The Instance Type to spin up"
+    Type: String
+    Default: ""
+
+  KeyName:
+    Description: "The Key to use to connect to the EC2 Instance"
+    Type: String
+    Default: ""
+
+  ManagedPolicyArns:
+    Description: "A comma separated list of IAM Policy ARNs to attach to the Instance"
+    Type: String
+    Default: ""
+
+  VolumeSize:
+    Description: "The size of the EBS Volume attached to the instance"
+    Type: Number
+    Default: 32
+
+  ExtraVolume1:
+    Description: The type of extra volume
+    Type: String
+    AllowedValues: ["ephemeral", "ebs", ""]
+    Default: ""
+
+  ExtraVolume2:
+    Description: The type of extra volume
+    Type: String
+    AllowedValues: ["ephemeral", "ebs", ""]
+    Default: ""
+
+  SubnetId:
+    Description: The SubnetId
+    Type: String
+    Default: ""
+
+  SecurityGroupIds:
+    Description: The Comma separated list of security group Ids
+    Type: String
+    Default: ''
+
+  IsPublic:
+    Description: "Indicate whether the SubnetId is Public or not"
+    Type: String
+    AllowedValues: [true, false]
+    Default: true
+
+  CanHibernate:
+    Description: "Indicate whether the Instance can hibernate or not"
+    Type: String
+    AllowedValues: [true, false]
+    Default: false
+
+  VncPassword:
+    Description: The VNC Password
+    Type: String
+
+  ExtraUserData:
+    Description: Some extra UserData to be executed after the configuration of the Desktop Server
+    Type: String
+    Default: |
+      echo "Hello from ExtraUserData"
+
+
+Conditions:
+  HasImageId:
+    Fn::Not:
+      - Fn::Equals: [Ref: ImageId, ""]
+  HasInstanceType:
+    Fn::Not:
+      - Fn::Equals: [Ref: InstanceType, ""]
+  HasKeyName:
+    Fn::Not:
+      - Fn::Equals: [Ref: KeyName, ""]
+  HasManagedPolicyArns:
+    Fn::Not:
+      - Fn::Equals: [Ref: ManagedPolicyArns, ""]
+  HasVolumeSize:
+    Fn::Not:
+      - Fn::Equals: [Ref: VolumeSize, ""]
+  HasExtraVolume1:
+    Fn::Not:
+      - Fn::Equals: [Ref: ExtraVolume1, ""]
+  HasExtraVolume2:
+    Fn::Not:
+      - Fn::Equals: [Ref: ExtraVolume2, ""]
+  HasSubnetId:
+    Fn::Not:
+      - Fn::Equals: [Ref: SubnetId, ""]
+  HasSecurityGroupIds:
+    Fn::Not:
+      - Fn::Equals: [Ref: SecurityGroupIds, ""]
+  LaunchPublicInstance:
+    Fn::Equals: [Ref: IsPublic, true]
+
+Resources:
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../EC2Instance/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: ParentStackName
+        ImageId:
+          Fn::If:
+            - HasImageId
+            - Ref: ImageId
+            - Ref: AWS::NoValue
+        InstanceType:
+          Fn::If:
+            - HasInstanceType
+            - Ref: InstanceType
+            - Ref: AWS::NoValue
+        KeyName:
+          Fn::If:
+            - HasKeyName
+            - Ref: KeyName
+            - Ref: AWS::NoValue
+        ManagedPolicyArns:
+          Fn::If:
+            - HasManagedPolicyArns
+            - Ref: ManagedPolicyArns
+            - Ref: AWS::NoValue
+        VolumeSize:
+          Fn::If:
+            - HasVolumeSize
+            - Ref: VolumeSize
+            - Ref: AWS::NoValue
+        ExtraVolume1:
+          Fn::If:
+            - HasExtraVolume1
+            - Ref: ExtraVolume1
+            - Ref: AWS::NoValue
+        ExtraVolume2:
+          Fn::If:
+            - HasExtraVolume2
+            - Ref: ExtraVolume2
+            - Ref: AWS::NoValue
+        SubnetId:
+          Fn::If:
+            - HasSubnetId
+            - Ref: SubnetId
+            - Ref: AWS::NoValue
+        SecurityGroupIds:
+          Fn::If:
+            - HasSecurityGroupIds
+            - Ref: SecurityGroupIds
+            - Ref: AWS::NoValue
+        IsPublic:
+          Ref: IsPublic
+        CanHibernate:
+          Ref: CanHibernate
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            amazon-linux-extras install -y epel
+            yum update -y
+            yum install -y ec2-instance-connect
+            amazon-linux-extras install -y mate-desktop1.x
+            yum install -y tigervnc-server
+            echo "PREFERRED=/usr/bin/mate-session" > /etc/sysconfig/desktop
+
+            echo "Setting ec2-user's password ..."
+            cat > /home/ec2-user/ec2-user-password <<EOF
+            ec2-user: ${VncPassword}
+            EOF
+            chpasswd < /home/ec2-user/ec2-user-password
+
+            #cp /lib/systemd/system/vncserver@.service /etc/systemd/system/vncserver@.service
+            #sed -i 's/<USER>/ec2-user/' /etc/systemd/system/vncserver@.service
+            #systemctl daemon-reload
+            
+            cat > /home/ec2-user/start-vnc <<EOF
+            echo '/usr/bin/mate-session' > ~/.Xclients
+            chmod +x ~/.Xclients
+            mkdir ~/.vnc
+            echo '${VncPassword}' | vncpasswd -f > ~/.vnc/passwd
+            /usr/bin/vncserver :1
+            EOF
+            chown ec2-user /home/ec2-user/start-vnc
+            chmod u+x /home/ec2-user/start-vnc
+            ${ExtraUserData}
+            echo "Instance initialization... Done"
+
+Outputs:
+  StackName:
+    Description: The name of that stack
+    Value:
+      Ref: AWS::StackName
+
+  StackId:
+    Description: The name of that stack
+    Value:
+      Fn::Sub: ${EC2Instance.Outputs.StackId}
+
+  InstanceId:
+    Description: The EC2 Instance Id
+    Value:
+      Fn::Sub: ${EC2Instance.Outputs.InstanceId}
+
+  InstancePublicDnsName:
+    Condition: LaunchPublicInstance
+    Description: The EC2 Instance PublicDnsName
+    Value:
+      Fn::Sub: ${EC2Instance.Outputs.InstancePublicDnsName}
+
+  InstancePublicIp:
+    Condition: LaunchPublicInstance
+    Description: The EC2 Instance PublicIp
+    Value:
+      Fn::Sub: ${EC2Instance.Outputs.InstancePublicIp}
+
+  InstancePrivateIp:
+    Description: The EC2 Instance PrivateIp
+    Value:
+      Fn::Sub: ${EC2Instance.Outputs.InstancePrivateIp}
+
+  LaunchTemplateId:
+    Description: The LaunchTemplate Id
+    Value:
+      Fn::Sub: ${EC2Instance.Outputs.LaunchTemplateId}
+
+  LaunchTemplateVersion:
+    Description: The LaunchTemplate Version
+    Value:
+      Fn::Sub: ${EC2Instance.Outputs.LaunchTemplateVersion}

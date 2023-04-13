@@ -1,0 +1,214 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  CrossRegionFailOver. Showcase a Cross Region Failover
+Metadata:
+
+  AWS::ServerlessRepo::Application:
+    Name: "ArchitectureSolutions-CrossRegionFailOver"
+    Description: Showcase a Cross Region Failover
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "ArchitectureSolutions" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to EC2
+        Parameters:
+          - ImageId
+          - ManagedPolicyArns
+      - Label:
+          default: Parameters related to RDS
+        Parameters:
+          - DBName
+          - DBInstanceClass
+      - Label:
+          default: Parameters related to Recovery
+        Parameters:
+          - SourceRegion
+          - SourceDBInstanceIdentifier
+
+
+Parameters:
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+  ManagedPolicyArns:
+    Description: "A comma separated list of IAM Policy ARNs to attach to the Instance"
+    Type: String
+    Default: "arn:aws:iam::aws:policy/PowerUserAccess"
+
+  DBName:
+    Description: The DBName
+    Type: String
+    Default: dr
+
+  DBInstanceClass:
+    Type: String
+    Default: db.m5.large
+
+  SourceRegion:
+    Description: "Indicate whether this stack is to be created in the Recovery Region or in the Primary Region"
+    Type: String
+    Default: ''
+
+  SourceDBInstanceIdentifier :
+    Description: The ID of the Primary Region Source DBInstance. Required when SourceRegion is not empty
+    Type: String
+    Default: ''
+
+Conditions:
+  IsRecovery: !Not [ !Equals [ !Ref SourceRegion, '' ]]
+
+Resources:
+
+  # The key is required in order to allow the CrossRegion Read Replica.
+  # Namely it does not work if the default aws/rds KMS key is used.
+  Key:
+    Type: AWS::KMS::Key
+    Properties:
+      KeyPolicy:
+        Version: 2012-10-17
+        Id: default
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+                - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+                - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:user/rostskadat"
+            Action: "kms:*"
+            Resource: "*"
+      PendingWindowInDays: 7
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Alias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub "alias/${AWS::StackName}-DBInstance-EncryptionKey"
+      TargetKeyId: !Ref Key
+
+  Secret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: The Instance MasterUserPassword
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "root"}'
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  # This is the main instance whose Snapshot will be duplicated to another 
+  # region, and which will serve as the Source for a cross-region read replica
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 20
+      # AllowMajorVersionUpgrade: true
+      BackupRetentionPeriod: !If [ IsRecovery, !Ref AWS::NoValue, 1 ]
+      CopyTagsToSnapshot: true
+      DBInstanceClass: !Ref DBInstanceClass
+      DBInstanceIdentifier: !If [ IsRecovery, !Sub "${SourceDBInstanceIdentifier}-${AWS::Region}", !Ref AWS::NoValue ]
+      DBName: !If [ IsRecovery, !Ref AWS::NoValue, !Ref DBName ]
+      Engine: mysql
+      # KmsKeyId is required for Cross Region Read Replica to work properly.
+      # The default KMS key (aws/rds) fails the creation of the Read Replica.
+      KmsKeyId: !Ref Key
+      MasterUsername: !If [ IsRecovery, !Ref AWS::NoValue, !Sub '{{resolve:secretsmanager:${Secret}:SecretString:username}}' ]
+      MasterUserPassword: !If [ IsRecovery, !Ref AWS::NoValue, !Sub '{{resolve:secretsmanager:${Secret}:SecretString:password}}' ]
+      # MultiAZ: true
+      SourceDBInstanceIdentifier: !If [ IsRecovery, !Sub "arn:aws:rds:${SourceRegion}:${AWS::AccountId}:db:${SourceDBInstanceIdentifier}", !Ref AWS::NoValue ]
+      SourceRegion: !If [ IsRecovery, !Ref SourceRegion, !Ref AWS::NoValue ]
+      StorageEncrypted: true
+      StorageType: gp2
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  SecretTargetAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref Secret
+      TargetId: !Ref DBInstance
+      TargetType: AWS::RDS::DBInstance
+
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    DependsOn: DBInstance
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName: !Ref AWS::StackName
+        ImageId: !Ref ImageId
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel
+            yum update -y
+            yum install -y mysql jq
+            cat > bootstrap.sql <<EOF
+            create table items (
+              item_id    INT          NOT NULL AUTO_INCREMENT,
+              item_key   VARCHAR(128) NOT NULL,
+              item_value VARCHAR(128) NOT NULL,
+              PRIMARY KEY ( item_id )
+            );
+            INSERT INTO items (item_key, item_value) VALUES('key1', 'value1');
+            INSERT INTO items (item_key, item_value) VALUES('key2', 'value2');
+            COMMIT;
+            EOF
+            cat > select.sql <<EOF
+            select * from items;
+            EOF
+            if [ -z "${SourceRegion}" ]; then
+              username=$(aws --region ${AWS::Region} secretsmanager get-secret-value --secret-id ${Secret} | jq -r '.SecretString' | jq -r '.username')
+              password=$(aws --region ${AWS::Region} secretsmanager get-secret-value --secret-id ${Secret} | jq -r '.SecretString' | jq -r '.password')
+              echo "Bootstraping DB ..."
+              mysql --host=${DBInstance.Endpoint.Address} --port=${DBInstance.Endpoint.Port} "--user=$username" "--password=$password" ${DBName} < bootstrap.sql
+            else
+              username=$(aws --region ${SourceRegion} secretsmanager get-secret-value --secret-id ${Secret} | jq -r '.SecretString' | jq -r '.username')
+              password=$(aws --region ${SourceRegion} secretsmanager get-secret-value --secret-id ${Secret} | jq -r '.SecretString' | jq -r '.password')
+            fi
+            echo "Reading DB ..."
+            mysql --host=${DBInstance.Endpoint.Address} --port=${DBInstance.Endpoint.Port} "--user=$username" "--password=$password" ${DBName} < select.sql
+            echo "Instance initialization... Done."
+        ManagedPolicyArns:
+          Ref: ManagedPolicyArns
+
+
+Outputs:
+
+  Key:
+    Description: The Key
+    Value: !Ref Key
+
+  Secret:
+    Description: The Secret
+    Value: !Ref Secret
+
+  DBInstance:
+    Description: The DBInstance
+    Value: !Ref DBInstance
+
+  DBInstanceEndpointAddress:
+    Description: The DBInstance Endpoint Address
+    Value: !GetAtt DBInstance.Endpoint.Address
+
+  DBInstanceEndpointPort:
+    Description: The DBInstance Endpoint Port
+    Value: !GetAtt DBInstance.Endpoint.Port
+
+  EC2Instance:
+    Description: The EC2Instance PublicDnsName
+    Value: !GetAtt EC2Instance.Outputs.InstancePublicDnsName

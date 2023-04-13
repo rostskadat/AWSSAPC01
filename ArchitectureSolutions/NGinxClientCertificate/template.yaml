@@ -1,0 +1,239 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  NGinxClientCertificate. Showcase different solution to allow client authentication through certificate
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "ELB-NGinxClientCertificate"
+    Description: Showcase different solution to allow client authentication through certificate
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "ELB" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Route53
+        Parameters:
+          - S3HostedZoneId
+          - HostedZoneName
+          - SubDomainName
+      - Label:
+          default: Parameters related to VPC
+        Parameters:
+          - VpcId
+          - Subnets
+          - SecurityGroups
+      - Label:
+          default: Parameters related to the EC2 Instance
+        Parameters:
+          - ImageId
+          - ManagedPolicyArns
+
+Parameters:
+
+  HostedZoneId:
+    Description: The HostedZoneId
+    Type: String
+    Default: Z4OAYE8GXTF5F
+
+  HostedZoneName:
+    Description: "The hosted zone name"
+    Type: String
+    Default: domain.com
+
+  SubDomainName:
+    Description: "The subdomain of the API"
+    Type: String
+    Default: sapc01-nginxclientcertificate
+
+  VpcId:
+    Description: "The VPC (DEFAULT_VPC)"
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-9e9b9ffa
+
+  Subnets:
+    Description: "The Subnet (DEFAULT_VPC / PUBLIC / CONNECTED)"
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581"
+
+  SecurityGroups:
+    Description: "The Security group (DEFAULT_VPC)"
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Default: "sg-e1435287"
+
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+  ManagedPolicyArns:
+    Description: "A comma separated list of IAM Policy ARNs to attach to the Instance"
+    Type: String
+    Default: "arn:aws:iam::aws:policy/PowerUserAccess"
+
+Resources:
+  
+  Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ImageId: 
+          Ref: ImageId
+        ManagedPolicyArns: 
+          Ref: ManagedPolicyArns
+        SubnetId:
+          Fn::Select: [ 0, Ref: Subnets ]
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel ; yum update -y
+            amazon-linux-extras install -y php7.2
+            # Installing httpd and php 
+            yum install -y httpd mod_ssl jq
+            usermod -a -G apache ec2-user
+            chown -R ec2-user:apache /var/www
+            chmod 2775 /var/www 
+            find /var/www -type d -exec sudo chmod 2775 {} \;
+            find /var/www -type f -exec sudo chmod 0664 {} \;
+            echo "<?php phpinfo(); ?>" > /var/www/html/phpinfo.php
+            cd /etc/pki/tls/certs
+            ./make-dummy-cert localhost.crt
+            # Comment SSLCertificateKeyFile because the private is also in the localhost.crt
+            # Configure SSLCACertificateFile
+            # Uncomment SSLVerifyClient
+            sed --in-place=.backup -E 's|.*(SSLCertificateKeyFile.*)|#\1|;s|.*(SSLCACertificateFile .*)|SSLCACertificateFile /etc/pki/CA/certs/ca-clients.crt|;s|.*(SSLVerifyClient .*)|SSLVerifyClient require|' /etc/httpd/conf.d/ssl.conf
+            # Generating the CA that will sign Client certificate
+            openssl req -new -newkey rsa:4096 -days 365 -nodes -x509 \
+              -subj "/C=ES/ST=MADRID/L=MADRID/O=ALLFUNDS/CN=CAClient" \
+              -keyout /etc/pki/CA/private/ca-clients.key -out /etc/pki/CA/certs/ca-clients.crt
+            # Generating the Certificate for the user to retrieve in order to access the server
+            openssl genrsa -out /etc/pki/CA/newcerts/client-authentiction.key 2048
+            openssl req -new \
+              -subj "/C=ES/ST=MADRID/L=MADRID/O=ALLFUNDS/CN=client" \
+              -key /etc/pki/CA/newcerts/client-authentiction.key -out /etc/pki/CA/newcerts/client-authentiction.csr
+            openssl x509 -sha256 -days 365 -req \
+              -in /etc/pki/CA/newcerts/client-authentiction.csr -out /etc/pki/CA/newcerts/client-authentiction.crt \
+              -CAkey /etc/pki/CA/private/ca-clients.key -CA /etc/pki/CA/certs/ca-clients.crt -CAcreateserial
+            # convert certificate to an easy to use PKCS12 file (no password required)
+            openssl pkcs12 -export -certfile /etc/pki/CA/certs/ca-clients.crt \
+              -in /etc/pki/CA/newcerts/client-authentiction.crt -inkey /etc/pki/CA/newcerts/client-authentiction.key \
+              -out /etc/pki/CA/newcerts/client-authentiction.p12 -passout pass:  
+            # Starting everything... 
+            systemctl start httpd
+            systemctl enable httpd
+            systemctl status httpd
+
+  #
+  # The LoadBalancer elements
+  #
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Subnets:
+        Ref: Subnets
+      Type: network
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn:
+            Ref: TargetGroup
+      LoadBalancerArn:
+        Ref: LoadBalancer
+      Port: 443
+      Protocol: TCP
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: 443
+      Protocol: TCP
+      VpcId:
+        Ref: VpcId
+      Targets: 
+        - Id: 
+            Fn::Sub: ${Instance.Outputs.InstanceId}
+      TargetType: instance
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  #
+  # The Route53 elements
+  #
+  RecordSetGroup:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneId: 
+        Ref: HostedZoneId
+      RecordSets:
+        # NOTE: the bucket name is the same as the RecordSet
+        - Name: 
+            Fn::Sub: ${SubDomainName}.${HostedZoneName}
+          ResourceRecords: 
+            - Fn::Sub: ${Instance.Outputs.InstancePublicIp}
+          TTL: '900'
+          Type: A
+          Failover: PRIMARY 
+          HealthCheckId:
+            Ref: HealthCheck
+          SetIdentifier: PRIMARY
+
+#  RecordSet:
+#    Type: AWS::Route53::RecordSet
+#    Properties:
+#      HealthCheckId: 
+#        Ref: HealthCheck
+#      HostedZoneId : 
+#        Ref: HostedZoneId
+#      Name: 
+#        Fn::Sub: ${SubDomainName}.${HostedZoneName}
+#      ResourceRecords:
+#        - Fn::Sub: ${Instance.Outputs.InstancePublicIp}
+#      TTL: '900'
+#      Type: A
+
+  HealthCheck: 
+    Type: AWS::Route53::HealthCheck
+    Properties: 
+      HealthCheckConfig: 
+        Type: TCP
+        IPAddress: 
+          Fn::Sub: ${Instance.Outputs.InstancePublicIp}
+        Port: 443
+      HealthCheckTags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+Outputs:
+
+  Instance:
+    Description: The Instance
+    Value: 
+      Fn::Sub: ${Instance.Outputs.InstancePublicDnsName}
+
+  LoadBalancerDNSName:
+    Description: The LoadBalancerDNSName
+    Value: 
+      Fn::Sub: ${LoadBalancer.DNSName}
+
+  RecordSetGroup:
+    Description: The RecordSetGroup
+    Value: 
+      Fn::Sub: ${SubDomainName}.${HostedZoneName}
+
+  

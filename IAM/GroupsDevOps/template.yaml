@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - Yaml2Json
+Description: >
+  GroupsDevOps. Please note that both group have Administrator Access in development account.
+
+Parameters:
+  OperationAccount:
+    Type: String
+    Description: The Id of the Operation Account
+    Default: "610150951079"
+
+  Developer:
+    Type: String
+    Description: The name of the IAM user belonging to the Developer Group
+    Default: "n090536"
+
+  Operator:
+    Type: String
+    Description: The name of the IAM user belonging to the Operator Group
+    Default: "batch-build"
+
+Resources:
+
+  DevelopersGroup:
+    Type: "AWS::IAM::Group"
+    Properties:
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AdministratorAccess"
+      GroupName: DevelopersGroup
+      Path: /
+
+  OperatorsGroup:
+    Type: "AWS::IAM::Group"
+    Properties:
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/AdministratorAccess"
+      GroupName: OperatorsGroup
+      Path: /
+
+  AllowOperationAccountPolicy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyDocument: 
+        Fn::Sub: 
+          Fn::Yaml2Json:
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: "Allow"
+                Action: "sts:AssumeRole"
+                Resource: "arn:aws:iam::${OperationAccount}:role/OrganizationAccountAccessRole"
+      PolicyName: 
+        Fn::Sub: "AllowToAssumeRoleInAccount${OperationAccount}"
+      Groups: 
+        - Ref: OperatorsGroup
+
+  DenyOperationAccountPolicy:
+    Type: AWS::IAM::Policy
+    Properties: 
+      PolicyDocument: 
+        Fn::Sub: 
+          Fn::Yaml2Json:
+            Version: "2012-10-17"
+            Statement: 
+              - Effect: "Deny"
+                Action: "sts:AssumeRole"
+                Resource: "arn:aws:iam::${OperationAccount}:role/OrganizationAccountAccessRole"
+      PolicyName: 
+        Fn::Sub: "DenyToAssumeRoleInAccount${OperationAccount}"
+      Users: 
+        - Ref: Developer
+
+  AddUsersToDevelopersGroup:
+    Type: "AWS::IAM::UserToGroupAddition"
+    Properties:
+      GroupName:
+        Ref: DevelopersGroup
+      Users:
+        - Ref: Developer
+        - Ref: Operator
+
+  AddUsersToOperatorsGroup:
+    Type: "AWS::IAM::UserToGroupAddition"
+    Properties:
+      GroupName:
+        Ref: OperatorsGroup
+      Users:
+        - Ref: Operator
+

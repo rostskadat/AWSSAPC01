@@ -1,0 +1,157 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  BlueGreen. Showcase GlobalAccelerator in order to avoid Client DNS caching during Blue Green deployment
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "GlobalAccelerator-BlueGreen"
+    Description: Showcase GlobalAccelerator in order to avoid Client DNS caching during Blue Green deployment
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01", "GlobalAccelerator"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Lambda
+        Parameters:
+          - HostedZoneId
+          - HostedZoneName
+          - SubDomainName
+      - Label:
+          default: Parameters related to EC2
+        Parameters:
+          - Subnets
+          - FlaskPort
+          - ImageId
+
+Parameters:
+
+  HostedZoneName:
+    Description: "The hosted zone name"
+    Type: String
+    Default: domain.com
+
+  SubDomainName:
+    Description: "The subdomain of the API"
+    Type: String
+    Default: sapc01-globalaccelerator
+
+  Subnets:
+    Description: "The subnet in which to start the instances"
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581"
+
+  FlaskPort:
+    Description: "The Port on which the Flask app is listening on"
+    Type: Number
+    Default: 80
+
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+Resources:
+
+  RecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      # NOTE: the final dot
+      HostedZoneName: !Sub "${HostedZoneName}."
+      Name: !Sub "${SubDomainName}.${HostedZoneName}"
+      AliasTarget:
+        # As per https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-route53-aliastarget-1.html#aws-properties-route53-aliastarget-1-properties
+        DNSName: !GetAtt Accelerator.DnsName
+        HostedZoneId: "Z2BJ6XQ5FK7U4H"
+      Type: A
+
+  Accelerator:
+    Type: AWS::GlobalAccelerator::Accelerator
+    Properties:
+      Name: !Ref SubDomainName
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Listener:
+    Type: AWS::GlobalAccelerator::Listener
+    Properties:
+      AcceleratorArn:
+        Ref: Accelerator
+      Protocol: TCP
+      PortRanges:
+      - FromPort: !Ref FlaskPort
+        ToPort: !Ref FlaskPort
+
+  BlueInstance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/SimpleFlaskApp/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ImageId:
+          Ref: ImageId
+        SubnetId:
+          Fn::Select: [0, Ref: Subnets]
+        FlaskPort:
+          Ref: FlaskPort
+        DefRenderIndex: |
+          def render_index():
+            return '<html><head><title>BLUE</title></head><body style="background-color: cornflowerblue;"><p>This is the BLUE page</p></body></html>'
+
+  GreenInstance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/SimpleFlaskApp/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ImageId:
+          Ref: ImageId
+        SubnetId:
+          Fn::Select: [0, Ref: Subnets]
+        FlaskPort:
+          Ref: FlaskPort
+        DefRenderIndex: |
+          def render_index():
+            return '<html><head><title>BLUE</title></head><body style="background-color: green;"><p>This is the GREEN page</p></body></html>'
+
+  EndpointGroup:
+    Type: AWS::GlobalAccelerator::EndpointGroup
+    Properties:
+      EndpointConfigurations:
+        - EndpointId: !GetAtt BlueInstance.Outputs.InstanceId
+          Weight: 80
+        - EndpointId: !GetAtt GreenInstance.Outputs.InstanceId
+          Weight: 20
+      EndpointGroupRegion:
+        Ref: AWS::Region
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: !GetAtt BlueInstance.Outputs.DefRenderHealthPath
+      HealthCheckProtocol: HTTP
+      ListenerArn:
+        Ref: Listener
+
+Outputs:
+
+  AppUrl:
+    Description: The AppUrl
+    Value: !Sub "http://${RecordSet}/"
+
+  Accelerator:
+    Description: The Accelerator
+    Value: !GetAtt Accelerator.DnsName
+  
+  BlueInstance:
+    Description: The BlueInstance
+    Value: !GetAtt BlueInstance.Outputs.InstancePublicDnsName
+  
+  GreenInstance:
+    Description: The GreenInstance
+    Value: !GetAtt GreenInstance.Outputs.InstancePublicDnsName

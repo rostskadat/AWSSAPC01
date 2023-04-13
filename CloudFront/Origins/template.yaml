@@ -1,0 +1,424 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+Description: >
+  Origins. Show case the different CloudFront Origins
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "CloudFront-Origins"
+    Description: Show case the different CloudFront Origins
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "CloudFront" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to CloudFront
+        Parameters:
+          - ManagedCachingDisabledId
+          - FlaskPort
+
+Parameters:
+
+  ManagedCachingDisabledId:
+    Description: "The Caching Policy Id to use. Defaul to the Managed-CachingDisabled Caching Policy"
+    Type: String
+    Default: "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+
+  FlaskPort:
+    Description: "The Port on which the Flask app is listening on"
+    Type: Number
+    Default: 80
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: OriginsLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  #
+  # S3 ORIGIN
+  #
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  BucketIndex:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: Bucket
+        Key: index.html
+        ContentType: text/html
+        ACL: public-read
+      Body: 
+        Fn::Sub: |
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <link rel="icon" href="favicon.ico" type="image/x-icon"/>
+              <link rel="shortcut icon" href="favicon.ico" type="image/x-icon"/>
+              <title>S3 Integration</title>
+              <link rel="stylesheet" href="//code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
+            </head>
+            <body>
+              <div data-role="page" id="page1">
+              <div data-role="header"><h1>'${Bucket}': S3 Integration</h1></div>
+              <div><p>Showcase S3 Integration</p></div>
+              </div>
+            </body>
+            </html>
+
+  S3OriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: "CloudFront::CloudFrontOriginAccessIdentity for S3 Integration"
+
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: Bucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - "s3:*"
+            Principal: 
+              AWS:
+                Fn::Sub: "arn:${AWS::Partition}:iam::${AWS::AccountId}:user/rostskadat"
+            Resource:
+              - Fn::Sub: "arn:${AWS::Partition}:s3:::${Bucket}"
+              - Fn::Sub: "arn:${AWS::Partition}:s3:::${Bucket}/*"
+          - Effect: Allow
+            Action:
+              - "s3:GetObject"
+            Principal: 
+              AWS:
+                Fn::Sub: "arn:${AWS::Partition}:iam::cloudfront:user/CloudFront Origin Access Identity ${S3OriginAccessIdentity}"
+              # It's harder to know who the CanonicalUser is refering to...
+              # CanonicalUser: 
+              #   Fn::GetAtt: S3OriginAccessIdentity.S3CanonicalUserId
+            Resource:
+              Fn::Sub: "arn:${AWS::Partition}:s3:::${Bucket}/*"
+
+  S3Distribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: S3BucketPolicy
+    Properties:
+      DistributionConfig:
+        DefaultCacheBehavior:
+          CachePolicyId: 
+            Ref: ManagedCachingDisabledId
+          # This element is deprecated but still required (!?!)
+          ForwardedValues: 
+            QueryString: false
+          TargetOriginId: S3BucketOrigin
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: index.html
+        Enabled: true
+        Origins:
+          - DomainName:
+              Fn::GetAtt: Bucket.RegionalDomainName
+            Id: S3BucketOrigin
+            S3OriginConfig:
+              OriginAccessIdentity: 
+                Fn::Sub: "origin-access-identity/cloudfront/${S3OriginAccessIdentity}"
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+  #
+  # S3 WEBSITE ORIGIN
+  #
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      WebsiteConfiguration:
+        IndexDocument: index.html
+
+  WebsiteBucketIndex:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: WebsiteBucket
+        Key: index.html
+        ContentType: text/html
+        ACL: public-read
+      Body: 
+        Fn::Sub: |
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
+              <link rel="icon" href="favicon.ico" type="image/x-icon"/>
+              <link rel="shortcut icon" href="favicon.ico" type="image/x-icon"/>
+              <title>S3 Website Integration</title>
+              <link rel="stylesheet" href="//code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
+            </head>
+            <body>
+              <div data-role="page" id="page1">
+              <div data-role="header"><h1>'${WebsiteBucket}': S3 Website Integration</h1></div>
+              <div><p>Showcase S3 Website Integration</p></div>
+              </div>
+            </body>
+            </html>
+
+  S3WebsiteDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        DefaultCacheBehavior:
+          CachePolicyId: 
+            Ref: ManagedCachingDisabledId
+          # This element is deprecated but still required (!?!)
+          ForwardedValues: 
+            QueryString: false
+          TargetOriginId: S3WebsiteBucketOrigin
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: index.html
+        Enabled: true
+        Origins:
+          - CustomOriginConfig: 
+              OriginProtocolPolicy: "http-only"
+            DomainName:
+              # WebsiteBucket.WebsiteURL comes with the protocol. 
+              # Have to reconstruct the FQDN :(
+              Fn::Sub: "${WebsiteBucket}.s3-website.${AWS::Region}.amazonaws.com"
+            Id: S3WebsiteBucketOrigin
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  #
+  # EC2 INSTANCE ORIGIN
+  #
+  # BEWARE: The SG for the security group does not restrict to CloudFront Edge locations.
+  #   Edge Locations can be retrieved here http://d7uri8nf7uskq.cloudfront.net/tools/list-cloudfront-ips
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        CreateInstance: true
+        ParentStackName:
+          Ref: AWS::StackName
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel ;
+            yum update -y ;
+            yum install -y python3 python3-pip
+            pip3 --disable-pip-version-check install gunicorn==20.0.4 Flask==1.1.2
+            mkdir /flask-hello-world
+            cat > /flask-hello-world/app.py <<EOF
+            import os, flask
+            app = flask.Flask(__name__)
+            @app.route('/index.html')
+            def render_index():
+              # Simulate an expansive request
+              return "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'><title>EC2 Instance Integration</title></head><body><div data-role='page' id='page1'><div data-role='header'><h1>EC2 Instance Integration</h1></div><div><p>Showcase EC2 Instance Integration</p></div></div></body></html>"
+            @app.route('/health')
+            def render_health():
+              return "OK"
+            if __name__ == '__main__':
+              app.run(debug=True, host='0.0.0.0', port=${FlaskPort})
+            EOF
+            cd /flask-hello-world && /usr/local/bin/gunicorn --bind 0.0.0.0:${FlaskPort} --daemon app:app
+            echo "Instance initialization... Done"
+
+  EC2InstanceDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: EC2Instance
+    Properties:
+      DistributionConfig:
+        DefaultCacheBehavior:
+          CachePolicyId: 
+            Ref: ManagedCachingDisabledId
+          # This element is deprecated but still required (!?!)
+          ForwardedValues: 
+            QueryString: false
+          TargetOriginId: EC2InstanceOrigin
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: index.html
+        Enabled: true
+        Origins:
+          - CustomOriginConfig: 
+              OriginProtocolPolicy: "http-only"
+            DomainName:
+              Fn::Sub: "${EC2Instance.Outputs.InstancePublicDnsName}"
+            Id: EC2InstanceOrigin
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  #
+  # FAILOVER INSTANCE ORIGIN
+  #
+  # BEWARE: The SG for the security group does not restrict to CloudFront Edge locations.
+  #   Edge Locations can be retrieved here http://d7uri8nf7uskq.cloudfront.net/tools/list-cloudfront-ips
+  EC2MainInstance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        CreateInstance: true
+        ParentStackName:
+          Ref: AWS::StackName
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel ;
+            yum update -y ;
+            yum install -y python3 python3-pip
+            pip3 --disable-pip-version-check install gunicorn==20.0.4 Flask==1.1.2
+            mkdir /flask-hello-world
+            cat > /flask-hello-world/app.py <<EOF
+            import os, flask
+            app = flask.Flask(__name__)
+            @app.route('/index.html')
+            def render_index():
+              # Simulate an expansive request
+              return "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'><title>EC2MainInstance Integration</title></head><body><div data-role='page' id='page1'><div data-role='header'><h1>EC2MainInstance Integration</h1></div><div><p>Showcase EC2MainInstance Integration</p></div></div></body></html>"
+            @app.route('/health')
+            def render_health():
+              return "OK"
+            if __name__ == '__main__':
+              app.run(debug=True, host='0.0.0.0', port=${FlaskPort})
+            EOF
+            cd /flask-hello-world && /usr/local/bin/gunicorn --bind 0.0.0.0:${FlaskPort} --daemon app:app
+            echo "Instance initialization... Done"
+
+  # BEWARE: The SG for the security group does not restrict to CloudFront Edge locations.
+  #   Edge Locations can be retrieved here http://d7uri8nf7uskq.cloudfront.net/tools/list-cloudfront-ips
+  EC2FailoverInstance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        CreateInstance: true
+        ParentStackName:
+          Ref: AWS::StackName
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel ;
+            yum update -y ;
+            yum install -y python3 python3-pip
+            pip3 --disable-pip-version-check install gunicorn==20.0.4 Flask==1.1.2 Flask-Cors==3.0.10
+            mkdir /flask-hello-world
+            cat > /flask-hello-world/app.py <<EOF
+            import datetime, flask, flask_cors, json, logging, os
+            index_string = "<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'><title>EC2FailoverInstance Integration</title></head><body><div data-role='page' id='page1'><div data-role='header'><h1>EC2FailoverInstance Integration</h1></div><div><p>Showcase EC2FailoverInstance Integration</p></div></div></body></html>"
+            # Change return_code to 500
+            return_code = 200
+            app = flask.Flask(__name__)
+            flask_cors.CORS(app)
+            @app.route('/index.html')
+            def render_index():
+              # Simulate an expansive request
+              return index_string, return_code
+            @app.route('/health')
+            def render_health():
+              return "OK"
+            if __name__ == '__main__':
+              app.run(debug=True, host='0.0.0.0', port=${FlaskPort})
+            EOF
+            cd /flask-hello-world && /usr/local/bin/gunicorn --bind 0.0.0.0:${FlaskPort} --daemon app:app
+            echo "Instance initialization... Done"
+
+  FailoverDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: EC2Instance
+    Properties:
+      DistributionConfig:
+        DefaultCacheBehavior:
+          CachePolicyId: 
+            Ref: ManagedCachingDisabledId
+          # This element is deprecated but still required (!?!)
+          ForwardedValues: 
+            QueryString: false
+          TargetOriginId: EC2Instances
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: index.html
+        Enabled: true
+        OriginGroups:
+          Items: 
+            - FailoverCriteria: 
+                StatusCodes: 
+                  Items: 
+                    - 500
+                  Quantity: 1
+              Id: EC2Instances
+              Members: 
+                Items: 
+                  - OriginId: EC2MainInstanceOrigin
+                  - OriginId: EC2FailoverInstanceOrigin
+                Quantity: 2
+          Quantity: 1
+        Origins:
+          - CustomOriginConfig: 
+              OriginProtocolPolicy: "http-only"
+            DomainName:
+              Fn::Sub: "${EC2MainInstance.Outputs.InstancePublicDnsName}"
+            Id: EC2MainInstanceOrigin
+          - CustomOriginConfig: 
+              OriginProtocolPolicy: "http-only"
+            DomainName:
+              Fn::Sub: "${EC2FailoverInstance.Outputs.InstancePublicDnsName}"
+            Id: EC2FailoverInstanceOrigin
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+Outputs:
+
+  S3DistributionDomainName:
+    Description: The S3Distribution DomainName
+    Value: 
+      Fn::GetAtt: S3Distribution.DomainName
+
+  S3WebsiteDistributionDomainName:
+    Description: The S3WebsiteDistribution DomainName
+    Value: 
+      Fn::GetAtt: S3WebsiteDistribution.DomainName
+
+  EC2InstanceDistributionDomainName:
+    Description: The EC2InstanceDistribution DomainName
+    Value: 
+      Fn::GetAtt: EC2InstanceDistribution.DomainName
+
+  FailoverDistributionDomainName:
+    Description: The FailoverDistribution DomainName
+    Value: 
+      Fn::GetAtt: FailoverDistribution.DomainName
+
+  EC2MainInstancePublicDnsName:
+    Description: The EC2MainInstance PublicDnsName
+    Value: 
+      Fn::Sub: "${EC2MainInstance.Outputs.InstancePublicDnsName}"

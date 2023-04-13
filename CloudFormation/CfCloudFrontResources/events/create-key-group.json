@@ -1,0 +1,16 @@
+{
+  "RequestType": "Create",
+  "ServiceToken": "arn:aws:lambda:eu-west-1:123456789012:function:CfCloudFrontKeyGroupFunction",
+  "ResponseURL": "https://cloudformation-custom-resource-response-euwest1.s3-eu-west-1.amazonaws.com/arn%3Aaws%3Acloudformation%3Aeu-west-1%3A123456789012%3Astack/SAPC01-SignedUrlCookies/de3c7080-21cc-11eb-8da5-0275bf88180c%7CDefaultKeyGroup%7Cb15023bc-aad7-4c12-9216-7525e5d05da0?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20201108T165233Z&X-Amz-SignedHeaders=host&X-Amz-Expires=7200&X-Amz-Credential=AKIAJ7MCS7PVEUOADEEA%2F20201108%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Signature=e60c57ea6fc2d7e00bbcecbbe85e638cda23d51f669c4683dc11760769c6e152",
+  "StackId": "arn:aws:cloudformation:eu-west-1:123456789012:stack/SAPC01-SignedUrlCookies/de3c7080-21cc-11eb-8da5-0275bf88180c",
+  "RequestId": "b15023bc-aad7-4c12-9216-7525e5d05da0",
+  "LogicalResourceId": "DefaultKeyGroup",
+  "ResourceType": "Custom::CfCloudFrontKeyGroupFunction",
+  "ResourceProperties": {
+      "ServiceToken": "arn:aws:lambda:eu-west-1:123456789012:function:CfCloudFrontKeyGroupFunction",
+      "Items": [
+          "K1RW0T4MNE3ZQL"
+      ],
+      "Name": "DEFAULT"
+  }
+}

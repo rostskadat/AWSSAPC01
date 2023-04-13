@@ -1,0 +1,22 @@
+{
+    "Records": [
+        {
+            "EventSource": "aws:sns",
+            "EventVersion": "1.0",
+            "EventSubscriptionArn": "arn:aws:sns:eu-west-1:123456789012:SAPC01-LifecycleHooks-Topic-17762JFHDXYJ9:48d4a9ca-555c-4433-bcf4-ab41810c80ba",
+            "Sns": {
+                "Type": "Notification",
+                "MessageId": "66075ae9-f7e5-598d-8ce9-02f8eaad8109",
+                "TopicArn": "arn:aws:sns:eu-west-1:123456789012:SAPC01-LifecycleHooks-Topic-17762JFHDXYJ9",
+                "Subject": "Auto Scaling:  Lifecycle action LAUNCHING for instance i-085138701120c223c in progress.",
+                "Message": "{\"LifecycleHookName\":\"SAPC01-LifecycleHooks-LaunchLifecycleHook-OGGDFPJEITRX\",\"AccountId\":\"123456789012\",\"RequestId\":\"2e25d599-0467-1109-733c-db122c9d15ef\",\"LifecycleTransition\":\"autoscaling:EC2_INSTANCE_LAUNCHING\",\"AutoScalingGroupName\":\"SAPC01-LifecycleHooks-AutoScalingGroup-1XAGMQDIHKBK4\",\"Service\":\"AWS Auto Scaling\",\"Time\":\"2020-10-26T18: 52: 56.665Z\",\"EC2InstanceId\":\"i-085138701120c223c\",\"LifecycleActionToken\":\"3e554957-4e4d-497a-b8f2-eca6ef4de7a7\"}",
+                "Timestamp": "2020-10-26T18:52:56.682Z",
+                "SignatureVersion": "1",
+                "Signature": "dwB1BErltdhHKdERfeWx7oNzDlZ5Njg8Bo9ZMY3YLnTMIAEw1ivVl4i8L+1XIVauDPK94ryOAUAzjbMNXwHHM6FS3+cp3aU0quFhkKGOTOHdc9NYtJ9C2e6utRc/25vl2jZSlIm2LU/ioPtqZUY0rIvvY1kCBkmxuCznebdzzKl0oEHANsaHR9v+wfBw+5sauJUjT6+uVRT0JL53J1I0bCKArSkamcXaESWBU719gAFV+bK3+O+ZThQT3ow6+OYZBKKRc8rhwl0b+YL/9UO4okbbp4naMnOTR4n7y41CGmswwlA6nN3D/3eiPVkRk3U0q2i25A83PcJ75Ks6YSIGkQ==",
+                "SigningCertUrl": "https://sns.eu-west-1.amazonaws.com/SimpleNotificationService-a86cb10b4e1f29c941702d737128f7b6.pem",
+                "UnsubscribeUrl": "https://sns.eu-west-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:eu-west-1:123456789012:SAPC01-LifecycleHooks-Topic-17762JFHDXYJ9:48d4a9ca-555c-4433-bcf4-ab41810c80ba",
+                "MessageAttributes": {}
+            }
+        }
+    ]
+}

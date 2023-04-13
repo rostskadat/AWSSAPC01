@@ -1,0 +1,22 @@
+{
+  "Records": [
+    {
+      "EventSource": "aws:sns",
+      "EventVersion": "1.0",
+      "EventSubscriptionArn": "arn:aws:sns:eu-west-1:123456789012:SAPC01-AuroraAutoScaling-ScaleInTopic-9DCDND6MUE81:8c7508c0-67b6-42e3-9182-4c22e7b2133d",
+      "Sns": {
+        "Type": "Notification",
+        "MessageId": "5ec9bc35-050a-5fb6-9dd4-e4e37575c4ba",
+        "TopicArn": "arn:aws:sns:eu-west-1:123456789012:SAPC01-AuroraAutoScaling-ScaleInTopic-9DCDND6MUE81",
+        "Subject": "ALARM: \"SAPC01-AuroraAutoScaling-CPUUtilizationLow-A8RL8N09MNNI\" in EU (Ireland)",
+        "Message": "{\"AlarmName\":\"SAPC01-AuroraAutoScaling-CPUUtilizationLow-A8RL8N09MNNI\",\"AlarmDescription\":\"Trigger a scale in if CPUUtilization is less 5%\",\"AWSAccountId\":\"123456789012\",\"NewStateValue\":\"ALARM\",\"NewStateReason\":\"Threshold Crossed: 1 datapoint [2.5 (25/03/21 11:02:00)] was less than the threshold (5.0).\",\"StateChangeTime\":\"2021-03-25T11:04:31.246+0000\",\"Region\":\"EU (Ireland)\",\"AlarmArn\":\"arn:aws:cloudwatch:eu-west-1:123456789012:alarm:SAPC01-AuroraAutoScaling-CPUUtilizationLow-A8RL8N09MNNI\",\"OldStateValue\":\"OK\",\"Trigger\":{\"MetricName\":\"CPUUtilization\",\"Namespace\":\"AWS/RDS\",\"StatisticType\":\"Statistic\",\"Statistic\":\"AVERAGE\",\"Unit\":null,\"Dimensions\":[{\"value\":\"sapc01-auroraautoscaling-dbcluster-akipybfjc9vs\",\"name\":\"DBClusterIdentifier\"}],\"Period\":60,\"EvaluationPeriods\":1,\"ComparisonOperator\":\"LessThanThreshold\",\"Threshold\":5.0,\"TreatMissingData\":\"\",\"EvaluateLowSampleCountPercentile\":\"\"}}",
+        "Timestamp": "2021-03-25T11:04:31.289Z",
+        "SignatureVersion": "1",
+        "Signature": "E/inTaiaySIYembkaKmmDKb2L2Q/6PkuUPdT10GiUA9VrOun8ewqxaOVuaDzqNFqBY9Y4VRdyCnLA716EsYU45ob+Lmdw2666n0aTZHNg5rJ7XGQHfjydB+X462AmAtK8KjTVmgroZUlSP7NJk04HeLPUjtL5Gg3UGQUaEVdzMLenpPnfnIgT7mDpueN/ubYCxrooviEm4TSXjO/vjbsgqVF3Iq7yBVuYor6xDT1gTd1pduiZJXDcMagzT2UV/IZ4ieoK1bCf43qIJp1v76HcVBL+wd7JdcHPY4EPWNAqw8UsrctJMGBjb5XY4I5Rjdt34EZFokUB0XqfvE88ubgPw==",
+        "SigningCertUrl": "https://sns.eu-west-1.amazonaws.com/SimpleNotificationService-010a507c1833636cd94bdb98bd93083a.pem",
+        "UnsubscribeUrl": "https://sns.eu-west-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:eu-west-1:123456789012:SAPC01-AuroraAutoScaling-ScaleInTopic-9DCDND6MUE81:8c7508c0-67b6-42e3-9182-4c22e7b2133d",
+        "MessageAttributes": {}
+      }
+    }
+  ]
+}

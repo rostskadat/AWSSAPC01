@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  OpenId. Showcase the use of Cognito with an LDAP backend to authenticate/authorize Users...
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "Cognito-OpenId"
+    Description: Showcase the use of Cognito with an LDAP backend to authenticate/authorize Users...
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "Cognito" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Lambda
+        Parameters:
+          - "OpenIdParameter"
+
+Parameters:
+  "OpenIdParameter":
+    Description: Look at https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html
+    Type: String
+    Default: "OpenIdValue"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: "OpenIdLayer01"
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  OIDCProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties: 
+      ClientIdList: 
+        - String
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+      ThumbprintList: 
+        - String
+      Url: String
+
+  IdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties: 
+      AllowClassicFlow: true
+      AllowUnauthenticatedIdentities: false
+      # CognitoEvents: Json
+      OpenIdConnectProviderARNs: 
+        - Fn::GetAtt: OIDCProvider.Arn
+      # SupportedLoginProviders: Json
+
+# Outputs:

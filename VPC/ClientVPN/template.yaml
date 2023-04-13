@@ -1,0 +1,121 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ClientVPN. Showcase Client VPN endpoint
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "VPC-ClientVPN"
+    Description: Showcase Client VPN endpoint
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "VPC" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to VPN
+        Parameters:
+          - VpcId
+          - DomainName
+
+Parameters:
+
+  DomainName:
+    Description: The DomainName
+    Type: String
+    Default: vpn.domain.com
+
+  ClientCertificateArn:
+    Description: The ClientCertificateClientDomainName. Cf README.md
+    Type: String
+    Default: arn:aws:acm:eu-west-1:123456789012:certificate/ca475787-f5cf-41a4-aac7-8c93f72aaaa2
+
+  VpcId:
+    Description: The VpcId
+    Type: AWS::EC2::VPC::Id
+    Default: "vpc-9e9b9ffa"
+
+  SubnetIds:
+    Description: The SubnetId
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581"
+
+  ClientCidrBlock:
+    Description: The ClientCidrBlock
+    Type: String
+    Default: 172.31.96.0/20
+
+Resources:
+
+  ServerCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref DomainName
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      ValidationMethod: DNS
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      RetentionInDays: 7
+
+  LogStream: 
+    Type: AWS::Logs::LogStream
+    Properties: 
+      LogGroupName: !Ref LogGroup
+      LogStreamName: VPNConnections
+
+  ClientVpnEndpoint:
+    Type: AWS::EC2::ClientVpnEndpoint
+    Properties: 
+      AuthenticationOptions:
+        - Type: certificate-authentication
+          MutualAuthentication:
+            ClientRootCertificateChainArn: !Ref ClientCertificateArn
+      ClientCidrBlock: !Ref ClientCidrBlock
+      ConnectionLogOptions: 
+        CloudwatchLogGroup: !Ref LogGroup
+        CloudwatchLogStream: !Ref LogStream
+        Enabled: true
+      SelfServicePortal: disabled
+      ServerCertificateArn: !Ref ServerCertificate
+      TagSpecifications:
+        - ResourceType: "client-vpn-endpoint"
+          Tags:
+            - Key: PLATFORM
+              Value: SAPC01
+            - Key: Name
+              Value: !Sub "${AWS::StackName}-ClientVpn"
+      VpcId:
+        Ref: VpcId
+
+  ClientVpnTargetNetworkAssociationAZA:
+    Type: AWS::EC2::ClientVpnTargetNetworkAssociation
+    Properties:
+      ClientVpnEndpointId: !Ref ClientVpnEndpoint
+      SubnetId: !Select [0, !Ref SubnetIds]
+
+  ClientVpnTargetNetworkAssociationAZB:
+    Type: AWS::EC2::ClientVpnTargetNetworkAssociation
+    Properties:
+      ClientVpnEndpointId: !Ref ClientVpnEndpoint
+      SubnetId: !Select [1, !Ref SubnetIds]
+
+  ClientVpnAuthorizationRule:
+    Type: AWS::EC2::ClientVpnAuthorizationRule
+    Properties:
+      AuthorizeAllGroups: true
+      ClientVpnEndpointId: !Ref ClientVpnEndpoint
+      TargetNetworkCidr: "0.0.0.0/0"
+
+Outputs:
+  ClientVpnEndpoint:
+    Description: The ClientVpnEndpoint
+    Value: !Ref ClientVpnEndpoint

@@ -1,0 +1,26 @@
+---
+Comment: List all images in bucket and trigger a processing workflow for each one
+StartAt: ProcessOneImage
+States:
+  ProcessOneImage:
+    Type: Parallel
+    End: true
+    Branches:
+    - StartAt: DebugInput
+      States:
+        DebugInput:
+          Type: Task
+          Resource: ${DebugInputFunctionArn}
+          End: true
+    - StartAt: CreateThumbnail
+      States:
+        CreateThumbnail:
+          Type: Task
+          Resource: ${CreateThumbnailFunctionArn}
+          End: true
+    - StartAt: ProcessExif
+      States:
+        ProcessExif:
+          Type: Task
+          Resource: ${ProcessExifFunctionArn}
+          End: true

@@ -1,0 +1,29 @@
+{
+    "RequestType": "Delete",
+    "ServiceToken": "arn:aws:lambda:eu-west-1:123456789012:function:CfCloudWatchLogsResourcePolicy",
+    "ResponseURL": "https://cloudformation-custom-resource-response-euwest1.s3-eu-west-1.amazonaws.com/arn%3Aaws%3Acloudformation%3Aeu-west-1%3A123456789012%3Astack/SAPC01-DynamoDB2ElasticSearch/26b19a80-6ac4-11eb-bf1f-028e2963e193%7CResourcePolicy%7C2ade45e8-a13a-464d-84cf-1566b0209705?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210209T153745Z&X-Amz-SignedHeaders=host&X-Amz-Expires=7200&X-Amz-Credential=AKIAJ7MCS7PVEUOADEEA%2F20210209%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Signature=a7af69f7e7d4207dcf319cec355ddd40a61e2897f5afe06fff419a32a12da943",
+    "StackId": "arn:aws:cloudformation:eu-west-1:123456789012:stack/INFRASTRUCTURE-ES-RESOURCE_POLICY/26b19a80-6ac4-11eb-bf1f-028e2963e193",
+    "RequestId": "2ade45e8-a13a-464d-84cf-1566b0209705",
+    "LogicalResourceId": "ResourcePolicy",
+    "PhysicalResourceId": "INFRASTRUCTURE-ES-RESOURCE_POLICY-ResourcePolicy-Y5SYWUQQ",
+    "ResourceType": "Custom::CfCloudWatchLogsResourcePolicy",
+    "ResourceProperties": {
+        "ServiceToken": "arn:aws:lambda:eu-west-1:123456789012:function:CfCloudWatchLogsResourcePolicy",
+        "PolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Action": [
+                        "logs:CreateLogStream",
+                        "logs:PutLogEvents"
+                    ],
+                    "Resource": "arn:aws:logs:eu-west-1:123456789012:log-group:*:*",
+                    "Effect": "Allow",
+                    "Principal": {
+                        "Service": "es.amazonaws.com"
+                    }
+                }
+            ]
+        }
+    }
+}

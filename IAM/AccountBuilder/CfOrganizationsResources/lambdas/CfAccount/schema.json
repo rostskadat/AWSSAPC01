@@ -1,0 +1,77 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "http://example.com/example.json",
+  "type": "object",
+  "title": "The schema for the CfAccount Custom Resource",
+  "description": "The schema comprises the entire JSON document.",
+  "default": {},
+  "examples": [
+      {
+          "AccountName": "MyNewAccount",
+          "Email": "new-user@example.com",
+          "IamUserAccessToBilling": "DENY",
+          "RoleName": "NewUserRole",
+          "DestinationParentId": "ou-123567"
+      }
+  ],
+  "required": [
+      "AccountName",
+      "Email",
+      "IamUserAccessToBilling",
+      "RoleName"
+  ],
+  "properties": {
+      "AccountName": {
+          "$id": "#/properties/AccountName",
+          "type": "string",
+          "title": "The Name of the newly created Account",
+          "description": "The friendly name of the member account.",
+          "default": "",
+          "examples": [
+              "MyNewAccount"
+          ]
+      },
+      "Email": {
+          "$id": "#/properties/Email",
+          "type": "string",
+          "title": "The Email schema",
+          "description": "The email address of the owner to assign to the new member account. This email address must not already be associated with another AWS account. You must use a valid email address to complete account creation. You can't access the root user of the account or remove an account that was created with an invalid email address.",
+          "default": "",
+          "examples": [
+              "new-user@example.com"
+          ]
+      },
+      "IamUserAccessToBilling": {
+          "$id": "#/properties/IamUserAccessToBilling",
+          "type": "string",
+          "enum": ["ALLOW", "DENY"],
+          "title": "The IamUserAccessToBilling schema",
+          "description": "If set to ALLOW , the new account enables IAM users to access account billing information if they have the required permissions. If set to DENY , only the root user of the new account can access account billing information. For more information, see Activating Access to the Billing and Cost Management Console in the AWS Billing and Cost Management User Guide .          If you don't specify this parameter, the value defaults to ALLOW , and IAM users and roles with the required permissions can access billing information for the new account.",
+          "default": "",
+          "examples": [
+              "DENY"
+          ]
+      },
+      "RoleName": {
+          "$id": "#/properties/RoleName",
+          "type": "string",
+          "title": "The RoleName schema",
+          "description": "The name of an IAM role that AWS Organizations automatically preconfigures in the new member account. This role trusts the master account, allowing users in the master account to assume the role, as permitted by the master account administrator. The role has administrator permissions in the new member account.",
+          "default": "",
+          "examples": [
+              "NewUserRole"
+          ]
+      },
+      "DestinationParentId": {
+          "$id": "#/properties/DestinationParentId",
+          "type": "string",
+          "title": "The DestinationParentId schema",
+          "description": "The unique identifier (ID) of the root or organizational unit that you want to move the account to.",
+          "default": "",
+          "examples": [
+              "ou-123567"
+          ]
+      }
+  },
+  "additionalProperties": true
+}

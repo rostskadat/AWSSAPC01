@@ -1,0 +1,17 @@
+{
+    "type": "object",
+    "required": [
+      "Name"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "Name": {
+        "type": "string"
+      },
+      "ParentId": {
+        "type": "string",
+        "pattern": "^(r-[0-9a-z]{4,32})|(ou-[0-9a-z]{4,32}-[a-z0-9]{8,32})$"
+      }
+    }
+  }
+  

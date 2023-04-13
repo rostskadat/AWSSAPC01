@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  LambdaTokenAuthorizer. This stack demonstrate an API Gateway protected by a Lambda Token Authorizer.
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: CommonLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Auth:
+        DefaultAuthorizer: LambdaTokenAuthorizer
+        Authorizers:
+          LambdaTokenAuthorizer:
+            FunctionArn:
+              Fn::GetAtt: LambdaTokenAuthorizerFunction.Arn
+
+  CommonLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/CommonLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  ExecuteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/ExecuteFunction
+      Events:
+        Execute:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGatewayApi
+            Path: /execute
+            Method: get
+
+  LambdaTokenAuthorizerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/LambdaTokenAuthorizerFunction
+
+Outputs:
+
+  ApiGatewayApi:
+    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+    Value:
+      Fn::Sub: "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/execute/"

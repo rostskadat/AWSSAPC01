@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ResourcePolicyVsRolePolicy
+
+Parameters:
+
+  UserAccountId:
+    Type: Number
+    Description: The AWS Account in which the IAM user is located
+    Default: 123456789012
+
+  Username:
+    Type: String
+    Description: The IAM user in the External Account that should be granted access to the Bucket
+    Default: n090536
+
+  UsernamePublicIp:
+    Type: String
+    Description: the Public Ip from which to deny the access
+    Default: "90.162.185.145"
+
+Resources:
+
+  BucketWithBucketPolicy:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: BucketWithBucketPolicy
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - 's3:*'
+            Resource:
+              - Fn::Sub: 'arn:aws:s3:::${BucketWithBucketPolicy}'
+              - Fn::Sub: 'arn:aws:s3:::${BucketWithBucketPolicy}/*'
+            Principal:
+              AWS: 
+                - Fn::Sub: "arn:aws:iam::${AWS::AccountId}:root"
+                - Fn::Sub: "arn:aws:iam::${UserAccountId}:user/${Username}"
+
+  BucketWithRole:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  BucketRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+                - Fn::Sub: "arn:aws:iam::${UserAccountId}:user/${Username}"
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: AllowAccessToBucket
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:*'
+                Resource:
+                  - Fn::Sub: 'arn:aws:s3:::${BucketWithRole}'
+                  - Fn::Sub: 'arn:aws:s3:::${BucketWithRole}/*'
+
+
+  BucketWithBucketConditionPolicy:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  BucketConditionPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: BucketWithBucketConditionPolicy
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - 's3:*'
+            Resource:
+              - Fn::Sub: 'arn:aws:s3:::${BucketWithBucketConditionPolicy}'
+              - Fn::Sub: 'arn:aws:s3:::${BucketWithBucketConditionPolicy}/*'
+            Principal:
+              AWS: 
+                - Fn::Sub: "arn:aws:iam::${AWS::AccountId}:root"
+                - Fn::Sub: "arn:aws:iam::${UserAccountId}:user/${Username}"
+            Condition:
+              NotIpAddress:
+                aws:SourceIp: 
+                  Ref: UsernamePublicIp
+
+Outputs:
+
+  BucketWithBucketPolicy:
+    Description: "The BucketWithBucketPolicy on which the template "
+    Value: 
+      Ref: BucketWithBucketPolicy
+
+
+  BucketWithRole:
+    Description: "The BucketWithRole on which the template "
+    Value: 
+      Ref: BucketWithRole
+
+  BucketRoleArn:
+    Description: "The BucketRole Arn"
+    Value: 
+      Fn::GetAtt: BucketRole.Arn

@@ -1,0 +1,218 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - Yaml2Json
+Description: >
+  UnifiedAgent. Showcases the use of the CloudWatch Unified Agent
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "CloudWatch-UnifiedAgent"
+    Description: Showcases the use of the CloudWatch Unified Agent
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "CloudWatch" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+Resources:
+
+  UnifiedAgentConfiguration:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Description: Parameter to configure the CloudWatch Unified Agent on a new EC2 Instance
+      Name: AmazonCloudWatch-linux
+      Type: String
+      Value: |
+        {
+          "agent":{
+            "metrics_collection_interval":60,
+            "run_as_user":"root"
+          },
+          "logs":{
+            "logs_collected":{
+              "files":{
+                "collect_list":[
+                  {
+                    "file_path":"/var/log/cloud-init-output.log",
+                    "log_group_name":"cloud-init-output.log",
+                    "log_stream_name":"{instance_id}"
+                  }
+                ]
+              }
+            }
+          },
+          "metrics":{
+            "append_dimensions":{
+              "AutoScalingGroupName":"${aws:AutoScalingGroupName}",
+              "ImageId":"${aws:ImageId}",
+              "InstanceId":"${aws:InstanceId}",
+              "InstanceType":"${aws:InstanceType}"
+            },
+            "metrics_collected":{
+              "collectd":{
+                "metrics_aggregation_interval":60
+              },
+              "cpu":{
+                "measurement":[
+                  "cpu_usage_idle",
+                  "cpu_usage_iowait",
+                  "cpu_usage_user",
+                  "cpu_usage_system"
+                ],
+                "metrics_collection_interval":60,
+                "resources":[
+                  "*"
+                ],
+                "totalcpu":false
+              },
+              "disk":{
+                "measurement":[
+                  "used_percent",
+                  "inodes_free"
+                ],
+                "metrics_collection_interval":60,
+                "resources":[
+                  "*"
+                ]
+              },
+              "diskio":{
+                "measurement":[
+                  "io_time",
+                  "write_bytes",
+                  "read_bytes",
+                  "writes",
+                  "reads"
+                ],
+                "metrics_collection_interval":60,
+                "resources":[
+                  "*"
+                ]
+              },
+              "mem":{
+                "measurement":[
+                  "mem_used_percent"
+                ],
+                "metrics_collection_interval":60
+              },
+              "netstat":{
+                "measurement":[
+                  "tcp_established",
+                  "tcp_time_wait"
+                ],
+                "metrics_collection_interval":60
+              },
+              "statsd":{
+                "metrics_aggregation_interval":60,
+                "metrics_collection_interval":10,
+                "service_address":":8125"
+              },
+              "swap":{
+                "measurement":[
+                  "swap_used_percent"
+                ],
+                "metrics_collection_interval":60
+              }
+            }
+          }
+        }        
+      Tags:
+        PLATFORM: SAPC01
+
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ManagedPolicyArns: "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel ; yum update -y ; amazon-linux-extras install -y collectd ; yum install -y amazon-cloudwatch-agent
+            systemctl enable collectd
+            systemctl start collectd
+            systemctl status collectd
+            /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a fetch-config -c ssm:${UnifiedAgentConfiguration} -s
+            /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -m ec2 -a status 
+            echo "Instance initialization... Done"
+
+  Dashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName:
+        Fn::Sub: '${AWS::StackName}'
+      DashboardBody:
+        Fn::Sub:
+          Fn::Yaml2Json:
+            widgets:
+            - type: explorer
+              x: 0
+              y: 0
+              width: 24
+              height: 15
+              properties:
+                metrics:
+                - metricName: CPUUtilization
+                  resourceType: AWS::EC2::Instance
+                  stat: Average
+                - metricName: DiskReadBytes
+                  resourceType: AWS::EC2::Instance
+                  stat: Average
+                - metricName: DiskReadOps
+                  resourceType: AWS::EC2::Instance
+                  stat: Average
+                - metricName: DiskWriteBytes
+                  resourceType: AWS::EC2::Instance
+                  stat: Average
+                - metricName: DiskWriteOps
+                  resourceType: AWS::EC2::Instance
+                  stat: Average
+                - metricName: NetworkIn
+                  resourceType: AWS::EC2::Instance
+                  stat: Average
+                - metricName: NetworkOut
+                  resourceType: AWS::EC2::Instance
+                  stat: Average
+                - metricName: NetworkPacketsIn
+                  resourceType: AWS::EC2::Instance
+                  stat: Average
+                - metricName: NetworkPacketsOut
+                  resourceType: AWS::EC2::Instance
+                  stat: Average
+                - metricName: StatusCheckFailed
+                  resourceType: AWS::EC2::Instance
+                  stat: Sum
+                - metricName: StatusCheckFailed_Instance
+                  resourceType: AWS::EC2::Instance
+                  stat: Sum
+                - metricName: StatusCheckFailed_System
+                  resourceType: AWS::EC2::Instance
+                  stat: Sum
+                labels:
+                - key: InstanceId
+                  value: ${EC2Instance.Outputs.InstanceId}
+                widgetOptions:
+                  legend:
+                    position: bottom
+                  view: timeSeries
+                  stacked: false
+                  rowsPerPage: 50
+                  widgetsPerRow: 2
+                period: 300
+                splitBy: ''
+                title: Explorer
+
+Outputs:
+  EC2Instance:
+    Description: The EC2Instance
+    Value: 
+      Fn::GetAtt: EC2Instance.Outputs.InstancePublicDnsName
+
+  EC2InstanceId:
+    Description: The EC2Instance Id
+    Value: 
+      Fn::GetAtt: EC2Instance.Outputs.InstanceId
+      

@@ -1,0 +1,369 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+  - SamPolicyTemplateTranslator
+Description: >
+  SignedUrlCookies. Showcase the use of Signed URL & Cookies
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "CloudFront-SignedUrlCookies"
+    Description: Showcase the use of Signed URL & Cookies
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01", "CloudFront"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to CloudFront
+        Parameters:
+          - ManagedCachingOptimizedId
+          - ManagedCachingDisabledId
+          - EncodedKey
+
+Parameters:
+  ManagedCachingOptimizedId:
+    Description: "The Caching Policy Id to use. Default to the Managed-CachingOptimized Caching Policy"
+    Type: String
+    Default: "658327ea-f89d-4fab-a63d-7e88639e58f6"
+
+  ManagedCachingDisabledId:
+    Description: "The Caching Policy Id to use. Default to the Managed-CachingDisabled Caching Policy"
+    Type: String
+    Default: "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+
+  EncodedKey:
+    Description: The Public part of the Key used to Signed URL & Cookies
+    Type: String
+    Default: |
+      -----BEGIN RSA PUBLIC KEY-----
+      MIIBCgKCAQEAyB6MfNWQHmXxOvSjKkUnLMRGoq9SS6Q4oyxcVN2AUFm99LYUo+e7
+      sAy/Is8HOjFSMag5d0oxRQkc2gDyiO1y81QmqTveUyUtkXeve6M7hiJ8PbxAN3Vf
+      /AGeqqTTm0qLDDpMTT9OkuN/Cs3n+xu5IAsr5ZeEOAJ7WmK0uC8WmpX2FggVdQZF
+      U+LMG9zU0P5HaNogt9JkhP6zSZZmqkxt6D+HeOaWZYXwLhpyAGg82ITa+fu4EPy8
+      mqJRqIvMz0G3qMhy2VAX44Gz/pHHw67iC+hTl4Gh5yDyBG0jOgZzb7nMV8mS5hQf
+      Q38NDW+dxFCbF5bxhA7c+Eivb5gdQoimswIDAQAB
+      -----END RSA PUBLIC KEY-----
+
+  StageName: 
+    Description: The StageName
+    Type: String
+    Default: api
+
+Globals:
+  Function:
+    Environment:
+      Variables:
+        # Can't use the distribution, as this generate a circular dependency.
+        # DISTRIBUTION: !GetAtt Distribution.DomainName
+        PUBLIC_KEY_ID: !Ref DefaultPublicKey
+        PRIVATE_KEY: SAPC01-DEFAULT-KEY
+    Handler: app.lambda_handler
+    Layers:
+      - Ref: "SignedUrlCookiesLayer01"
+    Runtime: python3.8
+    Tags:
+      PLATFORM: SAPC01
+    Timeout: 30
+    Tracing: Active
+
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  SignedUrlsObject:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket: !Ref Bucket
+        Key: signed_urls/index.html
+        ContentType: text/html
+      Body: |
+        <!doctype html><html lang="en"><head><link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon"></head><body>This page is protected by Signed URLs. Back to <a href="/index.html">index</a></body></html>
+
+  SignedCookiesObject:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket: !Ref Bucket
+        Key: signed_cookies/index.html
+        ContentType: text/html
+      Body: |
+        <!doctype html><html lang="en"><head><link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon"></head><body>This page is protected by Signed Cookies. Back to <a href="/index.html">index</a></body></html>
+
+  PublicObject:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket: !Ref Bucket
+        Key: public.html
+        ContentType: text/html
+      Body: |
+        <!doctype html><html lang="en"><head><link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon"></head><body>This page is public. Back to <a href="/index.html">index</a></body></html>
+
+  IndexObject:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket: !Ref Bucket
+        Key: index.html
+        ContentType: text/html
+      # npm install html-minifier && \
+      #   cat helpers/index.html | \
+      #   node node_modules/html-minifier/cli.js --collapse-whitespace --minify-css --minify-js
+      Body: |
+        <!doctype html><html lang="en"><head><link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon"><style>table{font-family:arial,sans-serif;border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;text-align:left;padding:8px}tr:nth-child(even){background-color:#ddd}td.ok{background-color:#7fff00}td.ko{background-color:orange}</style><script>function SignedUrl(o){url=window.location.protocol+"//"+window.location.hostname+"/"+o,window.open("/api/GetSignedUrl?url="+url,"_self")}function SignedCookies(o){url=window.location.protocol+"//"+window.location.hostname+"/"+o,window.open("/api/GetSignedCookies?url="+url,"_self")}</script></head><body><h1>Welcome</h1><p>This page is public and showcase the different usecases:</p><table style="width:100%"><tr><th>UC</th><th>Bare Link</th><th>Signed URL Link</th><th>Signed Cookie Link</th></tr><tr><td>Public File</td><td class="ok"><a href="/public.html">/public.html</a></td><td class="ko"><a href="javascript:void(0)" onclick='SignedUrl("public.html")'>/public.html</a></td><td class="ko"><a href="javascript:void(0)" onclick='SignedCookies("public.html")'>/public.html</a></td></tr><tr><td>File protected with Signed URL</td><td class="ko"><a href="/signed_urls/index.html">/signed_urls/index.html</a></td><td class="ok"><a href="javascript:void(0)" onclick='SignedUrl("signed_urls/index.html")'>/signed_urls/index.html</a></td><td class="ko"><a href="javascript:void(0)" onclick='SignedCookies("signed_urls/index.html")'>/signed_urls/index.html</a></td></tr><tr><td>File in Member Area</td><td class="ko"><a href="/signed_cookies/index.html">/signed_cookies/index.html</a></td><td class="ko"><a href="javascript:void(0)" onclick='SignedUrl("signed_cookies/index.html")'>/signed_cookies/index.html</a></td><td class="ok"><a href="javascript:void(0)" onclick='SignedCookies("signed_cookies/index.html")'>/signed_cookies/index.html</a></td></tr></table></body></html>
+
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      ## For Lambda proxy integration (https://docs.aws.amazon.com/apigateway/latest/developerguide/how-to-cors.html#apigateway-responding-to-cors-preflight)
+      ##   the Lambda function itself needs to set the headers.
+      # Cors: 
+      #   AllowOrigin: 
+      #     Fn::Sub: "'${Bucket.RegionalDomainName}'"
+      # Look at https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-swagger-extensions.html for more details
+      DefinitionUri: ./openapi/api.yaml
+      StageName: !Ref StageName
+      TracingEnabled: true
+
+
+  SignedUrlCookiesLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: "layers/SignedUrlCookiesLayer01"
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  SignedUrlFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/SignedUrl
+      # Required to be referenced within Open API template
+      FunctionName: SignedUrl
+
+  # This permission is necessary in order for the APIGateway to be able to 
+  # call the function. This is done automatically when using the 'Events'
+  # construct but not when using an OpenAPI definition
+  SignedUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: 
+        Fn::GetAtt: SignedUrlFunction.Arn
+      Action: lambda:*
+      Principal: apigateway.amazonaws.com
+      SourceArn: 
+        Fn::Sub: "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/GET/*"
+
+  SignedCookiesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/SignedCookies
+      # Required to be referenced within Open API template
+      FunctionName: SignedCookies
+
+  # This permission is necessary in order for the APIGateway to be able to 
+  # call the function. This is done automatically when using the 'Events'
+  # construct but not when using an OpenAPI definition
+  SignedCookiesPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: 
+        Fn::GetAtt: SignedCookiesFunction.Arn
+      Action: lambda:*
+      Principal: apigateway.amazonaws.com
+      SourceArn: 
+        Fn::Sub: "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*/GET/*"
+
+  S3OriginAccessIdentity:
+    Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
+    Properties:
+      CloudFrontOriginAccessIdentityConfig:
+        Comment: "CloudFront::CloudFrontOriginAccessIdentity for Signed URL and Cookies"
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Bucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action:
+              - "s3:*"
+            Principal:
+              AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:user/rostskadat"
+            Resource:
+              - !Sub "arn:${AWS::Partition}:s3:::${Bucket}"
+              - !Sub "arn:${AWS::Partition}:s3:::${Bucket}/*"
+          - Effect: Allow
+            Action:
+              - "s3:GetObject"
+            Principal:
+              AWS: !Sub "arn:${AWS::Partition}:iam::cloudfront:user/CloudFront Origin Access Identity ${S3OriginAccessIdentity}"
+              # It's harder to know who the CanonicalUser is refering to...
+              # CanonicalUser:
+              #   Fn::GetAtt: S3OriginAccessIdentity.S3CanonicalUserId
+            Resource: !Sub "arn:${AWS::Partition}:s3:::${Bucket}/*"
+
+  DefaultPublicKey:
+    Type: AWS::CloudFront::PublicKey
+    Properties:
+      PublicKeyConfig:
+        CallerReference: !Ref AWS::StackId
+        Comment: Key to sign URLs in the S3Distribution
+        EncodedKey: !Ref EncodedKey
+        Name: DefaultPublicKey
+
+  DefaultKeyGroup:
+    Type: AWS::CloudFront::KeyGroup
+    Properties:
+      KeyGroupConfig:
+        Comment: Key Group associated with the S3Distribution
+        Items:
+          - !Ref DefaultPublicKey
+        Name: DefaultKeyGroup
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: BucketPolicy
+    Properties:
+      DistributionConfig:
+        CacheBehaviors: 
+          - CachePolicyId: !Ref ManagedCachingDisabledId
+            PathPattern: "signed_urls/*"
+            TargetOriginId: SignedUrlsOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            TrustedKeyGroups:
+              - Ref: DefaultKeyGroup
+          - CachePolicyId: !Ref ManagedCachingDisabledId
+            PathPattern: "signed_cookies/*"
+            TargetOriginId: SignedCookiesOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            TrustedKeyGroups:
+              - Ref: DefaultKeyGroup
+          - CachePolicyId: !Ref ManagedCachingDisabledId
+            # Using Origin Request Poilicy to make sure url & cookies are passed to ApiGateway
+            OriginRequestPolicyId: !Ref OriginRequestPolicy
+            PathPattern: "api/*"
+            # To get some visibility on the API calls
+            RealtimeLogConfigArn: !Ref RealtimeLogConfig
+            TargetOriginId: ApiOrigin
+            ViewerProtocolPolicy: redirect-to-https
+        DefaultCacheBehavior:
+          # CachePolicyId: !Ref ManagedCachingOptimizedId
+          CachePolicyId: !Ref ManagedCachingDisabledId
+          TargetOriginId: PublicOrigin
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: index.html
+        Enabled: true
+        Origins:
+          - DomainName: !GetAtt Bucket.RegionalDomainName
+            Id: SignedUrlsOrigin
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${S3OriginAccessIdentity}"
+          - DomainName: !GetAtt Bucket.RegionalDomainName
+            Id: SignedCookiesOrigin
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${S3OriginAccessIdentity}"
+          - DomainName: !GetAtt Bucket.RegionalDomainName
+            Id: PublicOrigin
+            S3OriginConfig:
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${S3OriginAccessIdentity}"
+          - DomainName: !Sub "${Api}.execute-api.${AWS::Region}.amazonaws.com"
+            Id: ApiOrigin
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  # An OriginRequestPolicy is required to be able to pass the query string parameter from CloudFront to ApiGateway
+  OriginRequestPolicy:
+    Type: AWS::CloudFront::OriginRequestPolicy
+    Properties: 
+      OriginRequestPolicyConfig: 
+          Comment: Allow passing the parameters from CloudFront to ApiGateway
+          CookiesConfig: 
+            CookieBehavior: all
+          HeadersConfig: 
+            HeaderBehavior: none
+          Name: PassQueryStringAndCookies
+          QueryStringsConfig: 
+            QueryStringBehavior: all
+
+  RealtimeLogConfig:
+    Type: AWS::CloudFront::RealtimeLogConfig
+    Properties: 
+      EndPoints: 
+        - KinesisStreamConfig: 
+            RoleArn: !GetAtt StreamRole.Arn
+            StreamArn: !GetAtt Stream.Arn
+          StreamType: Kinesis
+      Fields: 
+        - cs-referer
+        - cs-uri-stem
+        - cs-uri-query
+        - x-edge-response-result-type
+      Name: ApiAccessRealtimeLog
+      SamplingRate: 100
+
+  Stream: 
+    Type: AWS::Kinesis::Stream 
+    Properties: 
+      ShardCount: 1
+      Tags: 
+        - Key: PLATFORM 
+          Value: SAPC01
+
+  StreamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - KinesisCrudPolicy:
+            StreamName: !Ref Stream
+
+
+Outputs:
+  Bucket:
+    Description: The Bucket
+    Value: !Ref Bucket
+
+  Distribution:
+    Description: The Distribution
+    Value: !GetAtt Distribution.DomainName
+
+  DefaultPublicKey:
+    Description: The DefaultPublicKey
+    Value: !Ref DefaultPublicKey
+
+  ApiUrl:
+    Description: The API URL
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
+
+  ApplicationUrl:
+    Description: The ApplicationUrl
+    Value: !Sub "https://${Distribution.DomainName}/"
+
+  Stream:
+    Description: The Stream
+    Value: !Ref Stream

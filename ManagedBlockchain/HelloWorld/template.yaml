@@ -1,0 +1,116 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  HelloWorld. Showcase a simple Hyperledger blockchain
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "ManagedBlockchain-HelloWorld"
+    Description: Showcase a simple Hyperledger blockchain
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "ManagedBlockchain" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to ManagedBlockchain
+        Parameters:
+          - NetworkName
+          - MemberAdminUsername
+          - MemberAdminPassword
+
+Parameters:
+
+  NetworkName:
+    Description: The NetworkName
+    Type: String
+    Default: "HYPERLEDGER_FABRIC_NETWORK"
+
+  MemberAdminUsername:
+    Description: The MemberAdminUsername
+    Type: String
+    Default: "root"
+
+  MemberAdminPassword:
+    Description: The MemberAdminPassword
+    Type: String
+    NoEcho: true
+    Default: "Passw0rd"
+
+Resources:
+
+  MasterMember:
+    Type: AWS::ManagedBlockchain::Member
+    Properties:
+      MemberConfiguration:
+        Name: MasterMember
+        Description: The MasterMember
+        MemberFrameworkConfiguration:
+          MemberFabricConfiguration:
+            AdminUsername: 
+              Ref: MemberAdminUsername
+            AdminPassword: 
+              Ref: MemberAdminPassword
+      NetworkConfiguration:
+        Name: 
+          Ref: NetworkName
+        Description: The network
+        Framework: "HYPERLEDGER_FABRIC"
+        FrameworkVersion: "1.4"
+        NetworkFrameworkConfiguration:
+          NetworkFabricConfiguration:
+            Edition: STARTER
+        VotingPolicy:
+          ApprovalThresholdPolicy:
+            ProposalDurationInHours: 1
+            ThresholdComparator: GREATER_THAN 
+            ThresholdPercentage: 50
+
+  InitialNode:
+    Type: AWS::ManagedBlockchain::Node
+    Properties:
+      MemberId: 
+        Fn::GetAtt: MasterMember.MemberId
+      NetworkId: 
+        Fn::GetAtt: MasterMember.NetworkId
+      NodeConfiguration:
+        AvailabilityZone: eu-west-1a
+        InstanceType: bc.t3.small
+
+#  SecondaryMember:
+#    Type: AWS::ManagedBlockchain::Member
+#    Properties:
+#      MemberConfiguration:
+#        Name: SecondaryMember
+#        Description: The SecondaryMember
+#        MemberFrameworkConfiguration:
+#          MemberFabricConfiguration:
+#            AdminUsername: 
+#              Ref: MemberAdminUsername
+#            AdminPassword: 
+#              Ref: MemberAdminPassword
+#      NetworkId: 
+#        Fn::GetAtt: MasterMember.NetworkId
+#      InvitationId: 
+#        Ref: InvitationId
+
+Outputs:
+
+  NetworkId:
+    Description: The NetworkId
+    Value: 
+      Fn::GetAtt: MasterMember.NetworkId
+
+  MemberId:
+    Description: The MemberId
+    Value: 
+      Fn::GetAtt: MasterMember.MemberId
+
+  NodeId:
+    Description: The NodeId
+    Value: 
+      Fn::GetAtt: InitialNode.NodeId

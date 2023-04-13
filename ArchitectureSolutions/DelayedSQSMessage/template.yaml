@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  DelayedSQSMessage. Showcase delayed SQS message
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "SQS-DelayedSQSMessage"
+    Description: Showcase delayed SQS message
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "SQS" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Lambda
+        Parameters:
+          - "DelayedSQSMessageParameter"
+
+Parameters:
+  "DelayedSQSMessageParameter":
+    Description: Look at https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html
+    Type: String
+    Default: "DelayedSQSMessageValue"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: DelayedSQSMessageLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  Queue:
+    Type: AWS::SQS::Queue
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  DelayedSQSMessageLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/DelayedSQSMessageLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  DelayedSQSMessageFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/DelayedSQSMessageFunction
+#      Environment:
+#        Variables:
+#          QUEUE_URL:
+#            Ref: Queue
+      Events:
+        Call:
+          Type: SQS
+          Properties:
+            BatchSize: 1
+            Queue: 
+              Fn::GetAtt: Queue.Arn
+            Enabled: true
+      Policies:
+        - SQSPollerPolicy:
+            QueueName:
+              Fn::GetAtt: Queue.QueueName
+Outputs:
+  Queue:
+    Description: The Queue
+    Value: 
+      Ref: Queue
+
+  FunctionArn:
+    Description: "DelayedSQSMessage Lambda Function ARN"
+    Value: 
+      Fn::GetAtt: "DelayedSQSMessageFunction.Arn"

@@ -1,0 +1,286 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+Description: >
+  ManagedLogs. Showcase the streaming of all logs to a central S3 location and the creation of the corresponding Athena Tables
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Athena related parameters
+        Parameters:
+          - AthenaDB
+      - Label:
+          default: VPC related parameters
+        Parameters:
+          - VpcId
+Parameters:
+
+  AthenaDB:
+    Type: String
+    Description: The name of the DB where to store the log table
+    Default: "ManagedLogsDB"
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC Id where to create the VPC Flow. I.e. A VPC with some traffic
+    Default: "vpc-0ae657c991867629c"
+
+  Route53LogGroup:
+    Type: String
+    Description: The CloudWatch LogGroup where Route53 generate its Access Logs
+    Default: "/aws/route53/domain.com"
+
+Resources:
+
+  LogsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      AccessControl: LogDeliveryWrite
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  LogsBucketPolicy: 
+    Type: AWS::S3::BucketPolicy
+    Properties: 
+      Bucket: 
+        Ref: LogsBucket
+      PolicyDocument: 
+        Version: 2012-10-17
+        Statement: 
+          - Sid: "AWSCloudTrailAclCheck20150319"
+            Effect: "Allow"
+            Principal: 
+              Service: cloudtrail.amazonaws.com
+            Action: "s3:GetBucketAcl"
+            Resource: 
+              Fn::GetAtt: LogsBucket.Arn
+          - Sid: "AWSCloudTrailWrite20150319"
+            Effect: "Allow"
+            Principal: 
+              Service: cloudtrail.amazonaws.com
+            Action: "s3:PutObject"
+            Resource: 
+              Fn::Sub: "${LogsBucket.Arn}/AWSLogs/${AWS::AccountId}/*"
+            Condition: 
+              StringEquals: 
+                "s3:x-amz-acl": "bucket-owner-full-control"
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      LoggingConfiguration:
+        DestinationBucketName: 
+          Ref: LogsBucket
+        LogFilePrefix: 
+          Fn::Sub: "AWSLogs/${AWS::AccountId}/s3accesslogs/"
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  S3Object:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: Bucket
+        Key: s3object
+        ContentType: text/plain
+      Body: 
+        Fn::Sub: |
+          Hello World from ${Bucket}!
+
+  CreateTableForS3AccessLogsAthenaNamedQuery:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database:
+        Ref: AthenaDB
+      Description: "A query to construct the table for S3 Access Logs"
+      Name:
+        Fn::Sub: "00-Create table for S3 Access Logs"
+      QueryString:
+        Fn::Sub: |
+          CREATE EXTERNAL TABLE IF NOT EXISTS ${AthenaDB}.S3AccessLogs (
+            `bucketowner` STRING, 
+            `bucket_name` STRING, 
+            `requestdatetime` STRING, 
+            `remoteip` STRING, 
+            `requester` STRING, 
+            `requestid` STRING, 
+            `operation` STRING, 
+            `key` STRING, 
+            `request_uri` STRING, 
+            `httpstatus` STRING, 
+            `errorcode` STRING, 
+            `bytessent` BIGINT, 
+            `objectsize` BIGINT, 
+            `totaltime` STRING, 
+            `turnaroundtime` STRING, 
+            `referrer` STRING, 
+            `useragent` STRING, 
+            `versionid` STRING, 
+            `hostid` STRING, 
+            `sigv` STRING, 
+            `ciphersuite` STRING, 
+            `authtype` STRING, 
+            `endpoint` STRING, 
+            `tlsversion` STRING)
+          ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.RegexSerDe' 
+          WITH SERDEPROPERTIES ( 'input.regex'='([^ ]*) ([^ ]*) \\[(.*?)\\] ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) (\"[^\"]*\"|-) (-|[0-9]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) (\"[^\"]*\"|-) ([^ ]*)(?: ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*))?.*$') 
+          STORED AS INPUTFORMAT 'org.apache.hadoop.mapred.TextInputFormat' 
+          OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+          LOCATION 's3://${LogsBucket}/AWSLogs/${AWS::AccountId}/s3accessLogs/';
+
+  VPCFlowLog:
+    Type: AWS::EC2::FlowLog
+    Properties: 
+      LogDestination: 
+        Fn::Sub: "${LogsBucket.Arn}"
+      LogDestinationType: s3
+      ResourceId: 
+        Ref: VpcId
+      ResourceType: VPC
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      TrafficType: ALL
+
+  CreateTableForVPCFlowLogsAthenaNamedQuery:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database:
+        Ref: AthenaDB
+      Description: "A query to construct the table for VPC Flow Logs"
+      Name:
+        Fn::Sub: "00-Create table for VPC Flow Logs"
+      QueryString:
+        Fn::Sub: |
+          CREATE EXTERNAL TABLE IF NOT EXISTS ${AthenaDB}.VPCFlowLogs (
+            version int,
+            account string,
+            interfaceid string,
+            sourceaddress string,
+            destinationaddress string,
+            sourceport int,
+            destinationport int,
+            protocol int,
+            numpackets int,
+            numbytes bigint,
+            starttime int,
+            endtime int,
+            action string,
+            logstatus string
+          ) ROW FORMAT DELIMITED
+            FIELDS TERMINATED BY ' '
+            LOCATION 's3://${LogsBucket}/AWSLogs/${AWS::AccountId}/vpcflowlogs/${AWS::Region}/'
+            TBLPROPERTIES ("skip.header.line.count"="1");
+
+  Trail: 
+    Type: AWS::CloudTrail::Trail
+    Properties: 
+      EventSelectors: 
+        - DataResources: 
+            - Type: AWS::S3::Object
+              Values: 
+                - Fn::Sub: "${Bucket.Arn}/"
+      S3BucketName:
+        Ref: LogsBucket
+      IsLogging: false
+
+  CreateTableForCloudTrailLogsAthenaNamedQuery:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database: 
+        Ref: AthenaDB
+      Description: "A query to construct the table for CloudTrail Logs"
+      Name: 
+        Fn::Sub: "00-Create table for CloudTrail Logs"
+      QueryString: 
+        Fn::Sub: |
+          CREATE EXTERNAL TABLE IF NOT EXISTS ${AthenaDB}.CloudTrailLogs (
+            eventversion STRING,
+            useridentity STRUCT<
+              type:STRING,
+              principalid:STRING,
+              arn:STRING,
+              accountid:STRING,
+              invokedby:STRING,
+              accesskeyid:STRING,
+              userName:STRING,
+              sessioncontext:STRUCT<
+                  attributes:STRUCT<
+                          mfaauthenticated:STRING,
+                          creationdate:STRING>,
+                          sessionissuer:STRUCT<  
+                          type:STRING,
+                          principalId:STRING,
+                          arn:STRING, 
+                          accountId:STRING,
+                          userName:STRING>
+                  >
+              >,
+            eventtime STRING,
+            eventsource STRING,
+            eventname STRING,
+            awsregion STRING,
+            sourceipaddress STRING,
+            useragent STRING,
+            errorcode STRING,
+            errormessage STRING,
+            requestparameters STRING,
+            responseelements STRING,
+            additionaleventdata STRING,
+            requestid STRING,
+            eventid STRING,
+            resources ARRAY<STRUCT<
+              ARN:STRING,
+              accountId:STRING,
+              type:STRING>>,
+            eventtype STRING,
+            apiversion STRING,
+            readonly STRING,
+            recipientaccountid STRING,
+            serviceeventdetails STRING,
+            sharedeventid STRING,
+            vpcendpointid STRING
+          )
+          ROW FORMAT SERDE 'com.amazon.emr.hive.serde.CloudTrailSerde'
+          STORED AS INPUTFORMAT 'com.amazon.emr.cloudtrail.CloudTrailInputFormat'
+          OUTPUTFORMAT 'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+          LOCATION 's3://${LogsBucket}/AWSLogs/${AWS::AccountId}/CloudTrail';
+
+Outputs:
+
+  LogsBucket:
+    Description: The LogsBucket name
+    Value: 
+      Ref: LogsBucket
+
+  S3Object:
+    Description: The S3Object Url
+    Value: 
+      Ref: S3Object
+
+  Trail:
+    Description: The Trail name
+    Value: 
+      Ref: Trail
+
+  S3AccessLogsQuery:
+    Description: The Url of the CreateTableForS3AccessLogsAthenaNamedQuery
+    Value:
+      Fn::Sub: https://${AWS::Region}.console.aws.amazon.com/athena/home?force&region=${AWS::Region}#query/saved/${CreateTableForS3AccessLogsAthenaNamedQuery}
+  
+  VPCFlowLogsQuery:
+    Description: The Url of the CreateTableForVPCFlowLogsAthenaNamedQuery
+    Value:
+      Fn::Sub: https://${AWS::Region}.console.aws.amazon.com/athena/home?force&region=${AWS::Region}#query/saved/${CreateTableForVPCFlowLogsAthenaNamedQuery}
+
+  CloudTrailLogsQuery:
+    Description: The Url of the CreateTableForCloudTrailLogsAthenaNamedQuery
+    Value:
+      Fn::Sub: https://${AWS::Region}.console.aws.amazon.com/athena/home?force&region=${AWS::Region}#query/saved/${CreateTableForCloudTrailLogsAthenaNamedQuery}

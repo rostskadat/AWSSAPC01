@@ -1,0 +1,6 @@
+{
+    "TriggerAnalysisFunction": {
+        "TOPIC_ARN": "arn:aws:sns:eu-west-1:123456789012:SAPC01-FaceRekognition1-Topic-PJOKMLN7ID9Y",
+        "ROLE_ARN": "arn:aws:iam::123456789012:role/SAPC01-FaceRekognition1-Role-1UX56506MQZWI"
+    }
+}

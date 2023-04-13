@@ -1,0 +1,157 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - Yaml2Json
+Description: >
+  BatchProcessing. Showcase the use of en ECS cluster with EC2 provisioning for batch processing.
+
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: ECS-BatchProcessing
+    Description: Showcase the use of en ECS cluster with EC2 provisioning for batch processing.
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to VPC
+        Parameters:
+          - VpcId
+          - Subnets
+
+Parameters:
+
+  VpcId:
+    Description: "The VPC in which to put the EFS Filesystem"
+    Type: String
+
+  Subnets:
+    Description: "A comma separated list of Subnets in which to put the EFS Filesystem mountpoints"
+    Type: String
+
+Resources:
+
+  FileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      BackupPolicy:
+        Status: DISABLED
+      Encrypted: true
+      FileSystemTags:
+        - Key: PLATFORM
+          Value: SAPC01
+        - Key: Name
+          Value: 
+            Fn::Sub: ${AWS::StackName}-FileSystem
+      LifecyclePolicies:
+        - TransitionToIA: AFTER_14_DAYS
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: SecurityGroup to allow access to EFS
+      GroupName: 
+        Fn::Sub: ${AWS::StackName}-EFS
+      SecurityGroupIngress:
+        - IpProtocol: TCP
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: 0.0.0.0/0
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+        - Key: Name
+          Value: 
+            Fn::Sub: "${AWS::StackName}-SecurityGroupEFS"
+      VpcId: 
+        Ref: VpcId
+
+  MountTarget0: 
+    Type: AWS::EFS::MountTarget
+    Properties: 
+      FileSystemId: 
+        Ref: FileSystem
+      SubnetId: 
+        Fn::Select:
+          - 0 
+          - Fn::Split: 
+              - ','
+              - Ref: Subnets
+      SecurityGroups: 
+        - Ref: SecurityGroup
+
+  MountTarget1: 
+    Type: AWS::EFS::MountTarget
+    Properties: 
+      FileSystemId: 
+        Ref: FileSystem
+      SubnetId: 
+        Fn::Select:
+          - 1
+          - Fn::Split: 
+              - ','
+              - Ref: Subnets
+      SecurityGroups: 
+        - Ref: SecurityGroup
+
+  MountTarget2: 
+    Type: AWS::EFS::MountTarget
+    Properties: 
+      FileSystemId: 
+        Ref: FileSystem
+      SubnetId: 
+        Fn::Select:
+          - 2
+          - Fn::Split: 
+              - ','
+              - Ref: Subnets
+      SecurityGroups: 
+        - Ref: SecurityGroup
+
+  AccessPoint:
+    Type: AWS::EFS::AccessPoint
+    Properties:
+      AccessPointTags:
+        - Key: PLATFORM
+          Value: SAPC01
+      FileSystemId: 
+        Ref: FileSystem
+
+Outputs:
+
+  FileSystem:
+    Description: The FileSystem
+    Value:
+      Ref: FileSystem
+
+  MountTarget0: 
+    Description: The MountTarget0
+    Value:
+      Ref: MountTarget0
+
+  MountTarget1: 
+    Description: The MountTarget1
+    Value:
+      Ref: MountTarget1
+
+  MountTarget2: 
+    Description: The MountTarget2
+    Value:
+      Ref: MountTarget2
+
+  AccessPoint:
+    Description: The AccessPoint
+    Value:
+      Ref: AccessPoint
+
+  AccessPointArn:
+    Description: The AccessPoint Arn
+    Value:
+      Fn::GetAtt: AccessPoint.Arn

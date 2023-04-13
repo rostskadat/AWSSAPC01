@@ -1,0 +1,104 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ConfusedDeputy
+
+Parameters:
+
+  ProductionAccountId:
+    Type: Number
+    Description: The AWS Account in which the resource to be accessed by the ConfusedDeputy is located
+    Default: 123456789012
+
+  ConfusedDeputyAccountId:
+    Type: Number
+    Description: The AWS Account Id of the ConfusedDeputy
+    Default: 610150951079
+
+  ConfusedDeputyUsername:
+    Type: String
+    Description: The IAM User of the ConfusedDeputy
+    Default: AF090536
+
+  AttackerAccountId:
+    Type: Number
+    Description: the AWS Account Id of the Attacker
+    Default: 123456789012
+
+Resources:
+
+  ProductionBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  VulnerableAccessProductionBucketRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+                - Fn::Sub: "arn:aws:iam::${ConfusedDeputyAccountId}:user/${ConfusedDeputyUsername}"
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: AllowAccessToBucket
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:*'
+                Resource:
+                  - Fn::Sub: 'arn:aws:s3:::${ProductionBucket}'
+                  - Fn::Sub: 'arn:aws:s3:::${ProductionBucket}/*'
+
+  ResilientAccessProductionBucketRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+                - Fn::Sub: "arn:aws:iam::${ConfusedDeputyAccountId}:user/${ConfusedDeputyUsername}"
+            Action:
+              - 'sts:AssumeRole'
+            Condition: 
+              StringEquals: 
+                sts:ExternalId: SECRETEXTERNALID
+      Path: /
+      Policies:
+        - PolicyName: AllowAccessToBucket
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:*'
+                Resource:
+                  - Fn::Sub: 'arn:aws:s3:::${ProductionBucket}'
+                  - Fn::Sub: 'arn:aws:s3:::${ProductionBucket}/*'
+                
+
+Outputs:
+  ProductionBucket:
+    Description: "The ProductionBucket"
+    Value: 
+      Ref: ProductionBucket
+  VulnerableAccessProductionBucketRoleArn:
+    Description: "VulnerableAccessProductionBucketRole Arn"
+    Value: 
+      Fn::GetAtt: VulnerableAccessProductionBucketRole.Arn
+  ResilientAccessProductionBucketRole:
+    Description: "ResilientAccessProductionBucketRole Arn"
+    Value: 
+      Fn::GetAtt: ResilientAccessProductionBucketRole.Arn

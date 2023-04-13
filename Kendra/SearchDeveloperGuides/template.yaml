@@ -1,0 +1,109 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  SearchDeveloperGuides. Showcase a simple Kendra Index to search Developer Guides
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "Kendra-SearchDeveloperGuides"
+    Description: Showcase a simple Kendra Index to search Developer Guides
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "Kendra" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+Resources:
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  KendraRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - kendra.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonKendraFullAccess
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+        - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+      Path: "/"
+
+  Index:
+    Type: AWS::Kendra::Index
+    Properties: 
+      Description: "Sample Index to search PDF documents"
+      Edition: DEVELOPER_EDITION
+      Name: "DeveloperGuides"
+      RoleArn: 
+        Fn::GetAtt: KendraRole.Arn
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  DataSource:
+    Type: AWS::Kendra::DataSource
+    Properties: 
+      DataSourceConfiguration: 
+        S3Configuration: 
+          BucketName: 
+            Ref: Bucket
+      Description: "Datasource for Kendra Index"
+      IndexId: 
+        Ref: Index
+      Name: "S3DeveloperGuides"
+      RoleArn: 
+        Fn::GetAtt: KendraRole.Arn
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+      Type: S3
+
+  CustomDataSource:
+    Type: AWS::Kendra::DataSource
+    Properties: 
+      Description: "Custom Datasource for Kendra Index"
+      IndexId: 
+        Ref: Index
+      Name: "CustomDeveloperGuides"
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+      Type: CUSTOM
+
+Outputs:
+
+  Bucket:
+    Description: The Bucket
+    Value: 
+      Ref: Bucket
+
+  Index:
+    Description: The Index
+    Value: 
+      Ref: Index
+
+  DataSource:
+    Description: The DataSource
+    Value: 
+      Ref: DataSource
+
+  CustomDataSource:
+    Description: The CustomDataSource
+    Value: 
+      Fn::GetAtt: CustomDataSource.Id
+
+

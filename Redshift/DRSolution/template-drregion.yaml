@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: 
+  - AWS::Serverless-2016-10-31
+#  - RedshiftSnapshotCopyGrant
+Description: >
+  DRSolution. Showcase a DR solution for an encrypted Redshift cluster
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "Redshift-DRSolution"
+    Description: Showcase a DR solution for an encrypted Redshift cluster
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01", "Redshift"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+Resources:
+  Key:
+    Type: AWS::KMS::Key
+    Properties:
+      KeyPolicy:
+        Version: 2012-10-17
+        Id: default
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+                - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:root"
+                - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:user/rostskadat"
+            Action: "kms:*"
+            Resource: "*"
+      PendingWindowInDays: 7
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Alias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub "alias/${AWS::StackName}"
+      TargetKeyId: !Ref Key
+
+#  SnapshotCopyGrant:
+#    Type: AWS::Redshift::SnapshotCopyGrant
+#    Properties: 
+#      KmsKeyId: !Ref Key
+#      Tags:
+#        - Key: PLATFORM
+#          Value: SAPC01
+
+Outputs:
+  Key:
+    Description: The Key
+    Value: !Ref Key
+
+  KeyArn:
+    Description: The Key
+    Value: !GetAtt Key.Arn
+
+  Alias:
+    Description: The Alias
+    Value: !Ref Alias
+
+#  SnapshotCopyGrant: 
+#    Description: The SnapshotCopyGrant
+#    Value: !Ref SnapshotCopyGrant

@@ -1,0 +1,12 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "SAPC01-Microservice"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-1xtx4sl8voopg"
+s3_prefix = "SAPC01-Microservice"
+region = "eu-west-1"
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
+parameter_overrides = "HostedZoneName=\"domain.com\" SubDomainName=\"sapc01-ecsmicroservice\" CertificateArn=\"arn:aws:acm:eu-west-1:123456789012:certificate/12345678-1234-1234-1234-123456789012\" VpcId=\"vpc-9e9b9ffa\" Subnets=\"subnet-b09099d4,subnet-f76b6581,subnet-58421700\" ContainerImageRepository=\"containerimagerepository-v5vgjrnzlszb\" ApplicationName=\"flask-hello-world\" ApplicationContainerPort=\"5000\""
+
+tags = "PROJECT=\"SAPC01\" APPLICATION=\"SAPC01\" ENVIRONMENT=\"POC\""

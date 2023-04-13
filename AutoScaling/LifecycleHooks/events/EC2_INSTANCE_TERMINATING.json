@@ -1,0 +1,22 @@
+{
+  "Records": [
+    {
+      "EventSource": "aws:sns",
+      "EventVersion": "1.0",
+      "EventSubscriptionArn": "arn:aws:sns:eu-west-1:123456789012:SAPC01-LifecycleHooks-Topic-17762JFHDXYJ9:48d4a9ca-555c-4433-bcf4-ab41810c80ba",
+      "Sns": {
+        "Type": "Notification",
+        "MessageId": "1ef4af84-d9b7-5783-8864-f795c49f3a0b",
+        "TopicArn": "arn:aws:sns:eu-west-1:123456789012:SAPC01-LifecycleHooks-Topic-17762JFHDXYJ9",
+        "Subject": "Auto Scaling:  Lifecycle action TERMINATING for instance i-07ee371ae9dfa7fd1 in progress.",
+        "Message": "{\"LifecycleHookName\":\"SAPC01-LifecycleHooks-TerminateLifecycleHook-1LEXLEMFI5QTP\",\"AccountId\":\"123456789012\",\"RequestId\":\"e5c67433-4aee-473a-9afb-f768d011a1f0\",\"LifecycleTransition\":\"autoscaling:EC2_INSTANCE_TERMINATING\",\"AutoScalingGroupName\":\"SAPC01-LifecycleHooks-AutoScalingGroup-1XAGMQDIHKBK4\",\"Service\":\"AWS Auto Scaling\",\"Time\":\"2020-10-26T18: 52: 24.889Z\",\"EC2InstanceId\":\"i-07ee371ae9dfa7fd1\",\"LifecycleActionToken\":\"04aebbe0-31bb-4ebf-9b54-649c58d3bd0f\"}",
+        "Timestamp": "2020-10-26T18:52:24.904Z",
+        "SignatureVersion": "1",
+        "Signature": "bZDcVjJbXCCL8BhgUYvcD9Y0NrBhBeVPm4yPueDW1M8DCRSUurcJZLvtw+WZhEyQp5HgwbDPueFY25mXsv69VKssKp/04voebdxXGQUTu6n3XPGAOs2TjSIZv1hLyuEUoQ2rh9AGh+j3Eiv/SNk2ENfF8z9ElP2/oYnKmG8KMnSiL4O52OF5lYKJVpOEpqN+oh3eZDcNWn6wVrKtQ7M2xSxnTdBSdBzm892Gf18i6Ku7IZose3YErQhSrhAIPZoyDpv5VLIzGhcXzaYemyuBBxanem0dOpZaYlaaAGNFmYHGE9OWafrgLZqK65bZ9Y+PwG35hUYU6JJxdno/mHet8g==",
+        "SigningCertUrl": "https://sns.eu-west-1.amazonaws.com/SimpleNotificationService-a86cb10b4e1f29c941702d737128f7b6.pem",
+        "UnsubscribeUrl": "https://sns.eu-west-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:eu-west-1:123456789012:SAPC01-LifecycleHooks-Topic-17762JFHDXYJ9:48d4a9ca-555c-4433-bcf4-ab41810c80ba",
+        "MessageAttributes": {}
+      }
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ReservedConcurrencyLimit. Use reserved concurrency limit to throttle number of lambda execution
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "Lambda-ReservedConcurrencyLimit"
+    Description: Use reserved concurrency limit to throttle number of lambda execution
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "Lambda" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 900
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  SourceBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  TargetBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  ReservedConcurrencyLimitFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/ReservedConcurrencyLimitFunction
+      Environment:
+        Variables: 
+          TARGET_BUCKET: !Ref TargetBucket
+          SLEEP: 10
+      Events:
+        S3:
+          Type: S3
+          Properties:
+            Bucket: !Ref SourceBucket
+            Events: s3:ObjectCreated:*
+      # To avoid circular dependencies...
+      Policies: AmazonS3FullAccess
+      #  - S3CrudPolicy:
+      #      BucketName: !Ref SourceBucket
+      #  - S3CrudPolicy:
+      #      BucketName: !Ref TargetBucket
+      ReservedConcurrentExecutions: 1
+
+  Alarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: !Sub "Too many Throttles for ${ReservedConcurrencyLimitFunction}"
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+      - Name: "FunctionName"
+        Value: !Ref ReservedConcurrencyLimitFunction
+      Statistic: "Sum"
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 10
+      EvaluationPeriods: 1
+      Period: 60
+      TreatMissingData: breaching
+
+Outputs:
+
+  SourceBucket:
+    Description: The SourceBucket
+    Value: !Ref SourceBucket
+
+  TargetBucket:
+    Description: The TargetBucket
+    Value: !Ref TargetBucket

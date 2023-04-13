@@ -1,0 +1,152 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: |
+  This stack provides Cloudformation Custom Resources to create Organizational Unit, Accounts and AccountBaseline (initial stack for a newly created Account) in your CloudFormation template.
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 360
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  CfAccount:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: CfAccount
+      Description: A CloudFormation Custom Resource to create an Account
+      CodeUri: lambdas/CfAccount
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - "arn:aws:iam::aws:policy/AWSOrganizationsFullAccess"
+
+  #
+  # Contrary to the other Custom Resource functions, we need to be able to
+  # reference the role associated with CfAccountBaselineAssociation function
+  # since it needs to be able to call AssumeRole (OrganizationAccountAccessRole) 
+  # of the newly created account. Otherwise the Custom Resource will not be 
+  # able to configure the account. And since we want to have a friendly role
+  # name, we need to specify it as an independant resource.
+  #
+  CfAccountBaselineAssociationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:
+        Fn::Sub: "CfAccountBaselineAssociationRole-${AWS::Region}"
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'lambda.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+        - 'arn:aws:iam::aws:policy/AWSCloudFormationFullAccess'
+      Policies: 
+        - PolicyName: AllowCfAccountBaselineAssociationToOrganizationAccountAccessRole
+          PolicyDocument: 
+            Version: 2012-10-17
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 'sts:AssumeRole'
+                Resource: 
+                  Fn::Sub: "arn:${AWS::Partition}:iam::*:role/OrganizationAccountAccessRole"
+          
+
+
+  CfAccountBaselineAssociation:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: CfAccountBaselineAssociation
+      Description: A CloudFormation Custom Resource to apply a CloudFormation stack to an Account
+      CodeUri: lambdas/CfAccountBaselineAssociation
+      Role:
+        Fn::GetAtt: CfAccountBaselineAssociationRole.Arn
+
+  CfOrganizationalUnit:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: CfOrganizationalUnit
+      Description: A CloudFormation Custom Resource to create an Account
+      CodeUri: lambdas/CfOrganizationalUnit
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - "arn:aws:iam::aws:policy/AWSOrganizationsFullAccess"
+
+  CfAccountPolicy:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: CfAccountPolicy
+      Description: A CloudFormation Custom Resource to create an Account Policy
+      CodeUri: lambdas/CfAccountPolicy
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - "arn:aws:iam::aws:policy/AWSOrganizationsFullAccess"
+
+  CfAccountPolicyAttachment:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: CfAccountPolicyAttachment
+      Description: A CloudFormation Custom Resource to create an Account Policy Attachment
+      CodeUri: lambdas/CfAccountPolicyAttachment
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - "arn:aws:iam::aws:policy/AWSOrganizationsFullAccess"
+
+  CfIdentityProvider:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: CfIdentityProvider
+      Description: A CloudFormation Custom Resource to create a SAML Identity Provider
+      CodeUri: lambdas/CfIdentityProvider
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - "arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess"
+        - "arn:aws:iam::aws:policy/IAMFullAccess"
+
+Outputs:
+  CfAccountArn:
+    Description: The CfAccount function ARN
+    Value:
+      Fn::GetAtt: CfAccount.Arn
+
+  CfAccountBaselineAssociationArn:
+    Description: The CfAccountBaselineAssociation function ARN
+    Value:
+      Fn::GetAtt: CfAccountBaselineAssociation.Arn
+
+  CfAccountBaselineAssociationRoleArn:
+    Description: The CfAccountBaselineAssociationRole ARN
+    Value:
+      Fn::GetAtt: CfAccountBaselineAssociationRole.Arn
+
+  CfOrganizationalUnitArn:
+    Description: The CfOrganizationalUnit function ARN
+    Value:
+      Fn::GetAtt: CfOrganizationalUnit.Arn
+
+  CfAccountPolicyArn:
+    Description: The CfAccountPolicy function ARN
+    Value:
+      Fn::GetAtt: CfAccountPolicy.Arn
+
+  CfAccountPolicyAttachment:
+    Description: The CfAccountPolicyAttachment function ARN
+    Value:
+      Fn::GetAtt: CfAccountPolicyAttachment.Arn
+
+  CfIdentityProvider:
+    Description: The CfIdentityProvider function ARN
+    Value:
+      Fn::GetAtt: CfIdentityProvider.Arn
+
+
+  

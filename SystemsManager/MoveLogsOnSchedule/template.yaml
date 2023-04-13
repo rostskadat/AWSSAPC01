@@ -1,0 +1,281 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - Yaml2Json
+Description: >
+  MoveLogsOnSchedule. Showcase how to move an instance logs to an S3 bucket on schedule
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "SystemsManager-MoveLogsOnSchedule"
+    Description: Showcase how to move an instance logs to an S3 bucket on schedule
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "SystemsManager" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Lambda
+        Parameters:
+          - Subnets
+          - ImageId
+          - FlaskPort
+
+Parameters:
+
+  Subnets:
+    Description: "The subnet in which to start the instances"
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581"
+
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+  FlaskPort:
+    Description: "The Port on which the Flask app is listening on"
+    Type: Number
+    Default: 80
+
+
+Resources:
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/SimpleFlaskApp/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ImageId: 
+          Ref: ImageId
+        ManagedPolicyArns:
+          Fn::Join: 
+            - ','
+            - - arn:aws:iam::aws:policy/AmazonS3FullAccess
+              - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        SubnetId: 
+          Fn::Select: [ 0, Ref: Subnets ]
+        FlaskPort:
+          Ref: FlaskPort
+        DefRenderIndex: |
+          def render_index():
+            headers = list(map(lambda i: {i[0]:i[1]}, flask.request.headers ))
+            created_at = datetime.datetime.utcnow().strftime("%Y-%m-%d'T'%H:%M:%S")
+            return json.dumps({ "created_at": created_at, "headers": headers })
+
+  # This ResourceGroup target only the EC2Instance created in the stack above
+  ResourceGroup:
+    Type: AWS::ResourceGroups::Group
+    Properties: 
+      Name: 
+        Fn::Sub: "${AWS::StackName}-ResourceGroup" 
+      ResourceQuery: 
+        Query:
+          ResourceTypeFilters:
+            - AWS::EC2::Instance
+          StackIdentifier: 
+            Fn::Sub: ${EC2Instance.Outputs.StackId}
+        Type: CLOUDFORMATION_STACK_1_0
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  CommandUploadFile2S3:
+    Type: AWS::SSM::Document
+    Properties: 
+      DocumentType: Command
+      Content: 
+        schemaVersion: '2.0'
+        description: Use this document to upload a specific file to an S3 Bucket.
+        parameters: 
+          Filename: 
+            type: 'String'
+            description: 'The file to upload'
+          Bucket: 
+            type: 'String'
+            description: 'The Bucket used to upload CF templates and artifacts'
+          BucketPrefix:
+            type: 'String'
+            description: 'The Bucket used to upload CF templates and artifacts'
+        mainSteps:
+        - name: runShellScript
+          action: aws:runShellScript
+          inputs: 
+            runCommand: 
+              - 'aws s3 cp {{Filename}} s3://{{Bucket}}/{{BucketPrefix}}/'
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  AutomationUploadFile2S3:
+    Type: AWS::SSM::Document
+    Properties: 
+      DocumentType: Automation
+      Content: 
+        description: 'A Markdown compliant description with [links](https://www.google.com)'
+        schemaVersion: '0.3'
+        parameters:
+          Filename:
+            type: String
+            description: The file to upload
+          Bucket:
+            type: String
+            description: The Bucket used to upload CF templates and artifacts
+          BucketPrefix:
+            type: String
+            description: The Bucket prefix used to upload CF templates and artifacts
+        mainSteps:
+          - name: UploadFile2S3
+            action: 'aws:runCommand'
+            inputs:
+              DocumentName: SAPC01-MoveLogsOnSchedule-DocumentUploadFile2S3-T44Y4GXYN35F
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  # NOTE: the Association can either use an already provided Document 
+  #   (AWS-RunShellScript) or a Document that I define in this stack.
+  #   Compare the 2 associations below
+  # NOTE: the instance is targeted by InstanceId
+  AWSDocumentAssociation:
+    Type: AWS::SSM::Association
+    Properties: 
+      AssociationName: 
+        Fn::Sub: ${AWS::StackName}-AWSDocumentAssociation
+      Name: AWS-RunShellScript
+      Parameters:
+        commands:
+        - Fn::Sub: 'aws s3 cp /var/log/gunicorn.log s3://${Bucket}/AWSDocumentAssociation/'
+        workingDirectory:
+        - "/"
+      ScheduleExpression: rate(30 minutes)
+      Targets:
+        - Key: InstanceIds
+          Values:
+            - Fn::Sub: ${EC2Instance.Outputs.InstanceId}
+      OutputLocation:
+        S3Location:
+          OutputS3BucketName: 
+            Ref: Bucket
+          OutputS3KeyPrefix: 
+            Fn::Sub: "AWSLogs/SSM/AWSDocumentAssociation"
+
+  # NOTE: the instance is targeted by ResourceGroup
+  DocumentAssociation:
+    Type: AWS::SSM::Association
+    Properties: 
+      AssociationName: 
+        Fn::Sub: ${AWS::StackName}-DocumentAssociation
+      Name: 
+        Ref: CommandUploadFile2S3
+      Parameters:
+        Filename:
+          - /var/log/gunicorn.log
+        Bucket:
+          - Ref: Bucket
+        BucketPrefix:
+          - DocumentAssociation
+      ScheduleExpression: rate(30 minutes)
+      Targets:
+        - Key: resource-groups:Name
+          Values: 
+            - Ref: ResourceGroup
+      OutputLocation:
+        S3Location:
+          OutputS3BucketName: 
+            Ref: Bucket
+          OutputS3KeyPrefix: 
+            Fn::Sub: "AWSLogs/SSM/DocumentAssociation"
+
+  #
+  # The other way is to create a Maintenance Windows to perform the upload
+  #
+  MaintenanceWindow:
+    Type: AWS::SSM::MaintenanceWindow
+    Properties:
+      AllowUnassociatedTargets: false
+      Cutoff: 0
+      Description: Upload a specific file to an S3 Bucket.
+      Duration: 1
+      Name: MaintenanceWindowUploadFile2S3
+      Schedule: rate(30 minutes)
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  MaintenanceWindowTarget:
+    Type: AWS::SSM::MaintenanceWindowTarget
+    Properties: 
+      ResourceType: RESOURCE_GROUP
+      Targets:
+        - Key: resource-groups:Name
+          Values:
+            - Ref: ResourceGroup
+      WindowId: 
+        Ref: MaintenanceWindow
+
+  MaintenanceWindowTask:
+    Type: AWS::SSM::MaintenanceWindowTask
+    Properties:
+      Description: Upload a specific file to an S3 Bucket.
+      MaxConcurrency: 1
+      MaxErrors: 1
+      Priority: 0
+      TaskType: RUN_COMMAND 
+      WindowId:
+        Ref: MaintenanceWindow
+      TaskArn: 
+        Ref: CommandUploadFile2S3
+      TaskInvocationParameters :
+        MaintenanceWindowRunCommandParameters: 
+          OutputS3BucketName: 
+            Ref: Bucket
+          OutputS3KeyPrefix: 
+            Fn::Sub: "AWSLogs/SSM/DocumentAssociation"
+          Parameters: 
+            Filename:
+              - /var/log/gunicorn.log
+            Bucket:
+              - Ref: Bucket
+            BucketPrefix:
+              - MaintenanceWindowTask
+      Targets:
+        - Key: WindowTargetIds
+          Values:
+            - Ref: MaintenanceWindowTarget
+
+Outputs:
+
+  Bucket:
+    Description: The Bucket
+    Value: 
+      Ref: Bucket
+
+  EC2Instance:
+    Description: The EC2Instance
+    Value: 
+      Fn::Sub: ${EC2Instance.Outputs.InstancePublicDnsName}
+  
+  AWSDocumentAssociation:
+    Description: The AWSDocumentAssociation
+    Value: 
+      Fn::GetAtt: AWSDocumentAssociation.AssociationId
+
+  DocumentAssociation:
+    Description: The DocumentAssociation
+    Value: 
+      Fn::GetAtt: DocumentAssociation.AssociationId

@@ -1,0 +1,339 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  VPCEndpoint. Showcases different Lambda deployments.
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: Lambda-VPCEndpoint
+    Description: Showcases different Lambda deployments.
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to VPC
+        Parameters:
+          - VpcId
+          - RouteTableIds
+          - PublicSubnetIds
+      - Label:
+          default: Parameters related to ApiGateway
+        Parameters:
+          - StageName
+
+Parameters:
+  VpcId:
+    Description: "The VPC in which to put the load balancer"
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-9e9b9ffa
+
+  RouteTableIds:
+    Description: "The Routing tables to modify in order to access Private Resources"
+    Type: List<String>
+    Default: "rtb-c6924aa1"
+
+  PublicSubnetIds:
+    Description: "The Subnet Ids in which to put the load balancer"
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-f76b6581,subnet-b09099d4"
+
+  PrivateSubnetIds:
+    Description: The Private Subnet Ids
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-061b4aea8122da878,subnet-02df09930032b188a"
+
+  StageName:
+    Description: "The StageName for ApiGateway"
+    Type: String
+    Default: "Prod"
+
+Globals:
+  Function:
+    CodeUri: lambdas/JsFunction
+    Environment:
+      Variables:
+        REGION: !Ref AWS::Region
+        SECRET_ARN: !Ref Secret
+        PUBLIC_TABLE: !Ref PublicTable
+        PRIVATE_TABLE: !Ref PrivateTable
+    Handler: index.handler
+    Layers:
+      - !Ref JsLayer
+    Runtime: nodejs14.x
+    Timeout: 180
+    Tracing: Active
+
+Resources:
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub "${AWS::StackId}"
+      SubnetIds: !Ref PrivateSubnetIds
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Secret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Delete
+    Properties:
+      Description: The DBInstance MasterUserPassword
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "root"}'
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  SecretTargetAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref Secret
+      TargetId: !Ref DBInstance
+      TargetType: AWS::RDS::DBInstance
+
+  DBParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description: RDS DBParameterGroup
+      Family: mysql8.0
+      Parameters:
+        log_bin_trust_function_creators: 1
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  # This table should:
+  # - be accessible from the AWS owned VPC
+  # - *NOT* be accessible from our own VPC (because of the VPCendpoint policy)
+  PublicTable:
+    Type: AWS::Serverless::SimpleTable
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        PLATFORM: SAPC01
+
+  # This table should:
+  # - *NOT* be accessible from the AWS owned VPC
+  # - be accessible from our own VPC (because of the VPCendpoint policy)
+  PrivateTable:
+    Type: AWS::Serverless::SimpleTable
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        PLATFORM: SAPC01
+
+  # This table should:
+  # - *NOT* be accessible from the AWS owned VPC because it is not visible
+  # - be accessible from our own VPC (because of the VPCendpoint policy)
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    Properties:
+      AllocatedStorage: 8
+      DBInstanceClass: db.m4.large
+      DBName: dev
+      DBParameterGroupName: !Ref DBParameterGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      Engine: MySQL
+      MasterUsername: !Sub "{{resolve:secretsmanager:${Secret}:SecretString:username}}"
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${Secret}:SecretString:password}}"
+
+  DynamoDBAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              # deny read operation on private table unless it goes through
+              # the VPCEndpoint. It should allow me to demonstrate that the
+              # lambda function deployed within the AWS owned VPC is not able
+              # to read that table
+              - Effect: Deny
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Scan
+                  - dynamodb:Query
+                  - dynamodb:BatchGetItem
+                  # - dynamodb:DescribeTable
+                Resource:
+                  - !Sub "${PrivateTable.Arn}"
+                  - !Sub "${PrivateTable.Arn}/index/*"
+                Condition:
+                  StringNotEquals:
+                    aws:SourceVpce: !Ref DynamoDBEndpoint
+          
+  DynamoDBEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action:
+              - "dynamodb:*"
+            Resource:
+              - !GetAtt PrivateTable.Arn
+      # That will allow us to intercept all DynamoDB call in the VPC.
+      # PrivateDnsEnabled: true
+      RouteTableIds: !Ref RouteTableIds
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.dynamodb"
+      VpcEndpointType: Gateway
+      VpcId: !Ref VpcId
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "${AWS::StackName} allow traffic to lambda functions in VPC"
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+        - Key: Name
+          Value: !Sub "${AWS::StackName}-SecurityGroupLambda"
+
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Sub "${StageName}"
+
+  JsLayer:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: nodejs14.x
+    Properties:
+      ContentUri: layers/JsLayer
+      RetentionPolicy: Delete
+      CompatibleRuntimes:
+        - nodejs14.x
+
+  AWSVPCFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: This function is deployed in the AWS Owned VPC, and therefore can not access any resources in the VPC
+      Events:
+        Invoke:
+          Type: Api
+          Properties:
+            Method: GET
+            Path: /AWSVPCFunction
+            RestApiId: !Ref Api
+      #Role: !GetAtt DynamoDBAccessRole.Arn
+      Policies:
+        - arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        - AWSSecretsManagerGetSecretValuePolicy:
+            SecretArn: !Ref Secret
+        - DynamoDBReadPolicy:
+            TableName: !Ref PublicTable
+        - Version: 2012-10-17
+          Statement:
+                # deny read operation on private table unless it goes through
+                # the VPCEndpoint. It should allow me to demonstrate that the
+                # lambda function deployed within the AWS owned VPC is not able
+                # to read that table
+                - Effect: Deny
+                  Action:
+                    - dynamodb:GetItem
+                    - dynamodb:Scan
+                    - dynamodb:Query
+                    - dynamodb:BatchGetItem
+                    # - dynamodb:DescribeTable
+                  Resource:
+                    - !Sub "${PrivateTable.Arn}"
+                    - !Sub "${PrivateTable.Arn}/index/*"
+                  Condition:
+                    StringNotEquals:
+                      aws:SourceVpce: !Ref DynamoDBEndpoint
+  
+  # VPCFunction:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     CodeUri: lambdas/VPCFunction
+  #     Description: This function is deployed in the VPC, and therefore can access resources in the VPC. It does pass through your IGW
+  #     Events:
+  #       Invoke:
+  #         Type: Api
+  #         Properties:
+  #           Method: GET
+  #           Path: /VPCFunction
+  #           RestApiId: !Ref Api
+  #     Role: !GetAtt DynamoDBAccessRole.Arn
+  #     VpcConfig:
+  #       SecurityGroupIds:
+  #         - !Ref SecurityGroup
+  #       SubnetIds: !Ref PublicSubnetIds
+
+  # VPCEndpointFunction:
+  #   Type: AWS::Serverless::Function
+  #   Properties:
+  #     Description: This function is deployed in the VPC, and use a VPC endpoint and therefore does not require access to your IGW
+  #     CodeUri: lambdas/VPCEndpointFunction
+  #     Events:
+  #       Invoke:
+  #         Type: Api
+  #         Properties:
+  #           Method: GET
+  #           Path: /VPCEndpointFunction
+  #           RestApiId: !Ref Api
+  #     Role: !GetAtt DynamoDBAccessRole.Arn
+  #     VpcConfig:
+  #       SecurityGroupIds:
+  #         - !Ref SecurityGroup
+  #       SubnetIds: !Ref PublicSubnetIds
+
+Outputs:
+
+  Secret:
+    Description: The Secret
+    Value: !Ref Secret
+
+  PublicTable:
+    Description: The PublicTable
+    Value: !Ref PublicTable
+
+  PrivateTable:
+    Description: The PrivateTable
+    Value: !Ref PrivateTable
+
+  ApiUrl:
+    Description: The Api Url
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"

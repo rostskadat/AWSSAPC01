@@ -1,0 +1,21 @@
+{
+    "type": "object",
+    "required": [
+      "Name",
+      "Bucket",
+      "Key"
+    ],
+    "additionalProperties": false,
+    "properties": {
+      "Name": {
+        "type": "string"
+      },
+      "Bucket": {
+        "type": "string"
+      },
+      "Key": {
+        "type": "string"
+      }
+    }
+  }
+  

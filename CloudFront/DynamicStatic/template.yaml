@@ -1,0 +1,232 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  DynamicStatic. Showcase Dynamic / Static Content separation and corresponding caching strategies
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "CloudFront-DynamicStatic"
+    Description: Showcase Dynamic / Static Content separation and corresponding caching strategies
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "CloudFront" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to CloudFront
+        Parameters:
+          - ManagedCachingOptimizedId
+          - ManagedCachingDisabledId
+      - Label:
+          default: Parameters related to API GateWay
+        Parameters:
+          - FlaskPort
+          - StageName
+
+Parameters:
+
+  # Look at https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
+  ManagedCachingOptimizedId:
+    Description: "The Caching Policy Id to use. Defaul to the Managed-CachingOptimized Caching Policy"
+    Type: String
+    Default: "658327ea-f89d-4fab-a63d-7e88639e58f6"
+
+  ManagedCachingDisabledId:
+    Description: "The Caching Policy Id to use. Defaul to the Managed-CachingDisabled Caching Policy"
+    Type: String
+    Default: "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+
+  FlaskPort:
+    Description: "The Port on which the Flask app is listening on"
+    Type: Number
+    Default: 80
+
+  StageName:
+    Description: "The StageName for ApiGateway"
+    Type: String
+    Default: "Prod"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  #
+  # STATIC CONTENT DISTRIBUTION: In order to showcase the different caching 
+  #   strategies, the "static" distribution will generate a page with the 
+  #   creation timestamp and the originating IP.
+  #
+  StaticEC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        CreateInstance: true
+        ParentStackName:
+          Ref: AWS::StackName
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel ;
+            yum update -y ;
+            yum install -y python3 python3-pip
+            pip3 --disable-pip-version-check install gunicorn==20.0.4 Flask==1.1.2 Flask-Cors==3.0.10
+            mkdir /flask-hello-world
+            cat > /flask-hello-world/app.py <<EOF
+            import datetime, flask, flask_cors, json, logging, os
+            app = flask.Flask(__name__)
+            flask_cors.CORS(app)
+            gunicorn_error_logger = logging.getLogger('gunicorn.error')
+            app.logger.handlers.extend(gunicorn_error_logger.handlers)
+            app.logger.setLevel(logging.DEBUG)
+            app.logger.debug('Welcome to Flask')
+            @app.route('/')
+            def render_index():
+              headers = list(map(lambda i: {i[0]:i[1]}, flask.request.headers ))
+              created_at = datetime.datetime.utcnow().strftime("%Y-%m-%d'T'%H:%M:%S")
+              return json.dumps({ "created_at": created_at, "headers": headers })
+            @app.route('/health')
+            def render_health():
+              return "OK"
+            if __name__ == '__main__':
+              app.run(debug=True, host='0.0.0.0', port=${FlaskPort})
+            EOF
+            cd /flask-hello-world && /usr/local/bin/gunicorn --bind 0.0.0.0:${FlaskPort} --log-file /var/log/gunicorn.log --log-level DEBUG --daemon app:app
+            echo "Instance initialization... Done"
+
+  StaticDistribution:
+    Type: AWS::CloudFront::Distribution
+    DependsOn: StaticEC2Instance
+    Properties:
+      DistributionConfig:
+        # CacheBehaviors:
+        #   - CachePolicyId: 
+        #       Ref: ManagedCachingOptimizedId
+        #     # This element is deprecated but still required (!?!)
+        #     ForwardedValues: 
+        #       QueryString: false
+        #     PathPattern: "*"
+        #     TargetOriginId: StaticEC2InstanceOrigin
+        #     ViewerProtocolPolicy: redirect-to-https
+        DefaultCacheBehavior:
+          CachePolicyId: 
+            Ref: ManagedCachingOptimizedId
+          # This element is deprecated but still required (!?!)
+          ForwardedValues: 
+            QueryString: false
+          TargetOriginId: StaticEC2InstanceOrigin
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: index.html
+        Enabled: true
+        Origins:
+          - CustomOriginConfig: 
+              OriginProtocolPolicy: "http-only"
+            DomainName:
+              Fn::Sub: "${StaticEC2Instance.Outputs.InstancePublicDnsName}"
+            Id: StaticEC2InstanceOrigin
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+
+  #
+  # DYNAMIC CONTENT DISTRIBUTION: In order to showcase the different caching 
+  #   strategies, the "static" distribution will generate a page with the 
+  #   creation timestamp and the originating IP.
+  #
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: 
+        Ref: StageName
+
+  DynamicStaticFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/DynamicStaticFunction
+      Events:
+        Invoke:
+          Type: Api
+          Properties:
+            Path: /dynamic
+            Method: GET
+            RestApiId: 
+              Ref: Api
+
+  DynamicCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties: 
+      CachePolicyConfig: 
+        Comment: This policy will cache the request if the 'sapc01-cache-key' is set
+        DefaultTTL: 86400
+        MaxTTL: 31536000
+        MinTTL: 1
+        Name: SAPC01CacheKeyCachePolicy
+        ParametersInCacheKeyAndForwardedToOrigin: 
+          CookiesConfig: 
+            CookieBehavior: none
+          EnableAcceptEncodingBrotli: false
+          EnableAcceptEncodingGzip: false
+          HeadersConfig: 
+            HeaderBehavior: whitelist
+            Headers: 
+              - sapc01-cache-key
+          QueryStringsConfig: 
+            QueryStringBehavior: none
+
+  DynamicDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        DefaultCacheBehavior:
+          CachePolicyId: 
+            Ref: DynamicCachePolicy
+          # This element is deprecated but still required (!?!)
+          ForwardedValues: 
+            QueryString: false
+          TargetOriginId: DynamicOrigin
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: 
+          Fn::Sub: "${StageName}/dynamic"
+        Enabled: true
+        Origins:
+          - CustomOriginConfig: 
+              OriginProtocolPolicy: "https-only"
+            DomainName:
+              Fn::Sub: "${Api}.execute-api.${AWS::Region}.amazonaws.com"
+            Id: DynamicOrigin
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+Outputs:
+  StaticOrigin:
+    Description: The Static Origin
+    Value: 
+      Fn::Sub: "http://${StaticEC2Instance.Outputs.InstancePublicDnsName}/index.html"
+
+  StaticDistribution:
+    Description: The StaticDistribution DomainName
+    Value: 
+      Fn::Sub: "https://${StaticDistribution.DomainName}/index.html"
+
+  DynamicOrigin:
+    Description: The Dynamic Origin
+    Value: 
+      Fn::Sub: "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/dynamic"
+
+  DynamicDistribution:
+    Description: he DynamicDistribution DomainName
+    Value: 
+      Fn::Sub: "https://${DynamicDistribution.DomainName}/${StageName}/dynamic"
+
+

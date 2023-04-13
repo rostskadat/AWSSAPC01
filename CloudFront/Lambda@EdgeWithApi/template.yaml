@@ -1,0 +1,138 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  LambdaAtEdge. Showcase the use of Lambda functions to alter the requests into CloudFront
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "CloudFront-LambdaAtEdge"
+    Description: Showcase the use of Lambda functions to alter the requests into CloudFront
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "CloudFront" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to CloudFront
+        Parameters:
+          - ManagedCachingOptimizedId
+          - ManagedCachingDisabledId
+      - Label:
+          default: Parameters related to API GateWay
+        Parameters:
+          - StageName
+
+Parameters:
+
+  # Look at https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/using-managed-cache-policies.html
+  ManagedCachingOptimizedId:
+    Description: "The Caching Policy Id to use. Defaul to the Managed-CachingOptimized Caching Policy"
+    Type: String
+    Default: "658327ea-f89d-4fab-a63d-7e88639e58f6"
+
+  ManagedCachingDisabledId:
+    Description: "The Caching Policy Id to use. Defaul to the Managed-CachingDisabled Caching Policy"
+    Type: String
+    Default: "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+
+  StageName:
+    Description: "The StageName for ApiGateway"
+    Type: String
+    Default: "Prod"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  LambdaAtEdgeFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      # This is necessary in order to be able to reference the function's 
+      # version in the distribution
+      AutoPublishAlias: LambdaAtEdgeAlias
+      CodeUri: lambdas/LambdaAtEdgeFunction
+
+
+  #
+  # DYNAMIC CONTENT DISTRIBUTION: In order to showcase the different caching 
+  #   strategies, the "static" distribution will generate a page with the 
+  #   creation timestamp and the originating IP.
+  #
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: 
+        Ref: StageName
+
+  OriginFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/OriginFunction
+      Events:
+        Invoke:
+          Type: Api
+          Properties:
+            Path: /origin
+            Method: GET
+            RestApiId: 
+              Ref: Api
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        DefaultCacheBehavior:
+          CachePolicyId: 
+            Ref: ManagedCachingDisabledId
+          # This element is deprecated but still required (!?!)
+          ForwardedValues: 
+            QueryString: false
+          LambdaFunctionAssociations: 
+            - EventType: viewer-request
+              IncludeBody: true
+              LambdaFunctionARN: 
+                # This is necessary in order to be able to reference the 
+                # function's version in the distribution
+                Ref: LambdaAtEdgeFunction.Version
+          TargetOriginId: Origin
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: 
+          Fn::Sub: "${StageName}/origin"
+        Enabled: true
+        Origins:
+          - CustomOriginConfig: 
+              OriginProtocolPolicy: "https-only"
+            DomainName:
+              Fn::Sub: "${Api}.execute-api.${AWS::Region}.amazonaws.com"
+            Id: Origin
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+Outputs:
+
+  Origin:
+    Description: The Origin
+    Value: 
+      Fn::Sub: "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/origin"
+
+  Distribution:
+    Description: The Distribution DomainName
+    Value: 
+      Fn::Sub: "https://${Distribution.DomainName}/${StageName}/origin"
+
+  LambdaAtEdgeArn:
+    Description: The LambdaAtEdge Arn
+    Value:
+      Ref: LambdaAtEdgeFunction.Version
+

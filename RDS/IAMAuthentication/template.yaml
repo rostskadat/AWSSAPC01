@@ -1,0 +1,238 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform:
+  - AWS::SecretsManager-2020-07-23
+  - AWS::Serverless-2016-10-31
+  - Yaml2Json
+Description: >
+  IAMAuthentication. RDS IAM Authentication and Password rotation
+
+Parameters:
+
+  DBAdministrator:
+    Description: "The DB administrator Username"
+    Type: String
+    Default: "administrator"
+
+  DBApplicationUsername:
+    Description: "The DB DBApplication Username"
+    Type: String
+    Default: "application"
+
+  ImageId:
+    Description: "The EC2 Instance AMI"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+  KeyName:
+    Description: "The Key to use to connect to the EC2 Instance"
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: "SAPC01"
+
+Resources:
+
+  RDSCredentials:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: RDSCredentials
+      Description: "The credentials to access RDS Mysql as an Administrator"
+      GenerateSecretString:
+        SecretStringTemplate: 
+          Fn::Sub: 
+            Fn::Yaml2Json:
+              username: "${DBAdministrator}"
+        GenerateStringKey: "password"
+        PasswordLength: 30
+        ExcludeCharacters: '"@/\'
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 20
+      BackupRetentionPeriod: 0
+      DBInstanceIdentifier: 
+        Fn::Sub: "db-${AWS::StackName}"
+      DBInstanceClass: db.t2.micro
+      EnableIAMDatabaseAuthentication: true
+      Engine: mysql
+      MasterUsername: !Sub '{{resolve:secretsmanager:${RDSCredentials}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${RDSCredentials}:SecretString:password}}'
+    DeletionPolicy: Delete
+
+  SecretTargetAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: 
+        Ref: RDSCredentials
+      TargetId: 
+        Ref: DBInstance
+      TargetType: AWS::RDS::DBInstance
+
+  # This is a RotationSchedule resource. It configures rotation of password for
+  # the referenced secret using a rotation lambda. The first rotation happens 
+  # at resource creation time, with subsequent rotations scheduled according to
+  # the rotation rules. We explicitly depend on the SecretTargetAttachment 
+  # resource being created to ensure that the secret contains all the 
+  # information necessary for rotation to succeed
+  RotationSchedule:
+    Type: AWS::SecretsManager::RotationSchedule
+    DependsOn: SecretTargetAttachment 
+    Properties:
+      SecretId: 
+        Ref: RDSCredentials
+      HostedRotationLambda:
+        RotationLambdaName: 
+          Fn::Sub: "${AWS::AccountId}-${AWS::Region}-SecretsManagerRotation"
+        RotationType: MySQLSingleUser
+      RotationRules:
+        AutomaticallyAfterDays: 30
+
+  # This role contains the special policy that allows the EC2 instance to use 
+  # the rds-db:connect operation. 
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/PowerUserAccess"
+      Policies:
+        - PolicyName: AllowConnectToDBInstance
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action: "rds-db:connect"
+                Resource:
+                  - Fn::Sub: "arn:aws:rds-db:${AWS::Region}:${AWS::AccountId}:dbuser:*/${DBApplicationUsername}"
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - Ref: InstanceRole
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId:
+          Ref: LaunchTemplate
+        Version:
+          Fn::GetAtt: LaunchTemplate.LatestVersionNumber
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          default: [Install]
+        Install:
+          packages: 
+            yum: 
+              mariadb: []
+              jq: []
+          files:
+            /root/rds-combined-ca-bundle.pem:
+              source: https://s3.amazonaws.com/rds-downloads/rds-combined-ca-bundle.pem
+              mode: "000700"
+              owner: root
+              group: root
+            /root/bootstrap.sql:
+              content: 
+                Fn::Sub: |
+                  CREATE USER ${DBApplicationUsername} IDENTIFIED WITH AWSAuthenticationPlugin AS 'RDS';
+                  ALTER USER '${DBApplicationUsername}'@'%' REQUIRE SSL;
+              mode: "000700"
+              owner: root
+              group: root
+            /root/test.sql:
+              content: 
+                Fn::Sub: |
+                  SHOW PROCESSLIST;
+              mode: "000700"
+              owner: root
+              group: root
+            /root/bootstrap.sh:
+              content: 
+                Fn::Sub: |
+                  #!/bin/bash
+                  # First as ${DBAdministrator}, we configure the ${DBApplicationUsername} User to connect using IAM
+                  echo "Creating the ${DBApplicationUsername} User ..."
+                  SECRET_ID=${RDSCredentials}
+                  MASTER_PASSWORD=$(aws --region ${AWS::Region} secretsmanager get-secret-value --secret-id "$SECRET_ID" --query 'SecretString' --output text | jq -r '.password')
+                  mysql --host=${DBInstance.Endpoint.Address} --port=${DBInstance.Endpoint.Port} --user=${DBAdministrator} --password=$MASTER_PASSWORD < /root/bootstrap.sql
+                  # Then we try the connection as the ${DBApplicationUsername} user
+                  echo "Testing connection for ${DBApplicationUsername} User ..."
+                  TOKEN="$(aws --region ${AWS::Region} rds generate-db-auth-token --hostname ${DBInstance.Endpoint.Address} --port ${DBInstance.Endpoint.Port} --username ${DBApplicationUsername})"
+                  mysql --ssl-ca=/root/rds-combined-ca-bundle.pem --host=${DBInstance.Endpoint.Address} --port=${DBInstance.Endpoint.Port} --user=${DBApplicationUsername} --password=$TOKEN < /root/test.sql
+                  echo "Done."
+              mode: "000700"
+              owner: root
+              group: root
+          commands:
+            01_bootstrap:
+              command: "bash /root/bootstrap.sh"
+    Properties:
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Arn:
+            Fn::GetAtt: InstanceProfile.Arn
+        ImageId: 
+          Ref: ImageId
+        InstanceType: t3.micro
+        KeyName: 
+          Ref: KeyName
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: PLATFORM
+                Value: SAPC01
+          - ResourceType: volume
+            Tags:
+              - Key: PLATFORM
+                Value: SAPC01
+        UserData:
+          Fn::Base64:
+            Fn::Sub: |
+              #!/bin/bash
+              yum-config-manager --enable epel ; yum update -y ; yum install -y aws-cfn-bootstrap
+              /opt/aws/bin/cfn-init --verbose --region ${AWS::Region} --stack ${AWS::StackName} --resource LaunchTemplate --role ${InstanceRole}
+              echo "Done"
+
+Outputs:
+  Secret:
+    Description: "The Secret Id"
+    Value: 
+      Ref: RDSCredentials
+
+  DBInstance:
+    Description: "DBInstance Id"
+    Value: 
+      Ref: DBInstance
+
+  DBInstanceAddress:
+    Description: "DBInstance Address"
+    Value: 
+      Fn::GetAtt: DBInstance.Endpoint.Address
+
+  DBInstancePort:
+    Description: "DBInstance Port"
+    Value: 
+      Fn::GetAtt: DBInstance.Endpoint.Port
+
+  EC2InstancePublicDnsName:
+    Description: "Instance PublicDnsName"
+    Value: 
+      Fn::GetAtt: EC2Instance.PublicDnsName

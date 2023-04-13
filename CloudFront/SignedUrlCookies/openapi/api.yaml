@@ -1,0 +1,60 @@
+swagger: "2.0"
+info:
+  title: "SignedUrlCookies"
+x-amazon-apigateway-request-validators:
+  params-only:
+    validateRequestBody: false
+    validateRequestParameters: true
+paths:
+  /GetSignedUrl:
+    get:
+      operationId: "SignedUrl"
+      parameters:
+        - in: query
+          name: url
+          required: true
+          schema:
+            type: string
+            format: uri
+      responses:
+        302:
+          description: "successful operation"
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+      x-amazon-apigateway-request-validator: params-only
+      x-amazon-apigateway-integration:  
+        type: "aws_proxy"
+        httpMethod: "POST"
+        uri: "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:SignedUrl/invocations"
+        passthroughBehavior: "when_no_templates"
+        # as per https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-swagger-extensions-integration-requestParameters.html
+        requestParameters:
+          integration.request.querystring.url: method.request.querystring.url
+          
+  /GetSignedCookies:
+    get:
+      operationId: "SignedCookies"
+      parameters:
+        - in: query
+          name: url
+          required: true
+          schema:
+            type: string
+            format: uri
+      responses:
+        302:
+          description: "successful operation"
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uri
+      x-amazon-apigateway-request-validator: params-only
+      x-amazon-apigateway-integration:  
+        type: "aws_proxy"
+        httpMethod: "POST"
+        uri: "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:SignedCookies/invocations"
+        passthroughBehavior: "when_no_templates"

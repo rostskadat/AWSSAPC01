@@ -1,0 +1,6 @@
+{
+  "TriggerBatchFunction": {
+    "JOB_QUEUE" : "arn:aws:batch:eu-west-1:123456789012:job-queue/JobQueue-5fe9346f4156a2a",
+    "JOB_DEFINITION": "arn:aws:batch:eu-west-1:123456789012:job-definition/JobDefinition-96c25f0d753a236:2"
+  }
+}

@@ -1,0 +1,60 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  {{ cookiecutter.project_name }}. {{ cookiecutter.description }}
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "{{ cookiecutter.service }}-{{ cookiecutter.project_name }}"
+    Description: {{ cookiecutter.description }}
+    Author: {{ cookiecutter.author }}
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "{{ cookiecutter.service }}" ]
+    HomePageUrl: https://github.com/{{ cookiecutter.author }}
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/{{ cookiecutter.author }}
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Lambda
+        Parameters:
+          - "{{ cookiecutter.project_name }}Parameter"
+
+Parameters:
+  "{{ cookiecutter.project_name }}Parameter":
+    Description: Look at https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html
+    Type: String
+    Default: "{{ cookiecutter.project_name }}Value"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: "{{ cookiecutter.project_name }}Layer01"
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+  "{{ cookiecutter.project_name }}Layer01":
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: "layers/{{ cookiecutter.project_name }}Layer01"
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  "{{ cookiecutter.project_name }}Function":
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/{{ cookiecutter.project_name }}Function
+
+Outputs:
+  FunctionArn:
+    Description: "{{ cookiecutter.project_name }} Lambda Function ARN"
+    Value: 
+      Fn::GetAtt: "{{ cookiecutter.project_name }}Function.Arn"

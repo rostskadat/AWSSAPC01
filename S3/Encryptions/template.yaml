@@ -1,0 +1,133 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+Description: >
+  Encryptions. showcase the 4 different types of encryptions.
+
+Parameters:
+  IAMUser:
+    Description: The IAM User that has all permission on the keys
+    Type: String
+    Default: "n090536"
+
+Resources:
+  SSES3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  S3CMKKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: A key to use when encrypting S3 Object
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Id: key-default-1
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS:
+                - Fn::Sub: "arn:aws:iam::${AWS::AccountId}:root"
+                - Fn::Sub: "arn:aws:iam::${AWS::AccountId}:user/${IAMUser}"
+            Action: kms:*
+            Resource: "*"
+      PendingWindowInDays: 7
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  SSEKMSBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID:
+                Fn::GetAtt: S3CMKKey.Arn
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  SSECBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  ClientSideEncryptionBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  CloudTrail:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/CloudTrail/template.yaml
+      Parameters:
+        AthenaDB: "sapc01_s3_encryptions_db"
+        DataEventS3BucketArns:
+          Fn::Sub: "${SSES3Bucket.Arn}/,${SSEKMSBucket.Arn}/,${SSECBucket.Arn}/,${ClientSideEncryptionBucket.Arn}"
+      Tags:
+        PLATFORM: SAPC01
+
+Outputs:
+  SSES3Bucket:
+    Description: "SSES3Bucket"
+    Value:
+      Ref: SSES3Bucket
+
+  SSEKMSBucket:
+    Description: "SSEKMSBucket"
+    Value:
+      Ref: SSEKMSBucket
+
+  S3CMKKey:
+    Description: "S3CMKKey"
+    Value:
+      Ref: S3CMKKey
+
+  SSECBucket:
+    Description: "SSECBucket"
+    Value:
+      Ref: SSECBucket
+
+  ClientSideEncryptionBucket:
+    Description: "ClientSideEncryptionBucket"
+    Value:
+      Ref: ClientSideEncryptionBucket
+
+  SSES3BucketTrail:
+    Description: "The SSES3Bucket Trail you can start / stop"
+    Value:
+      Fn::GetAtt: SSES3BucketTrail.Outputs.Trail
+
+  SSEKMSBucketTrail:
+    Description: "The SSEKMSBucket Trail you can start / stop"
+    Value:
+      Fn::GetAtt: SSEKMSBucketTrail.Outputs.Trail
+
+  SSECBucketTrail:
+    Description: "The SSECBucket Trail you can start / stop"
+    Value:
+      Fn::GetAtt: SSECBucketTrail.Outputs.Trail
+
+  ClientSideEncryptionBucketTrail:
+    Description: "The ClientSideEncryptionBucket Trail you can start / stop"
+    Value:
+      Fn::GetAtt: ClientSideEncryptionBucketTrail.Outputs.Trail

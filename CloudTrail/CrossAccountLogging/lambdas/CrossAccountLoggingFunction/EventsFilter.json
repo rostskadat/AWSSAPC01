@@ -1,0 +1,8 @@
+{
+    "Filters": [
+        {
+            "eventSource": "emr.amazonaws.com",
+            "eventName": "ListClusters"
+        }
+    ]
+}

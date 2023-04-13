@@ -1,0 +1,14 @@
+{
+    "iterator": {
+        "index": 0,
+        "keys": [
+            "img_0001.jpg",
+            "img_0002.jpg",
+            "img_0003.jpg",
+            "img_1771.jpg",
+            "img_2158.jpg"
+        ],
+        "count": 5,
+        "continue": true
+    }
+}

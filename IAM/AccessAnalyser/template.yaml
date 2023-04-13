@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  AccessAnalyser
+
+Parameters:
+  TrustedAccountId:
+    Type: Number
+    Description: Archive findings for that account  
+    Default: 123456789012
+
+Resources:
+
+  Analyzer:
+    Type: AWS::AccessAnalyzer::Analyzer
+    Properties:
+      Type: ACCOUNT
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      ArchiveRules:
+        - # Archive findings for a trusted AWS account
+          RuleName: ArchivePublicS3BucketsAccess
+          Filter:
+            - Property: 'principal.AWS'
+              Eq:
+                - Fn::Sub: '${AWS::AccountId}'
+
+Outputs:
+  Analyzer:
+    Description: "The AccessAnalyser"
+    Value: 
+      Ref: Analyzer

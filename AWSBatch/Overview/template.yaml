@@ -1,0 +1,271 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+Description: >
+  Overview. An overview of AWS Batch
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "AWSBatch-Overview"
+    Description: An overview of AWS Batch
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "AWSBatch" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to VPC
+        Parameters:
+          - VpcId
+          - Subnets
+          - SecurityGroups
+      - Label:
+          default: Parameters related to EC2
+        Parameters:
+          - ImageId
+      - Label:
+          default: Parameters related to API Gateway
+        Parameters:
+          - StageName
+      - Label:
+          default: Parameters related to the ECS Tasks
+        Parameters:
+          - DownloadImageRepository
+          - DownloadContainerName
+
+Parameters:
+  VpcId:
+    Description: "The VPC in which to put the load balancer"
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-9e9b9ffa
+
+  Subnets:
+    Description: "The Subnets in which to put the load balancer"
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581,subnet-58421700"
+
+  SecurityGroups:
+    Description: "The Security group  in which to put the load balancer"
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Default: "sg-e1435287"
+
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
+
+  StageName:
+    Description: "The StageName for ApiGateway"
+    Type: String
+    Default: "Prod"
+
+  DownloadImageRepository:
+    Description: "The repository containing the Download Task"
+    Type: String
+
+  DownloadContainerName:
+    Description: "The friendly name for the container. In order to be triggered from outside"
+    Type: String
+    Default: "ZTFAlertsDownload"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: 
+        Ref: StageName
+
+  TriggerBatchFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/TriggerBatchFunction
+      Environment:
+        Variables:
+          JOB_QUEUE: 
+            Ref: JobQueue
+          JOB_DEFINITION:
+            Ref: JobDefinition
+      Events:
+        Invoke:
+          Type: Api
+          Properties:
+            Path: /trigger
+            Method: POST
+            RestApiId: 
+              Ref: Api
+      Policies:
+        - Statement: 
+            - Effect: Allow
+              Action: 
+                - batch:SubmitJob
+              Resource: 
+                - Ref: JobDefinition
+                - Ref: JobQueue
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Description: Role created and associated with the EC2 Instance.
+      Path: "/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - Ref: InstanceRole
+
+  ComputeEnvironmentRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "batch.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Description: Service Role created and associated with the Batch environment
+      Path: "/"
+      ManagedPolicyArns: 
+        - "arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole"
+
+  #
+  # Use the EC2Instance stack to get a LaunchTemplate I can use in the ComputeEnvironment
+  #
+  ComputeEnvironment:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: 
+        Fn::Sub: ComputeEnvironmentName-${AWS::Region}
+      ComputeResources:
+        DesiredvCpus: 2
+        Ec2KeyPair: SAPC01
+        ImageId: 
+          Ref: ImageId
+        InstanceRole: 
+          Fn::GetAtt: InstanceProfile.Arn
+        InstanceTypes:
+          - optimal
+        MaxvCpus: 4
+        MinvCpus: 1
+        SecurityGroupIds:
+          Ref: SecurityGroups
+        Subnets:
+          Ref: Subnets
+        Tags: 
+          Name: 
+            Fn::Sub: "${AWS::StackName}-MainInstance"
+          PLATFORM: SAPC01
+        Type: EC2
+      ServiceRole: 
+        Fn::GetAtt: ComputeEnvironmentRole.Arn
+      State: ENABLED
+      Type: MANAGED
+
+
+  JobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      ComputeEnvironmentOrder:
+        - ComputeEnvironment: 
+            Ref: ComputeEnvironment
+          Order: 1
+      State: ENABLED
+      Priority: 1
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: "/${AWS::AccountId}/${AWS::StackName}/batch"
+      RetentionInDays: 1
+
+  JobDefinitionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Description: Role created and associated with the EC2 Instance.
+      Path: "/"
+      ManagedPolicyArns: 
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - S3CrudPolicy:
+            BucketName: 
+              Ref: Bucket
+
+  JobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      Type: container
+      ContainerProperties:
+        Command: 
+          - "--bucket"
+          - Ref: Bucket
+          - "--date"
+          - "20200913"
+        Image:
+          Fn::Sub: "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/containerimagerepository-zzcvlc8wlazq:latest"
+        JobRoleArn: 
+          Fn::GetAtt: JobDefinitionRole.Arn
+        LogConfiguration:
+          LogDriver: awslogs
+          Options:
+            awslogs-region:
+              Fn::Sub: "${AWS::Region}"
+            awslogs-group:
+              Ref: LogGroup
+            awslogs-stream-prefix: "ZTFAlerts"
+        Memory: 512
+        Vcpus: 1
+
+
+Outputs:
+
+  ApiUrl:
+    Description: The URL to access the API Gateway
+    Value: 
+      Fn::Sub: "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/trigger"

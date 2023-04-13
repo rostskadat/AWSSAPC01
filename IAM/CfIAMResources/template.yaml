@@ -1,0 +1,90 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  CfIAMSamProviderFunction. A Custom Resource to use IAM's SAML Provider. Note that the function will require to be deployed in an Internet connected subnet in order to be able to retrieve the SAML Metadata Document from an URL
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "CloudFormation-CfIAMSamProviderFunction"
+    Description: A Custom Resource to use IAM's SAML Provider
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01", "IAM"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to the Lambda VPC Configuration
+        Parameters:
+          - SecurityGroupIds
+          - SubnetIds
+    ParameterLabels:
+      SecurityGroupIds:
+        default: The Security Groups to associate with the Lambda function
+      SubnetIds:
+        default: The public subnets in which to deploy the Lambda function
+
+Parameters:
+  SecurityGroupIds:
+    Description: The comma separated list of Security Groups required by the Lambda function
+    Type: String # List<AWS::EC2::SecurityGroup::Id>
+    AllowedPattern: "^((sg-[0-9a-f]{8,17})(,sg-[0-9a-f]{8,17})*)?$"
+
+  SubnetIds:
+    Description: The comma separated list of Public Subnets where to deploy the Lambda function
+    Type: String # List<AWS::EC2::Subnet::Id>
+    AllowedPattern: "^((subnet-[0-9a-f]{8,17})(,subnet-[0-9a-f]{8,17})*)?$"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: CfIAMResourcesLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Conditions:
+  HasVpcConfig: 
+    Fn::And:
+      - Fn::Not: [ Fn::Equals: [ Ref: SecurityGroupIds, '' ] ]
+      - Fn::Not: [ Fn::Equals: [ Ref: SubnetIds, '' ] ]
+
+Resources:
+  CfIAMResourcesLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/CfIAMResourcesLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  CfIAMSamProviderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: CfIAMSamProviderFunction
+      Description: A CloudFormation Custom Resource to create an IAM's SAML Provider
+      CodeUri: lambdas/CfIAMSamProviderFunction
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - "arn:aws:iam::aws:policy/IAMFullAccess"
+      VpcConfig:
+        Fn::If:
+          - HasVpcConfig
+          - SecurityGroupIds:
+              Fn::Split: [ ',', Ref: SecurityGroupIds ]
+            SubnetIds:
+              Fn::Split: [ ',', Ref: SubnetIds ]
+          - Ref: AWS::NoValue
+
+Outputs:
+  CfIAMSamProviderFunction:
+    Description: "CfIAMSamProviderFunction Lambda Function ARN"
+    Value:
+      Fn::GetAtt: "CfIAMSamProviderFunction.Arn"

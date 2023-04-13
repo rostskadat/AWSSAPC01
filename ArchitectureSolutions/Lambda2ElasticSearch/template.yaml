@@ -1,0 +1,245 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Lambda2ElasticSearch. Showcase different kind of event mapping to ElasticSearch pipeline
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "ArchitectureSolutions-Lambda2ElasticSearch"
+    Description: Showcase different kind of event mapping to ElasticSearch pipeline
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "ArchitectureSolutions" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Route53 and ELB
+        Parameters:
+          - HostedZoneName
+          - SubDomainName
+          - CertificateArn
+      - Label:
+          default: Parameters related to AutoScalingGroup
+        Parameters:
+          - VpcId
+          - Subnets
+      - Label:
+          default: Parameters related to API GateWay
+        Parameters:
+          - StageName
+          - TopicEmail
+          
+Parameters:
+  HostedZoneName:
+    Description: "The hosted zone name"
+    Type: String
+    Default: domain.com
+
+  SubDomainName:
+    Description: "The subdomain of the API"
+    Type: String
+    Default: sapc01-integrationtype
+
+  CertificateArn:
+    Description: "The ACM certificate Arn. Must be valid in the current region."
+    Type: String
+    Default: "arn:aws:acm:eu-west-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+
+  VpcId:
+    Description: "The VPC in which to put the load balancer"
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-9e9b9ffa
+
+  Subnets:
+    Description: "The subnet in which to start the instances"
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581,subnet-58421700"
+
+  StageName:
+    Description: "The StageName for ApiGateway"
+    Type: String
+    Default: "Prod"
+
+  TopicEmail:
+    Description: "The email where published message should be received"
+    Type: String
+    Default: "rostskadat@gmail.com"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  DomainLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      RetentionInDays: 7
+
+  Domain:
+    Type: AWS::Elasticsearch::Domain
+    Properties:
+      AccessPolicies:
+        Version: 2012-10-17
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              AWS:
+                Fn::Sub: "arn:${AWS::Partition}:iam::${AWS::AccountId}:user/rostskadat"
+            Action: "es:*"
+            Resource:
+              Fn::Sub: "arn:${AWS::Partition}:es:${AWS::Region}:${AWS::AccountId}:domain/*/*"
+          # PUBLIC ACCESS: For testing purposes...
+          - Effect: "Allow"
+            Principal:
+              AWS: "*"
+            Action: "es:*"
+            Resource:
+              Fn::Sub: "arn:${AWS::Partition}:es:${AWS::Region}:${AWS::AccountId}:domain/*/*"
+      EBSOptions:
+        EBSEnabled: true
+        VolumeSize: 20
+        VolumeType: gp2
+      ElasticsearchClusterConfig:
+        InstanceCount: 1
+        InstanceType: m3.medium.elasticsearch
+      LogPublishingOption:
+        CloudWatchLogsLogGroupArn: 
+          Fn::GetAtt: DomainLogGroup.Arn
+        Enabled: true
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: 0
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  AlertTable: 
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - AttributeName: "candid"
+          AttributeType: "N"
+        - AttributeName: "jd"
+          AttributeType: "N"
+        - AttributeName: "programpi"
+          AttributeType: "S"
+      BillingMode: PAY_PER_REQUEST
+      KeySchema: 
+        - AttributeName: "candid"
+          KeyType: "HASH"
+      GlobalSecondaryIndexes: 
+        - IndexName: "CandidateByProgramPI"
+          KeySchema: 
+            - AttributeName: "programpi"
+              KeyType: "HASH"
+            - AttributeName: "candid"
+              KeyType: "RANGE"
+          Projection: 
+            ProjectionType: "KEYS_ONLY"
+        - IndexName: "CandidateByJD"
+          KeySchema: 
+            - AttributeName: "jd"
+              KeyType: "HASH"
+            - AttributeName: "candid"
+              KeyType: "RANGE"
+          Projection: 
+            ProjectionType: "KEYS_ONLY"
+
+  StreamFunction: 
+    Type: AWS::Serverless::Function
+    Properties: 
+      Description: Process all the events from the DynamoDB Stream
+      CodeUri: lambdas/StreamFunction
+      Events:
+        DynamoDB:
+          Type: DynamoDB
+          Properties:
+            Enabled: true
+            StartingPosition: LATEST
+            Stream: 
+              Fn::GetAtt: AlertTable.StreamArn
+        CloudWatchLogs:
+          Type: CloudWatchLogs
+          Properties:
+            FilterPattern: "*"
+            LogGroupName: 
+              Ref: DomainLogGroup
+      Policies:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - ElasticsearchHttpPostPolicy:
+            DomainName:
+              Ref: Domain
+  
+  # we generate the VPC FlowLog...
+  VPCFlowLog:
+    Type: AWS::EC2::FlowLog
+    Properties:
+      LogGroupName:
+        Ref: VPCFlowLogGroup
+      ResourceId: 
+        Ref: VpcId
+      ResourceType: VPC
+      TrafficType: ALL
+
+  # and we deliver it into a LogGroup...
+  VPCFlowLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      RetentionInDays: 1
+
+  # That has a subscription filter
+  SubscriptionFilter: 
+    Type: AWS::Logs::SubscriptionFilter
+    Properties: 
+      RoleArn: 
+        Fn::GetAtt: 
+          - "CloudWatchIAMRole"
+          - "Arn"
+      LogGroupName: 
+        Ref: VPCFlowLogGroup
+      FilterPattern: "{$.userIdentity.type = Root}"
+      DestinationArn: 
+        Fn::GetAtt: LogsDestination.Arn
+
+  # to a Log destination 
+  LogsDestination:
+    Type: AWS::Logs::Destination
+    Properties: 
+      DestinationPolicy: String
+      RoleArn: String
+      TargetArn: 
+        Fn::GetAtt: DeliveryStream.Arn
+
+  # and that goes into a DeliveryStream to SlasticSearch
+  DeliveryStream: 
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties: 
+      ElasticsearchDestinationConfiguration: 
+        BufferingHints: 
+          IntervalInSeconds: 60
+          SizeInMBs: 50
+        DomainARN: 
+          Fn::GetAtt: Domain.Arn
+        IndexName: 
+          Fn::Sub: "flowlogs-${VpcId}"
+        IndexRotationPeriod: "NoRotation"
+        TypeName: "fromFirehose"
+        RetryOptions: 
+          DurationInSeconds: "60"
+        RoleARN: 
+          Fn::GetAtt: ESdeliveryRole.Arn
+
+Outputs:
+
+  AlertTable:
+    Description: The AlertTable
+    Value: 
+      Ref: AlertTable

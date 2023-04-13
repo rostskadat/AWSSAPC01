@@ -1,0 +1,51 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - Yaml2Json
+  - AccountPolicy
+Description: >
+  ServiceControlPolicy. Showcase different Account Policy type
+Resources:
+  ServiceControlPolicy:
+    Type: AWS::Organizations::AccountPolicy
+    Properties:
+      Content:
+        Fn::Sub:
+          Fn::Yaml2Json:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Deny
+                Action: "elasticmapreduce:*"
+                Resource: "*"
+      Description: "This is a sample SCP that disable the use of the EMR service for all linked accounts"
+      Type: SERVICE_CONTROL_POLICY
+
+  # list resources: as per https://docs.aws.amazon.com/organizations/latest/userguide/orgs_manage_policies_supported-resources-enforcement.html
+  TagPolicy:
+    Type: AWS::Organizations::AccountPolicy
+    Properties:
+      Content:
+        Fn::Yaml2Json:
+          tags:
+            PLATFORM:
+              "tag_key":
+                "@@assign": "PLATFORM"
+              "tag_value":
+                "@@assign":
+                  - INFRASTRUCTURE
+                  - BUILD
+                  - SECURITY
+              "enforced_for":
+                "@@assign":
+                  - "ec2:security-group"
+      Description: "This is a sample TagPolicy that enforce the PLATFORM tag on EC2 SecurityGroup"
+      Type: TAG_POLICY
+
+Outputs:
+  ServiceControlPolicy:
+    Description: The ServiceControlPolicy
+    Value:
+      Ref: ServiceControlPolicy
+  TagPolicy:
+    Description: TagPolicy
+    Value:
+      Ref: TagPolicy

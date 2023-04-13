@@ -1,0 +1,43 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ResourcePolicyVsRolePolicy
+
+Parameters:
+
+  LinkedAccountId:
+    Type: Number
+    Description: The AWS Account in which the IAM user is located
+    Default: 610150951079
+
+  LinkedAccountRoleName:
+    Type: String
+    Description: The IAM Role in the linked account that control the access to the bucket
+    Default: ""
+
+  Username:
+    Type: String
+    Description: The IAM user in the External Account that should be granted access to the Bucket
+    Default: AF090536
+
+Resources:
+
+  AllowAssumeRoleInLinkedAccount:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: CFNUsers
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'sts:AssumeRole'
+            Resource: "arn:aws:iam::${LinkedAccountId}:role/${LinkedAccountRoleName}"
+      Users:
+        - "arn:aws:iam::${AWS::AccountId}:user/${Username}"
+
+Outputs:
+  BucketWithBucketPolicy:
+    Description: "The BucketWithBucketPolicy on which the template "
+    Value: 
+      Ref: BucketWithBucketPolicy

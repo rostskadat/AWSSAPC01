@@ -1,0 +1,374 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+  - Yaml2Json
+Description: >
+  ETL2Athena. Showcase AWS Glue to Load data from S3, modify it and put it back into S3, where an Athena request is used to query the processed data
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "Glue-ETL2Athena"
+    Description: Showcase AWS Glue
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "Glue" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to VPC
+        Parameters:
+          - VpcId
+          - SubnetIds
+          - RouteTableIds
+
+Parameters:
+
+  VpcId:
+    Description: "The VPC (DEFAULT_VPC)"
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-9e9b9ffa
+
+  SubnetIds:
+    Description: "The subnets (DEFAULT_VPC)"
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581"
+
+  RouteTableIds:
+    Description: "The route tables  (DEFAULT_VPC)"
+    Type: List<String>
+    Default: "rtb-c6924aa1,rtb-04392e6e333f20675"
+
+Resources:
+
+  InputBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  OutputBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  AssetBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  TransformScript:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: AssetBucket
+        Key: scripts/transform.py
+        ContentType: application/x-python
+      Body: 
+        Fn::Sub: |
+          import sys
+          from awsglue.transforms import *
+          from awsglue.utils import getResolvedOptions
+          from pyspark.context import SparkContext
+          from awsglue.context import GlueContext
+          from awsglue.job import Job
+          
+          ## @params: [JOB_NAME]
+          args = getResolvedOptions(sys.argv, ['JOB_NAME'])
+          
+          sc = SparkContext()
+          glueContext = GlueContext(sc)
+          spark = glueContext.spark_session
+          job = Job(glueContext)
+          job.init(args['JOB_NAME'], args)
+          ## @type: DataSource
+          ## @args: [database = "${Database}", table_name = "${InputTable}", transformation_ctx = "DataSource0"]
+          ## @return: DataSource0
+          ## @inputs: []
+          DataSource0 = glueContext.create_dynamic_frame.from_catalog(database = "${Database}", table_name = "${InputTable}", transformation_ctx = "DataSource0")
+          ## @type: ApplyMapping
+          ## @args: [mappings = [("id", "long", "id", "long"), ("rule_id", "string", "rule_id", "string"), ("severity", "string", "severity", "string"), ("manual_severity", "string", "manual_severity", "string"), ("message", "string", "message", "string"), ("line", "string", "line", "string"), ("gap", "string", "gap", "string"), ("status", "string", "status", "string"), ("resolution", "string", "resolution", "string"), ("checksum", "string", "checksum", "string"), ("reporter", "string", "reporter", "string"), ("assignee", "string", "assignee", "string"), ("author_login", "string", "author_login", "string"), ("action_plan_key", "string", "action_plan_key", "string"), ("issue_attributes", "string", "issue_attributes", "string"), ("effort", "string", "effort", "string"), ("created_at", "string", "created_at", "string"), ("updated_at", "string", "updated_at", "string"), ("issue_creation_date", "string", "issue_creation_date", "string"), ("issue_update_date", "string", "issue_update_date", "string"), ("issue_close_date", "string", "issue_close_date", "string"), ("tags", "string", "tags", "string"), ("component_uuid", "string", "component_uuid", "string"), ("project_uuid", "string", "project_uuid", "string"), ("issue_type", "string", "issue_type", "string")], transformation_ctx = "Transform0"]
+          ## @return: Transform0
+          ## @inputs: [frame = DataSource0]
+          Transform0 = ApplyMapping.apply(frame = DataSource0, mappings = [("id", "long", "id", "long"), ("rule_id", "string", "rule_id", "string"), ("severity", "string", "severity", "string"), ("manual_severity", "string", "manual_severity", "string"), ("message", "string", "message", "string"), ("line", "string", "line", "string"), ("gap", "string", "gap", "string"), ("status", "string", "status", "string"), ("resolution", "string", "resolution", "string"), ("checksum", "string", "checksum", "string"), ("reporter", "string", "reporter", "string"), ("assignee", "string", "assignee", "string"), ("author_login", "string", "author_login", "string"), ("action_plan_key", "string", "action_plan_key", "string"), ("issue_attributes", "string", "issue_attributes", "string"), ("effort", "string", "effort", "string"), ("created_at", "string", "created_at", "string"), ("updated_at", "string", "updated_at", "string"), ("issue_creation_date", "string", "issue_creation_date", "string"), ("issue_update_date", "string", "issue_update_date", "string"), ("issue_close_date", "string", "issue_close_date", "string"), ("tags", "string", "tags", "string"), ("component_uuid", "string", "component_uuid", "string"), ("project_uuid", "string", "project_uuid", "string"), ("issue_type", "string", "issue_type", "string")], transformation_ctx = "Transform0")
+          ## @type: DataSink
+          ## @args: [connection_type = "s3", format = "csv", connection_options = {"path": "s3://${OutputBucket}/", "partitionKeys": []}, transformation_ctx = "DataSink0"]
+          ## @return: DataSink0
+          ## @inputs: [frame = Transform0]
+          DataSink0 = glueContext.write_dynamic_frame.from_options(frame = Transform0, connection_type = "s3", format = "csv", connection_options = {"path": "s3://${OutputBucket}/", "partitionKeys": []}, transformation_ctx = "DataSink0")
+          job.commit()
+
+  GlueRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName:  AWSGlueServiceRoleDefault
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - glue.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole
+        - arn:aws:iam::aws:policy/AmazonS3FullAccess
+      Path: "/"
+
+  Database:
+    Type: AWS::Glue::Database
+    Properties:
+      CatalogId: 
+        Ref: AWS::AccountId
+      DatabaseInput:
+        Name: "sonarqube-db"
+
+  InputTable:
+    Type: AWS::Glue::Table
+    Properties: 
+      CatalogId: 
+        Ref: AWS::AccountId
+      DatabaseName: 
+        Ref: Database
+      TableInput: 
+        StorageDescriptor:
+          Columns:
+            - Name: id
+              Type: bigint
+            - Name: kee
+              Type: string
+            - Name: rule_id
+              Type: string
+            - Name: severity
+              Type: string
+            - Name: manual_severity
+              Type: string
+            - Name: message
+              Type: string
+            - Name: line
+              Type: string
+            - Name: gap
+              Type: string
+            - Name: status
+              Type: string
+            - Name: resolution
+              Type: string
+            - Name: checksum
+              Type: string
+            - Name: reporter
+              Type: string
+            - Name: assignee
+              Type: string
+            - Name: author_login
+              Type: string
+            - Name: action_plan_key
+              Type: string
+            - Name: issue_attributes
+              Type: string
+            - Name: effort
+              Type: string
+            - Name: created_at
+              Type: string
+            - Name: updated_at
+              Type: string
+            - Name: issue_creation_date
+              Type: string
+            - Name: issue_update_date
+              Type: string
+            - Name: issue_close_date
+              Type: string
+            - Name: tags
+              Type: string
+            - Name: component_uuid
+              Type: string
+            - Name: project_uuid
+              Type: string
+            - Name: issue_type
+              Type: string
+          Location: 
+            Fn::Sub: s3://${InputBucket}/
+          InputFormat: org.apache.hadoop.mapred.TextInputFormat
+          OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+          Compressed: false
+          SerdeInfo:
+            SerializationLibrary: org.apache.hadoop.hive.serde2.OpenCSVSerde
+            Parameters:
+              separatorChar: ","
+        Parameters:
+          classification: csv                
+
+  InputQuery:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database:
+        Ref: Database
+      Description: "A query to Preview the InputTable"
+      Name:
+        Fn::Sub: "${AWS::StackName}-preview-input-table"
+      QueryString:
+        Fn::Sub: |
+          SELECT * FROM "${Database}"."${InputTable}" limit 10;
+
+  # Ref: https://docs.aws.amazon.com/glue/latest/dg/aws-glue-api-jobs-job.html#aws-glue-api-jobs-job-Job
+  Job:
+    Type: AWS::Glue::Job
+    Properties:
+      Command:
+        Name: glueetl
+        PythonVersion: "3"
+        ScriptLocation: 
+          Fn::Sub: "s3://${TransformScript.Bucket}/${TransformScript.Key}"
+      DefaultArguments:
+        # https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-etl-glue-arguments.html
+        "--job-language": "python"
+        #"--class": "GlueApp"
+        "--job-bookmark-option": "job-bookmark-enable"
+        "--TempDir": 
+          Fn::Sub: "s3://${AssetBucket}/temporary/"
+        "--enable-metric": 
+          Ref: AWS::NoValue
+        "--enable-continuous-cloudwatch-log": true
+        "--enable-continuous-log-filter": true
+        "--enable-spark-ui": true
+        "--spark-event-logs-path": 
+          Fn::Sub: "s3://${AssetBucket}/sparkHistoryLogs/"
+        "--enable-glue-datacatalog": true
+      ExecutionProperty:
+        MaxConcurrentRuns: 1
+      GlueVersion: "2.0"
+      MaxRetries: 0
+      NumberOfWorkers: 2
+      WorkerType: Standard
+      Role: 
+        Ref: GlueRole
+
+  OutputTable:
+    Type: AWS::Glue::Table
+    Properties: 
+      CatalogId: 
+        Ref: AWS::AccountId
+      DatabaseName: 
+        Ref: Database
+      TableInput: 
+        StorageDescriptor:
+          Columns:
+            - Name: id
+              Type: string
+            - Name: rule_id
+              Type: string
+            - Name: severity
+              Type: string
+            - Name: manual_severity
+              Type: string
+            - Name: message
+              Type: string
+            - Name: line
+              Type: string
+            - Name: gap
+              Type: string
+            - Name: status
+              Type: string
+            - Name: resolution
+              Type: string
+            - Name: checksum
+              Type: string
+            - Name: reporter
+              Type: string
+            - Name: assignee
+              Type: string
+            - Name: author_login
+              Type: string
+            - Name: action_plan_key
+              Type: string
+            - Name: issue_attributes
+              Type: string
+            - Name: effort
+              Type: string
+            - Name: created_at
+              Type: string
+            - Name: updated_at
+              Type: string
+            - Name: issue_creation_date
+              Type: string
+            - Name: issue_update_date
+              Type: string
+            - Name: issue_close_date
+              Type: string
+            - Name: tags
+              Type: string
+            - Name: component_uuid
+              Type: string
+            - Name: project_uuid
+              Type: string
+            - Name: issue_type
+              Type: string
+          Location: 
+            Fn::Sub: s3://${OutputBucket}/
+          InputFormat: org.apache.hadoop.mapred.TextInputFormat
+          OutputFormat: org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat
+          Compressed: false
+          SerdeInfo:
+            SerializationLibrary: org.apache.hadoop.hive.serde2.OpenCSVSerde
+            Parameters:
+              separatorChar: ","
+        Parameters:
+          classification: csv
+
+  OutputQuery:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database:
+        Ref: Database
+      Description: "A query to Preview the OutputTable"
+      Name:
+        Fn::Sub: "${AWS::StackName}-preview-output-table"
+      QueryString:
+        Fn::Sub: |
+          SELECT * FROM "${Database}"."${OutputTable}" limit 10;
+
+Outputs:
+  InputBucket:
+    Description: The InputBucket
+    Value: 
+      Ref: InputBucket
+
+  OutputBucket:
+    Description: The OutputBucket
+    Value: 
+      Ref: OutputBucket
+
+  AssetBucket:
+    Description: The AssetBucket
+    Value: 
+      Ref: AssetBucket
+
+  Database:
+    Description: The Database
+    Value: 
+      Ref: Database
+
+  InputTable:
+    Description: The InputTable
+    Value: 
+      Ref: InputTable
+
+  Job:
+    Description: The Job
+    Value: 
+      Ref: Job
+
+

@@ -1,0 +1,284 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - S3Objects
+
+Description: >
+  WordCount. Showcase a sample EMR Cluster
+
+Metadata:
+
+  AWS::ServerlessRepo::Application:
+    Name: "EMR-WordCount"
+    Description: Showcase a sample EMR Cluster
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "EMR" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to EMR
+        Parameters:
+          - ReleaseLabel
+          - SubnetId
+          - KeyName
+          - S3CloudFrontLogBucket
+
+Parameters:
+
+  ReleaseLabel:
+    Type: String
+    Description: The EMR Release Label to use
+    Default: "emr-5.31.0"
+
+  SubnetId:
+    Type: String
+    Description: The SubnetId in which to place the Instances
+    Default: "subnet-b09099d4"
+
+  KeyName:
+    Type: String
+    Description: The KeyName to connect to the instances
+    Default: "SAPC01"
+
+  S3CloudFrontLogBucket:
+    Type: String
+    Description: The S3 Url where CloudFront logs are stored
+    Default: "eu-west-1.elasticmapreduce.samples"
+
+Resources:
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Cluster:
+    Type: AWS::EMR::Cluster
+    Properties:
+      Applications:
+        - Name: Hive
+      Instances:
+        MasterInstanceGroup:
+          InstanceCount: 1
+          InstanceType: "m4.large"
+          Market: ON_DEMAND
+          Name: CfClusterMaster
+        CoreInstanceGroup:
+          InstanceCount: 1
+          InstanceType: "m4.large"
+          Market: ON_DEMAND
+          Name: CfClusterCore
+        TerminationProtected: false
+        Ec2KeyName: 
+          Ref: KeyName
+        Ec2SubnetId: 
+          Ref: SubnetId
+      LogUri:
+        Fn::Sub: "s3://${Bucket}/logs"
+      JobFlowRole: 
+        Ref: JobFlowRoleProfile
+      Name: 
+        Fn::Sub: "WordCountCluster-${AWS::Region}"
+      ServiceRole: 
+        Fn::GetAtt: ServiceRole.Arn
+      ReleaseLabel: 
+        Ref: ReleaseLabel
+      VisibleToAllUsers: true
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  ServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: elasticmapreduce.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole
+
+  JobFlowRoleProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - Ref: JobFlowRole
+
+  JobFlowRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Sid: ''
+            Effect: Allow
+            Principal:
+              Service: "ec2.amazonaws.com"
+            Action: 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceforEC2Role'
+      Policies:
+        - S3CrudPolicy:
+            BucketName: 
+              Ref: Bucket
+        - S3ReadPolicy:
+            BucketName:
+              Ref: S3CloudFrontLogBucket
+
+  CountWord:
+    Type: AWS::EMR::Step
+    DependsOn: 
+      - DataFile01
+      - DataFile02
+    Properties: 
+      ActionOnFailure: CONTINUE
+      HadoopJarStep: 
+        Args:
+          - WordCount 
+          - Fn::Sub: "s3://${Bucket}/input"
+          - Fn::Sub: "s3://${Bucket}/output"
+        Jar: 
+          Fn::Sub: "s3://${Bucket}/bin/WordCount.jar"
+      JobFlowId: 
+        Ref: Cluster
+      Name: CountWord
+
+  DataFile01:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: Bucket
+        Key: input/file01
+        ContentType: text/plain
+      Body: |
+        Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris convallis gravida velit, non convallis orci tempor sed. Aliquam euismod libero a ultrices fermentum. In sollicitudin libero at ultrices porttitor. Quisque at elit sed erat fermentum semper vitae sed purus. In hac habitasse platea dictumst. Maecenas luctus elit lacus, non dignissim orci eleifend sodales. Fusce porta justo enim, vitae convallis felis fringilla quis. Integer eget eleifend augue, ultrices volutpat erat. Nunc ac consectetur arcu. Donec ac est magna. Cras orci enim, vulputate id risus sed, convallis bibendum diam.
+        Cras at posuere libero. Donec in turpis a magna congue viverra. Vivamus placerat ullamcorper enim, vitae euismod lectus ultrices sed. Curabitur egestas, arcu a feugiat euismod, arcu velit sollicitudin mauris, ac bibendum mi risus vulputate lectus. Maecenas imperdiet rhoncus malesuada. Ut sollicitudin sollicitudin lacus sodales suscipit. Quisque in felis nunc.
+        Fusce convallis nibh vitae dolor placerat molestie. Vestibulum congue pulvinar mattis. Etiam bibendum pellentesque libero non semper. Fusce non dui bibendum tortor cursus faucibus. Nunc quis felis ut tellus cursus porttitor. Morbi auctor eros et dapibus auctor. Aenean semper odio ipsum, eu faucibus magna tempor a. Aliquam eu nunc feugiat, facilisis nisl in, dictum ligula. Fusce quam urna, accumsan quis dapibus non, luctus ut eros.
+        Ut efficitur dictum dapibus. Pellentesque consequat dolor ut lacus commodo rutrum. Nunc vestibulum sodales nisl eget auctor. Aenean cursus imperdiet euismod. Sed non dignissim dolor. Pellentesque tempor dui quis quam consectetur posuere. Praesent tincidunt metus nunc, non ultricies sapien gravida at. Sed tellus tortor, volutpat ac magna sit amet, vehicula iaculis sapien. Nam a sem at tellus interdum egestas vel ut sem. Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+        Suspendisse vestibulum lorem non faucibus vestibulum. Donec massa ante, consequat vel placerat vel, imperdiet vel mi. Duis sed viverra est, eu volutpat metus. Nullam laoreet, nisi vel vehicula cursus, libero nisi elementum quam, et maximus leo sem vel ligula. Ut laoreet maximus congue. Vestibulum sem leo, volutpat non odio id, dictum ultrices augue. Praesent erat dolor, tempus eget enim vitae, placerat accumsan eros. Ut volutpat mauris eu massa eleifend, vel tincidunt libero pharetra. Vestibulum aliquet urna eget convallis condimentum. Vestibulum viverra tellus dictum sem ultrices, sodales fringilla turpis varius. Nulla ac consectetur magna. Curabitur fringilla orci ut pharetra rhoncus.         
+
+  DataFile02:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: Bucket
+        Key: input/file02
+        ContentType: text/plain
+      Body: |
+        Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae; Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus pharetra at neque eget bibendum. Nullam faucibus scelerisque massa, sit amet rutrum risus. Pellentesque pellentesque orci dolor, nec porttitor justo aliquam nec. Vivamus fermentum magna vulputate porttitor placerat. Sed lacinia ante et lobortis viverra. Proin eget lobortis neque, dapibus pulvinar dui. Sed scelerisque, nunc quis venenatis ultrices, mi nunc cursus odio, sed pellentesque lectus ex eget elit. Nunc eu euismod neque, non elementum lorem. Integer dapibus scelerisque aliquam. Nulla dictum magna dolor, quis fringilla justo pretium vel. Suspendisse imperdiet eu tellus sed sollicitudin. Quisque sed tristique ex, vel faucibus turpis. 
+        Etiam lorem tellus, interdum ac lacinia a, suscipit nec sapien. Donec sit amet dignissim purus. Nulla facilisi. Suspendisse nibh tellus, consequat in enim eu, aliquam vehicula nibh. Nam sed dapibus lacus. Sed id consequat eros. Praesent eget vehicula augue. Phasellus libero massa, ornare vel interdum non, vestibulum sit amet felis. Morbi posuere risus gravida, varius felis quis, tincidunt ligula. Nunc a leo erat. Curabitur aliquet et libero fringilla tincidunt. 
+        Vivamus sollicitudin tellus sit amet diam elementum, ut tristique lacus ullamcorper. Curabitur ornare tortor eu sapien posuere congue. Sed sit amet dui sed orci blandit tempor sit amet ac neque. Nunc rhoncus fringilla nisi at commodo. Suspendisse ullamcorper vestibulum erat, sit amet sollicitudin lectus maximus quis. Sed convallis odio ex, ac mattis urna egestas eu. Morbi scelerisque congue tortor a convallis. Sed sit amet dolor nibh. Etiam quis nulla euismod, eleifend ex quis, mollis lorem. Phasellus purus mi, blandit sit amet consectetur quis, condimentum a urna. 
+        Nunc ac semper neque, ac tempor nisl. Nunc non leo vitae diam facilisis faucibus. Integer vel venenatis urna. Morbi elementum, ipsum vitae sodales auctor, magna ante tincidunt magna, vel accumsan diam mauris et quam. Integer sodales neque id erat venenatis, at tincidunt velit placerat. Integer imperdiet purus feugiat enim feugiat tristique. Nulla nulla justo, molestie ac faucibus et, iaculis in urna. Pellentesque tempus tincidunt est, sit amet laoreet nulla laoreet ut. Mauris aliquam, neque non sagittis consectetur, elit est tempor ante, iaculis tristique nulla erat id lacus. In elementum vitae enim vitae sodales. Aliquam vel scelerisque nibh. 
+        Proin eget ultrices elit. Mauris viverra finibus felis ut eleifend. Fusce in tellus condimentum, malesuada est vitae, posuere ligula. Curabitur lobortis quam varius arcu commodo sollicitudin. Cras facilisis, est ac mattis condimentum, enim felis scelerisque est, sed lacinia est felis eget risus. Donec commodo tempor mi. Maecenas ultrices tincidunt blandit. Ut viverra, nunc sed lobortis varius, justo magna varius dui, at semper ipsum turpis ut odio. Fusce at mauris vitae urna pellentesque pretium. Maecenas sit amet orci non sapien vehicula euismod. Donec congue diam quis felis iaculis aliquam. Fusce metus ex, vestibulum id cursus eu, lacinia finibus nibh. Curabitur nunc nisi, tempor eu vehicula pretium, pharetra vel arcu. Vestibulum efficitur, quam quis porta auctor, eros risus venenatis turpis, nec rutrum magna quam venenatis tortor. Quisque nec quam aliquam, ultricies orci faucibus, molestie mi. 
+
+  #
+  # This demonstrate how to run a Hive query
+  #
+  RunS3Script:
+    Type: AWS::EMR::Step
+    Properties: 
+      ActionOnFailure: CONTINUE
+      HadoopJarStep: 
+        Args:
+          - Ref: RunHiveQueryScript
+        Jar: 
+          Fn::Sub: "s3://${AWS::Region}.elasticmapreduce/libs/script-runner/script-runner.jar"
+      JobFlowId: 
+        Ref: Cluster
+      Name: RunS3Script
+
+  RunHiveQueryScript:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: Bucket
+        Key: bin/run_hive_query.sh
+        ContentType: text/x-shellscript
+      Body: 
+        Fn::Sub: |
+          #!/bin/env bash
+          echo "$(date): Downloading ${HiveQuery} ..."
+          mkdir -p bin
+          aws s3 cp ${HiveQuery} bin/
+          echo "$(date): Running ${HiveQuery.Key} ..."
+          hive -f ${HiveQuery.Key}
+          if [ $? -eq 0 ]; then
+            echo "$(date): ${HiveQuery.Key} completed successfully"
+          else
+            echo "$(date): ${HiveQuery.Key} failed"
+          fi
+
+  HiveQuery:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: Bucket
+        Key: bin/hive_query.hql
+        ContentType: text/x-shellscript
+      Body: 
+        Fn::Sub: |
+          -- Summary This sample shows you how to analyze CloudFront logs stored in S3 using Hive
+          -- Create table using sample data in S3.
+          -- NOTE: you can replace this S3 path with your own.
+          CREATE EXTERNAL TABLE IF NOT EXISTS cloudfront_logs (
+            DateObject Date,
+            Time STRING,
+            Location STRING,
+            Bytes INT,
+            RequestIP STRING,
+            Method STRING,
+            Host STRING,
+            Uri STRING,
+            Status INT,
+            Referrer STRING,
+            OS String,
+            Browser String,
+            BrowserVersion String
+          )
+          ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.RegexSerDe'
+          WITH SERDEPROPERTIES (
+            "input.regex" = "^(?!#)([^ ]+)\\s+([^ ]+)\\s+([^ ]+)\\s+([^ ]+)\\s+([^ ]+)\\s+([^ ]+)\\s+([^ ]+)\\s+([^ ]+)\\s+([^ ]+)\\s+([^ ]+)\\s+[^\(]+[\(]([^\;]+).*\%20([^\/]+)[\/](.*)$"
+          ) LOCATION 's3://${S3CloudFrontLogBucket}/cloudfront/data';
+          -- Total requests per operating system for a given time frame
+          INSERT OVERWRITE DIRECTORY 's3://${Bucket}/os_requests/' 
+          SELECT OS, COUNT(*) COUNT 
+            FROM cloudfront_logs 
+           WHERE DateObject BETWEEN '2014-07-05' AND '2014-08-05' GROUP BY OS;
+
+
+Outputs:
+
+  Cluster:
+    Description: The Cluster
+    Value: 
+      Ref: Cluster
+
+  Bucket:
+    Description: The Bucket
+    Value: 
+      Ref: Bucket
+
+  MasterPublicDNS:
+    Description: The Cluster MasterPublicDNS
+    Value: 
+      Fn::GetAtt: Cluster.MasterPublicDNS

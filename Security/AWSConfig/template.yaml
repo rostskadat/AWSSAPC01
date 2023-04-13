@@ -1,0 +1,97 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - Yaml2Json
+Description: >
+  AWSConfig. Showcase the use of AWS Config, where a change of config in the instance trigger an AWS Lambda function
+Parameters:
+  RemediationEmail:
+    Type: String
+    Description: The email that should receive notification about the Config problem
+    Default: "rostskadat@gmail.com"
+
+  AutomationAssumeRoleArn:
+    Type: String
+    Description: The IAM Role SSM assumes when doing its autoremediation magic...
+    Default: "arn:aws:iam::123456789012:role/AmazonSSMRoleForAutomationAssumeQuickSetup"
+
+Resources:
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    DependsOn: ConfigRuleForEC2ResourceTags
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName: !Ref AWS::StackName
+        UserData: |
+          #!/bin/bash
+          yum-config-manager --enable epel 
+          yum update -y
+          yum install -y aws-cfn-bootstrap
+          curl -s -p https://inspector-agent.amazonaws.com/linux/latest/install | bash --
+
+  ConfigRuleForEC2ResourceTags:
+    Type: AWS::Config::ConfigRule
+    Properties:
+      InputParameters:
+        tag1Key: PLATFORM
+      Scope:
+        ComplianceResourceTypes:
+          - "AWS::EC2::Volume"
+          - "AWS::EC2::Instance"
+      Source:
+        # List available rules: aws configservice describe-config-rules --query 'ConfigRules[].{"ConfigRuleName":ConfigRuleName, "Description":Description}'
+        Owner: AWS
+        SourceIdentifier: "REQUIRED_TAGS"
+
+  BasicRemediationConfiguration:
+    Type: AWS::Config::RemediationConfiguration
+    Properties:
+      ConfigRuleName: !Ref ConfigRuleForEC2ResourceTags
+      Parameters:
+        AutomationAssumeRole:
+          StaticValue:
+            Values:
+              - !Ref AutomationAssumeRoleArn
+        Message:
+          StaticValue:
+            Values:
+              - !Sub |
+                Hello,
+
+                A resource in your infrastructure does not contain the Tag PLATFORM.
+                Please open the AWS Config console and remediate the problem by tagging the resource with a valid PLATFORM tag
+
+                Regards
+
+                /AWS Config Automation
+        TopicArn:
+          StaticValue:
+            Values:
+              - !Ref Topic
+      TargetId: "AWS-PublishSNSNotification"
+      TargetType: "SSM_DOCUMENT"
+      TargetVersion: "1"
+
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Subscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref Topic
+      Endpoint: !Ref RemediationEmail
+      Protocol: email
+
+Outputs:
+  InstanceId:
+    Description: EC2Instance InstanceId
+    Value: !GetAtt EC2Instance.Outputs.InstanceId
+
+  ConfigRuleForEC2ResourceTags:
+    Description: The ConfigRuleForEC2ResourceTags
+    Value: !Ref ConfigRuleForEC2ResourceTags

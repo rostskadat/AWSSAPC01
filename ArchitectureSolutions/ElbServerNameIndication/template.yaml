@@ -1,0 +1,254 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  # BEWARE: the order is important because we explode an AWS::Serverless::Application
+  - Explode
+  - AWS::Serverless-2016-10-31
+Description: >
+  ElbServerNameIndication. Showcase the Use of SNI for an ELB
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "ELB-ElbServerNameIndication"
+    Description: Showcase the Use of SNI for an ELB
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "ELB" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Route53
+        Parameters:
+          - HostedZoneId
+          - BaseDomainName
+      - Label:
+          default: Parameters related to ACM
+        Parameters:
+          - DefaultCertificate
+      - Label:
+          default: Parameters related to EC2
+        Parameters:
+          - VpcId
+          - Subnets
+          - SecurityGroups
+          - FlaskPort
+          - ImageId
+
+Parameters:
+  HostedZoneId:
+    Description: The HostedZoneId
+    Type: String
+    Default: "Z4OAYE8GXTF5F"
+
+  BaseDomainName:
+    Description: The Base BaseDomainName
+    Type: String
+    Default: "domain.com"
+
+  VpcId:
+    Description: "The VPC in which to put the load balancer"
+    Type: AWS::EC2::VPC::Id
+    Default: "vpc-9e9b9ffa"
+
+  Subnets:
+    Description: The Subnets
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581"
+
+  SecurityGroups:
+    Description: The Subnets
+    Type: List<AWS::EC2::SecurityGroup::Id>
+    Default: "sg-02e15dc205f8ef8a5"
+
+  FlaskPort:
+    Description: "The Port on which the Flask app is listening on"
+    Type: Number
+    Default: 80
+
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+Mappings:
+  DomainMap:
+    "0":
+      Certificate: Certificate0
+      DomainName: default
+      TargetGroup: TargetGroup0
+      EC2Instance: EC2Instance0
+      Priority: 0
+      DefRenderIndex: |
+        def render_index():
+          return "default"
+      IsDefault: true
+      HasListenerRuleCondition: HasListenerRule0
+    "1":
+      Certificate: Certificate1
+      DomainName: subdomain1
+      TargetGroup: TargetGroup1
+      EC2Instance: EC2Instance1
+      Priority: 1
+      DefRenderIndex: |
+        def render_index():
+          return "subdomain1"
+      IsDefault: false
+      HasListenerRuleCondition: HasListenerRule1
+    "2":
+      Certificate: Certificate2
+      DomainName: subdomain2
+      TargetGroup: TargetGroup2
+      EC2Instance: EC2Instance2
+      Priority: 2
+      DefRenderIndex: |
+        def render_index():
+          return "subdomain2"
+      IsDefault: false
+      HasListenerRuleCondition: HasListenerRule2
+
+Conditions:
+  HasListenerRule:
+    ExplodeMap: DomainMap
+    Fn::Equals:
+      - '!Explode IsDefault'
+      - 'false'
+
+Resources:
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties: 
+      Scheme: internet-facing
+      SecurityGroups: !Ref SecurityGroups
+      Subnets: !Ref Subnets
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  RecordSet:
+    ExplodeMap: DomainMap
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneID
+        DNSName: !GetAtt LoadBalancer.DNSName
+      HostedZoneId: !Ref HostedZoneId
+      Name:
+        !Join [ ".", [ "!Explode DomainName", !Ref BaseDomainName]]
+      Type: A
+
+  Certificate:
+    ExplodeMap: DomainMap
+    Type: AWS::CertificateManager::Certificate 
+    Properties:
+      CertificateTransparencyLoggingPreference: ENABLED
+      DomainName: 
+        !Join [ ".", [ "!Explode DomainName", !Ref BaseDomainName]] 
+      DomainValidationOptions:
+        - DomainName: 
+            !Join [ ".", [ "!Explode DomainName", !Ref BaseDomainName]]
+          HostedZoneId: !Ref HostedZoneId
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+      ValidationMethod: DNS
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      Certificates:
+        # default certificate
+        - !Ref Certificate0
+      DefaultActions:
+        - TargetGroupArn: !Ref TargetGroup0
+          Type: forward
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS 
+
+  ListenerCertificate:
+    Type: AWS::ElasticLoadBalancingV2::ListenerCertificate
+    Properties: 
+      Certificates: 
+        - CertificateArn: !Ref Certificate0
+        - CertificateArn: !Ref Certificate1
+        - CertificateArn: !Ref Certificate2
+      ListenerArn: !GetAtt Listener.ListenerArn 
+
+  EC2Instance:
+    ExplodeMap: DomainMap
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/SimpleFlaskApp/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ImageId:
+          Ref: ImageId
+        SubnetId:
+          Fn::Select: [ 0, Ref: Subnets ]
+        FlaskPort:
+          Ref: FlaskPort
+        DefRenderIndex: "!Explode DefRenderIndex"
+
+  TargetGroup:
+    ExplodeMap: DomainMap
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: !Ref FlaskPort
+      Protocol: HTTP
+      HealthCheckPath: /health
+      Matcher:
+        HttpCode: '200-299'
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      TargetType: instance
+      Targets:
+        - Id: 
+            Fn::GetAtt: 
+              - "!Explode EC2Instance"
+              - Outputs.InstanceId
+          Port: !Ref FlaskPort
+      VpcId:
+        Ref: VpcId
+
+  ListenerRule:
+    ExplodeMap: DomainMap
+    Condition: "!Explode HasListenerRuleCondition"
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref "!Explode TargetGroup"
+      Conditions:
+        - Field: host-header
+          HostHeaderConfig:
+            Values:
+              - !Join [ ".", ["!Explode DomainName", !Ref BaseDomainName]]
+      ListenerArn: !Ref Listener
+      Priority: "!Explode Priority"
+
+Outputs:
+
+  LoadBalancer:
+    Description: The DNSName
+    Value: !GetAtt LoadBalancer.DNSName
+
+  Certificate:
+    ExplodeMap: DomainMap
+    Description: The Certificate for !Explode DomainName
+    Value: !Ref "!Explode Certificate"
+
+  EC2Instance:
+    ExplodeMap: DomainMap
+    Description: The EC2Instance for !Explode DomainName
+    Value: !Ref "!Explode EC2Instance"
+
+  TargetGroup:
+    ExplodeMap: DomainMap
+    Description: The TargetGroup for !Explode DomainName
+    Value: !Ref "!Explode TargetGroup"

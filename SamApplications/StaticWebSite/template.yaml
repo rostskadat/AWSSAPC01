@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+Description: >
+  StaticWebSite: This SAM Nested Application (c.f. https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-template-nested-applications.html)
+  Creates a Static Website hosted on a S3 Bucket.
+
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: StaticWebSite
+    Description: Creates a Static Website hosted on a S3 Bucket.
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to S3Object
+        Parameters:
+          - BucketName
+          - IndexBody
+          - ErrorBody
+          
+Parameters:
+  BucketName:
+    Description: The optional bucket name. Set it to the RecordSet DomainName for static webhosting
+    Type: String
+    Default: ''
+
+  IndexBody:
+    Description: The content of the index page
+    Type: String
+    Default: |
+      <html lang="en">
+      <head><title>StaticWebSite</title></head>
+      <body>
+        <div>
+          <h1>Hello!</h1>
+          <p>This StaticWebSite was properly setup</p>
+        </div>
+      </body>
+      </html>
+
+  ErrorBody:
+    Description: The content of the error page
+    Type: String
+    Default: <html lang="en"><head><title>Error</title></head><body><h1>Sorry, something went wrong.</h1></body></html>
+
+Conditions:
+  HasBucketName: 
+    Fn::Not:
+      - Fn::Equals:
+          - Ref: BucketName
+          - ''
+
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      BucketName: 
+        Fn::If: 
+          - HasBucketName
+          - Ref: BucketName
+          - Ref: AWS::NoValue
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+
+  IndexWebpage:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: Bucket
+        Key: index.html
+        ContentType: text/html
+        ACL: public-read
+      Body:
+        Ref: IndexBody
+
+  ErrorWebpage:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: Bucket
+        Key: error.html
+        ContentType: text/html
+        ACL: public-read
+      Body: 
+        Ref: ErrorBody
+
+Outputs:
+
+  Bucket:
+    Description: The S3 Bucket
+    Value:
+      Ref: Bucket
+
+  BucketWebsiteURL:
+    Description: "Bucket WebsiteURL"
+    Value:
+      Fn::GetAtt: Bucket.WebsiteURL
+
+  BucketRegionalDomainName:
+    Description: "Bucket RegionalDomainName"
+    Value:
+      Fn::GetAtt: Bucket.RegionalDomainName

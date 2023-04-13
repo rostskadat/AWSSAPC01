@@ -1,0 +1,446 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - Yaml2Json
+Description: >
+  Integrations. Showcase a common integration pattern with StepFunctions
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "StepFunctions-Integrations"
+    Description: Showcase a common integration pattern with StepFunctions
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "StepFunctions" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to VPC
+        Parameters:
+          - VpcId
+          - PublicSubnets
+          - SecurityGroups
+      - Label:
+          default: Parameters related to Notifications
+        Parameters:
+          - NotificationEmail
+      - Label:
+          default: Parameters related to ECS
+        Parameters:
+          - DownloadContainerName
+          - DownloadImageRepository
+      - Label:
+          default: Parameters related to API Gateway
+        Parameters:
+          - StageName
+          - EFSMountPoint
+
+Parameters:
+  VpcId:
+    Description: "The VPC in which to put the load balancer"
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-9e9b9ffa
+
+  PublicSubnets:
+    Description: "The Subnets in which to put the load balancer"
+    # Type: List<AWS::EC2::Subnet::Id>
+    Type: String
+    Default: "subnet-b09099d4,subnet-f76b6581,subnet-58421700"
+
+  SecurityGroups:
+    Description: "The Security group  in which to put the load balancer"
+    # Type: List<AWS::EC2::SecurityGroup::Id>
+    Type: String
+    Default: "sg-e1435287"
+
+  NotificationEmail:
+    Description: "The email to notify when the download of the ZTF Alerts Tarball finishes"
+    Type: String
+    Default: "rostskadat@gmail.com"
+
+  DownloadContainerName:
+    Description: "The friendly name for the container. In order to be triggered from outside"
+    Type: String
+    Default: "DownloadZTFAlertsTarball"
+
+  DownloadContainerImageUrl:
+    Description: "The ECR Repository from which to download the Container image"
+    Type: String
+    
+  StageName:
+    Description: The default stage name
+    Type: String
+    Default: Prod
+
+  EFSMountPoint:
+    Description: The default stage name
+    Type: String
+    Default: "/mnt/efs"
+
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Environment:
+      Variables:
+        OUTPUT_DIR:
+          Ref: EFSMountPoint
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: 
+        Ref: StageName
+
+  ListEFSContentFunction:
+    Type: AWS::Serverless::Function 
+    DependsOn: FileSystem
+    Properties:
+      CodeUri: lambdas/ListEFSContentFunction
+      Description: "List the content of the EFS filesystem"
+      FileSystemConfigs:
+        - Arn: 
+            Fn::GetAtt: FileSystem.Outputs.AccessPointArn
+          LocalMountPath: 
+            Ref: EFSMountPoint
+      VpcConfig:
+        SecurityGroupIds: 
+          Fn::Split:
+            - ',' 
+            - Ref: SecurityGroups
+        SubnetIds: 
+          Fn::Split:
+            - ',' 
+            - Ref: PublicSubnets
+
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties: 
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Subscription:
+    Type: AWS::SNS::Subscription
+    Properties: 
+      TopicArn: 
+        Ref: Topic
+      Endpoint: 
+        Ref: NotificationEmail
+      Protocol: email
+
+  StateMachineLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName:
+        Fn::Sub: "/${AWS::AccountId}/${AWS::StackName}/states"
+      RetentionInDays: 7
+
+  TaskLogGroup: 
+    Type: AWS::Logs::LogGroup
+    Properties: 
+      LogGroupName:
+        Fn::Sub: "/${AWS::AccountId}/${AWS::StackName}/ecs"
+      RetentionInDays: 7
+
+  StateMachineExecutionRole:
+    Type: AWS::IAM::Role
+    Properties: 
+      Description: Execution Role for the StepFunctions State Machine
+      AssumeRolePolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "states.amazonaws.com"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaRole
+      Policies:
+      - PolicyName: CloudWatchLogsDeliveryFullAccessPolicy
+        PolicyDocument: 
+          Version: 2012-10-17
+          Statement:
+            # As per https://docs.aws.amazon.com/step-functions/latest/dg/cw-logs.html#cloudwatch-iam-policy
+            - Effect: "Allow"
+              Action: 
+                - logs:CreateLogDelivery
+                - logs:GetLogDelivery
+                - logs:UpdateLogDelivery
+                - logs:DeleteLogDelivery
+                - logs:ListLogDeliveries
+                - logs:PutResourcePolicy
+                - logs:DescribeResourcePolicies
+                - logs:DescribeLogGroups
+              Resource: "*"
+            # As per https://docs.aws.amazon.com/step-functions/latest/dg/ecs-iam.html
+            - Effect: Allow
+              Action:
+                - ecs:RunTask
+                - ecs:StopTask
+                - ecs:DescribeTasks
+              Resource:
+                - Fn::Sub: "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task-definition/*:*"
+                - Fn::Sub: "arn:${AWS::Partition}:ecs:${AWS::Region}:${AWS::AccountId}:task/*"
+            - Effect: "Allow"
+              Action: 
+                - events:PutTargets
+                - events:PutRule
+                - events:DescribeRule
+              Resource:
+                - Fn::Sub: "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/StepFunctionsGetEventsForECSTaskRule"
+                - Fn::Sub: "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/[*/]*"
+            # As per https://docs.aws.amazon.com/step-functions/latest/dg/lambda-iam.html
+            - Effect: Allow
+              Action: 
+                - lambda:InvokeFunction
+                - events:PutRule
+                - events:DescribeRule
+              Resource:
+                - Fn::Sub: "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function/*"
+            - Effect: Allow
+              Action: 
+                - iam:PassRole
+              Resource:
+                - Fn::GetAtt: ExecutionRole.Arn
+              Condition:
+                StringLikeIfExists:
+                  "iam:PassedToService": "ecs-tasks.amazonaws.com"
+      - SNSPublishMessagePolicy: 
+          TopicName:
+            Fn::GetAtt: Topic.TopicName
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  #
+  # STATE MACHINE
+  #
+  #
+  #
+  StateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Definition: 
+        Comment: "This stack periodically start the download of a ZTF Alert tarball, and then process each avro files in parrallel"
+        StartAt: DownloadZTFAlertTarball
+        States: 
+          DownloadZTFAlertTarball:
+            Type: Task
+            Resource: "arn:aws:states:::ecs:runTask.sync"
+            Parameters: 
+              LaunchType: "FARGATE"
+              Cluster: 
+                Fn::GetAtt: Cluster.Arn
+              NetworkConfiguration:
+                AwsvpcConfiguration:
+                  # Not sure how to reference the subnets and sg without 
+                  # having an "Model validation failed" exception
+                  Subnets: 
+                    - subnet-b09099d4
+                    - subnet-f76b6581
+                    - subnet-58421700
+                  SecurityGroups: 
+                    - sg-e1435287
+                  AssignPublicIp: ENABLED
+              PlatformVersion: "1.4.0"
+              TaskDefinition: 
+                Ref: DownloadTaskDefinition
+            Next: ListEFSContent
+          ListEFSContent:
+            Comment: "List the content of the EFS filesystem"
+            Type: Task
+            Resource: 
+              Fn::GetAtt: ListEFSContentFunction.Arn
+            OutputPath: "$.body"
+            Next: NotifyMe
+          NotifyMe:
+            Type: Task
+            Resource: "arn:aws:states:::sns:publish"
+            Parameters: 
+              TopicArn:
+                Ref: Topic
+              "Message.$": "$"
+            End: true
+      Events:
+        Trigger:
+          Type: Api
+          Properties:
+            Method: post
+            Path: trigger
+            RestApiId: 
+              Ref: Api
+      Logging:
+        Destinations: 
+          - CloudWatchLogsLogGroup: 
+              LogGroupArn: 
+                Fn::GetAtt: StateMachineLogGroup.Arn
+        IncludeExecutionData: true
+        Level: ALL
+      Role: 
+        Fn::GetAtt: StateMachineExecutionRole.Arn
+      Tags:
+        PLATFORM: SAPC01
+      Tracing:
+        Enabled: true
+
+  FileSystem:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EFS/template.yaml
+      Parameters:
+        VpcId: 
+          Ref: VpcId
+        Subnets:
+          # Fn::Join: 
+          #   - ','
+          Ref: PublicSubnets 
+          
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      CapacityProviders:
+        - FARGATE
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+
+  # The ExecutionRole is used by the container in order to launch a Task.
+  # We therefore need access to the ECR repository where the Task Image is 
+  # located, and EFS rights in order to mout the EFS Filesystem
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        # - arn:aws:iam::aws:policy/AmazonElasticFileSystemClientReadWriteAccess
+      Policies:
+        - EFSWriteAccessPolicy:
+            FileSystem:
+              Fn::GetAtt: FileSystem.Outputs.FileSystem
+            AccessPoint:
+              Fn::GetAtt: FileSystem.Outputs.AccessPoint
+ 
+  # The DownloadTask needs to access S3 to upload the AVRO files
+  # TaskRole:
+  #   Type: AWS::IAM::Role
+  #   Properties:
+  #     AssumeRolePolicyDocument:
+  #       Version: 2012-10-17
+  #       Statement:
+  #         - Effect: Allow
+  #           Principal:
+  #             Service:
+  #               - ecs-tasks.amazonaws.com
+  #           Action: "sts:AssumeRole"
+  #     Policies:
+      #   - EFSWriteAccessPolicy:
+      #       FileSystem:
+      #         Fn::GetAtt: FileSystem.Outputs.FileSystem
+      #       AccessPoint:
+      #         Fn::GetAtt: FileSystem.Outputs.AccessPoint
+
+
+  DownloadTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Name: 
+            Ref: DownloadContainerName
+          Image:
+            Ref: DownloadContainerImageUrl
+          Command: 
+            - "--output-dir"
+            - Ref: EFSMountPoint
+            - "--date"
+            - "20200913"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region:
+                Fn::Sub: "${AWS::Region}"
+              awslogs-group:
+                Ref: TaskLogGroup
+              awslogs-stream-prefix: "ZTFAlerts"
+          Essential: true
+          MountPoints:
+            - SourceVolume: efs
+              ContainerPath: 
+                Ref: EFSMountPoint
+      ExecutionRoleArn:
+        Fn::GetAtt: ExecutionRole.Arn
+      Family: "ZTFAlerts"
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      RequiresCompatibilities: 
+        - FARGATE
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      Volumes:
+        - Name: efs
+          EFSVolumeConfiguration: 
+            AuthorizationConfig:
+              AccessPointId: 
+                Fn::GetAtt: FileSystem.Outputs.AccessPoint
+            FilesystemId: 
+              Fn::GetAtt: FileSystem.Outputs.FileSystem
+            TransitEncryption: ENABLED
+
+Outputs:
+
+  TriggerUrl:
+    Description: Post to this URL in order to trigger a new execution of the StepFunctions state machine
+    Value: 
+      Fn::Sub: "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/trigger"
+
+  StateMachineLogGroup:
+    Description: You can see the logs in this log group
+    Value: 
+      Ref: StateMachineLogGroup
+
+  Cluster:
+    Description: The Cluster
+    Value: 
+      Ref: Cluster
+
+  StateMachine:
+    Description: The StateMachine
+    Value: 
+      Ref: StateMachine
+
+  DownloadTaskDefinition:
+    Description: The DownloadTaskDefinition
+    Value: 
+      Ref: DownloadTaskDefinition
+
+  ListEFSContentFunction:
+    Description: The ListEFSContentFunction Arn
+    Value: 
+      Fn::GetAtt: ListEFSContentFunction.Arn
+    

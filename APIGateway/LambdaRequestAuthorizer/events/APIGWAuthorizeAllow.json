@@ -1,0 +1,51 @@
+{
+  "type": "REQUEST",
+  "methodArn": "arn:aws:execute-api:eu-west-1:123456789012:u5eqf1ivj5/Prod/GET/execute/",
+  "resource": "/",
+  "path": "testInvoke/authorizer",
+  "httpMethod": "GET",
+  "headers": {},
+  "multiValueHeaders": {},
+  "queryStringParameters": {
+    "auth": "allow"
+  },
+  "multiValueQueryStringParameters": {
+    "auth": [
+      "allow"
+    ]
+  },
+  "pathParameters": {},
+  "stageVariables": {},
+  "requestContext": {
+    "resourceId": "test-invoke-resource-id",
+    "resourcePath": "/",
+    "httpMethod": "GET",
+    "extendedRequestId": "T4sj2FSPDoEFWdQ=",
+    "requestTime": "04/Oct/2020:12:34:19 +0000",
+    "path": "/",
+    "accountId": "123456789012",
+    "protocol": "HTTP/1.1",
+    "stage": "test-invoke-stage",
+    "domainPrefix": "testPrefix",
+    "requestTimeEpoch": 1601814859723,
+    "requestId": "09861e38-1858-4747-a632-43dfd441834f",
+    "identity": {
+      "cognitoIdentityPoolId": null,
+      "cognitoIdentityId": null,
+      "apiKey": "test-invoke-api-key",
+      "principalOrgId": null,
+      "cognitoAuthenticationType": null,
+      "userArn": "arn:aws:iam::123456789012:user/rostskadat",
+      "apiKeyId": "test-invoke-api-key-id",
+      "userAgent": "aws-internal/3 aws-sdk-java/1.11.848 Linux/4.9.217-0.3.ac.206.84.332.metal1.x86_64 OpenJDK_64-Bit_Server_VM/25.262-b10 java/1.8.0_262 vendor/Oracle_Corporation",
+      "accountId": "123456789012",
+      "caller": "AIDAIG32FXIV6KU7KTP7W",
+      "sourceIp": "test-invoke-source-ip",
+      "accessKey": "ASIA3QU7W3EATWML6IDK",
+      "cognitoAuthenticationProvider": null,
+      "user": "AIDAIG32FXIV6KU7KTP7W"
+    },
+    "domainName": "testPrefix.testDomainName",
+    "apiId": "vna4rlut7j"
+  }
+}

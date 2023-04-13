@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon"> 
+    <style>
+        table {
+            font-family: arial, sans-serif;
+            border-collapse: collapse;
+            width: 100%;
+        }
+
+        td,
+        th {
+            border: 1px solid #dddddd;
+            text-align: left;
+            padding: 8px;
+        }
+
+        tr:nth-child(even) {
+            background-color: #dddddd;
+        }
+        td.ok {
+            background-color: chartreuse;
+        }
+        td.ko {
+            background-color: orange;
+        }
+
+    </style>
+    <script>
+        function SignedUrl(s3_key) {
+            url = window.location.protocol + "//" + window.location.hostname + "/" + s3_key
+            window.open("/api/GetSignedUrl?url=" + url, "_self");
+        };
+        function SignedCookies(s3_key) {
+            url = window.location.protocol + "//" + window.location.hostname + "/" + s3_key
+            window.open("/api/GetSignedCookies?url=" + url, "_self");
+        };
+    </script>
+</head>
+
+<body>
+    <h1>Welcome</h1>
+
+    <p>This page is public and showcase the different usecases:</p>
+    <table style="width:100%">
+        <tr>
+            <th>UC</th>
+            <th>Bare Link</th>
+            <th>Signed URL Link</th>
+            <th>Signed Cookie Link</th>
+        </tr>
+        <tr>
+            <td>Public File</td>
+            <td class="ok"><a href="/public.html">/public.html</a></td>
+            <td class="ko"><a href="javascript:void(0)" onclick="SignedUrl('public.html');">/public.html</a></td>
+            <td class="ko"><a href="javascript:void(0)" onclick="SignedCookies('public.html');">/public.html</a></td>
+        </tr>
+        <tr>
+            <td>File protected with Signed URL</td>
+            <td class="ko"><a href="/signed_urls/index.html">/signed_urls/index.html</a></td>
+            <td class="ok"><a href="javascript:void(0)" onclick="SignedUrl('signed_urls/index.html');">/signed_urls/index.html</a>
+            </td>
+            <td class="ko"><a href="javascript:void(0)"
+                   onclick="SignedCookies('signed_urls/index.html');">/signed_urls/index.html</a></td>
+        </tr>
+        <tr>
+            <td>File in Member Area</td>
+            <td class="ko"><a href="/signed_cookies/index.html">/signed_cookies/index.html</a></td>
+            <td class="ko"><a href="javascript:void(0)"
+                   onclick="SignedUrl('signed_cookies/index.html');">/signed_cookies/index.html</a></td>
+            <td class="ok"><a href="javascript:void(0)"
+                   onclick="SignedCookies('signed_cookies/index.html');">/signed_cookies/index.html</a></td>
+        </tr>
+    </table>
+
+
+</body>
+
+</html>

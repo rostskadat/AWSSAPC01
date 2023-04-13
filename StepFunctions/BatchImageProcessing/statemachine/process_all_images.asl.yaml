@@ -1,0 +1,40 @@
+---
+Comment: List all images in bucket and trigger a processing workflow for each one
+StartAt: ListAllImagesInBucket
+States:
+  ListAllImagesInBucket:
+    Type: Task
+    Resource: "${ListAllImagesInBucketFunctionArn}"
+    ResultPath: "$.iterator"
+    Next: IterateOverImages
+  IterateOverImages:
+    Type: Task
+    Resource: "${IterateOverImagesFunctionArn}"
+    ResultPath: "$.iterator"
+    Next: AreAllImagesProcessed
+  AreAllImagesProcessed:
+    Type: Choice
+    Choices:
+    - Variable: "$.iterator.continue"
+      BooleanEquals: true
+      Next: ProcessOneImage
+    Default: AllImagesProcessed
+  ProcessOneImage:
+    Type: Task
+    Resource: "arn:aws:states:::states:startExecution.sync"
+    Parameters: 
+      StateMachineArn: "${ProcessOneImageStateMachineArn}"
+      Input:
+        NeedCallback: false
+        "AWS_STEP_FUNCTIONS_STARTED_BY_EXECUTION_ID.$": "$$.Execution.Id"
+        # Here we say that the 'iterator' parameter is dynamic and comes from
+        # the 'iterator' attribute of the input
+        "iterator.$": "$.iterator"
+    # as per https://docs.aws.amazon.com/step-functions/latest/dg/input-output-resultpath.html
+    # we use ResultPath to pass back the input (required by IterateOverImages)
+    ResultPath: "$.ProcessOneImageOutput"
+    Next: IterateOverImages
+  AllImagesProcessed:
+    Type: Pass
+    End: true
+

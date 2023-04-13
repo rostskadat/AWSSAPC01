@@ -1,0 +1,11 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "SAPC01-ServiceControlPolicy"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-1xtx4sl8voopg"
+s3_prefix = "SAPC01/ServiceControlPolicy"
+region = "eu-west-1"
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
+
+tags = "PROJECT=\"SAPC01\" APPLICATION=\"SAPC01\" ENVIRONMENT=\"POC\""

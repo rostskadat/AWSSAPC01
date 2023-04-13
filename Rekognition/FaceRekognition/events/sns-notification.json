@@ -1,0 +1,22 @@
+{
+  "Records": [
+    {
+      "EventSource": "aws:sns",
+      "EventVersion": "1.0",
+      "EventSubscriptionArn": "arn:aws:sns:eu-west-1:123456789012:SAPC01-FaceRekognition1-Topic-PJOKMLN7ID9Y:bc9bd951-3b31-4cf4-b9c3-0790f469b241",
+      "Sns": {
+        "Type": "Notification",
+        "MessageId": "ed8212a1-69e1-5bd5-b1a0-4a167b705fde",
+        "TopicArn": "arn:aws:sns:eu-west-1:123456789012:SAPC01-FaceRekognition1-Topic-PJOKMLN7ID9Y",
+        "Subject": "",
+        "Message": "{\"JobId\":\"62d943a3926b5fc9d526e9fbe11598cf780f5d98e044d52b1cd863ac15d26e69\",\"Status\":\"SUCCEEDED\",\"API\":\"StartFaceDetection\",\"Timestamp\":1614614609339,\"Video\":{\"S3ObjectName\":\"face-demographics-walking.mp4\",\"S3Bucket\":\"sapc01-facerekognition1-bucket-eu-west-1-123456789012\"}}",
+        "Timestamp": "2021-03-01T16:03:29.445Z",
+        "SignatureVersion": "1",
+        "Signature": "qwaa7lGSmiAgNzBYbfq2m9z1mr5dBZ+N5FpyerMR9e6YdPa0wwmzkd5xVKW8lPlPpTUOrnhXVQjAo/atmwMSgA0TcU/oph9Zs1U4XovH5k+sI2kme6p6JNt4FPj74jPdModi3xvhlcGoSaJKrLbuxliA/nH/FRXss/QKrO46+Lw752gNN0dghWHxNdy3odQ9QaOqEPqHBCKTq29YYO/ApHQQyEUmqLQHR4tp8kdO3ayTYfTbyV1cPPlu5FCVzChuxwBhIv5RXzc+0IyYOY/0EKSqonhJRTH6FQLPUbyWet7uWVOUB6POvvLZ0lAc3OGO8CPPIg9wg/dECUfKeH5KJw==",
+        "SigningCertUrl": "https://sns.eu-west-1.amazonaws.com/SimpleNotificationService-010a507c1833636cd94bdb98bd93083a.pem",
+        "UnsubscribeUrl": "https://sns.eu-west-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:eu-west-1:123456789012:SAPC01-FaceRekognition1-Topic-PJOKMLN7ID9Y:bc9bd951-3b31-4cf4-b9c3-0790f469b241",
+        "MessageAttributes": {}
+      }
+    }
+  ]
+}

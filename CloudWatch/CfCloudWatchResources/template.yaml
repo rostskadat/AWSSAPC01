@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  CfCloudWatchResources. This stack provides Cloudformation Custom Resources to create CloudWatch Resources (ResourcePolicy)
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "CloudWatch-CfCloudWatchResources"
+    Description: This stack provides Cloudformation Custom Resources to create CloudWatch Resources (ResourcePolicy)
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "ManagedBlockchain" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: CfCloudWatchResourcesLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  CfCloudWatchResourcesLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/CfCloudWatchResourcesLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  CfCloudWatchLogsResourcePolicy:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: CfCloudWatchLogsResourcePolicy
+      Description: A CloudFormation Custom Resource to create a CloudWatch Logs ResourcePolicy
+      CodeUri: lambdas/CfCloudWatchLogsResourcePolicy
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
+
+Outputs:
+
+  CfCloudWatchLogsResourcePolicy:
+    Description: The CfCloudWatchLogsResourcePolicy function ARN
+    Value:
+      Fn::GetAtt: CfCloudWatchLogsResourcePolicy.Arn

@@ -1,0 +1,159 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  SchemaConversionTool. Showcase the use of the SCT to convert MySQL Schema to Postgres
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "DMS-SchemaConversionTool"
+    Description: Showcase the use of the SCT to convert MySQL Schema to Postgres
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "DMS" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+Parameters:
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+  InstanceType:
+    Description: "The instance type"
+    Type: "String"
+    Default: "m5.large"
+
+  ManagedPolicyArns:
+    Description: The list of Policies to attach to the EC2Instance Profile
+    Type: String
+    Default: "arn:aws:iam::aws:policy/PowerUserAccess"
+
+  VpcId:
+    Description: The Subnet Id
+    Type: String
+    Default: "vpc-0ae657c991867629c"
+
+  SubnetId:
+    Description: The Subnet Id
+    Type: String
+    Default: "subnet-04afa6317a77745e1"
+
+  VncPassword:
+    Description: The VNC Password
+    Type: String
+    Default: xs9G%gAN
+
+  CidrIp:
+    Description: The CidrIp
+    Type: String
+    Default: "92.56.134.93/32"
+
+Resources:
+
+  Secret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: The DBInstance MasterUserPassword
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "root"}'
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  SecretTargetAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref Secret
+      TargetId: !Ref DBInstance
+      TargetType: AWS::RDS::DBInstance
+
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    Properties:
+      AllocatedStorage: 20
+      DBInstanceClass: db.t2.micro
+      Engine: postgres
+      MasterUsername: !Sub "{{resolve:secretsmanager:${Secret}:SecretString:username}}"
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${Secret}:SecretString:password}}"
+
+  VNCSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow VNC From a specific address
+      VpcId:
+         Ref: VpcId
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 5190
+        ToPort: 5190
+        CidrIp: 
+          Ref: CidrIp
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 
+          Ref: CidrIp
+      SecurityGroupEgress:
+      - IpProtocol: -1
+        FromPort: -1
+        ToPort: -1
+        CidrIp: 0.0.0.0/0  
+
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/SimpleDesktop/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ImageId:
+          Ref: ImageId
+        InstanceType:
+          Ref: InstanceType
+        ManagedPolicyArns:
+          Ref: ManagedPolicyArns
+        SubnetId:
+          Ref: SubnetId
+        SecurityGroupIds: 
+          Ref: VNCSecurityGroup
+        VncPassword:
+          Ref: VncPassword
+        ExtraUserData:
+          Fn::Sub: |
+            echo "Executing ExtraUserData..."
+            curl https://s3.amazonaws.com/publicsctdownload/Fedora/aws-schema-conversion-tool-1.0.latest.zip -o /tmp/aws-schema-conversion-tool-1.0.latest.zip
+            unzip /tmp/aws-schema-conversion-tool-1.0.latest.zip -d /tmp
+            find /tmp -name '*.rpm' -exec yum install -y {} \+
+            amazon-linux-extras install -y postgresql11
+            curl --output /tmp/mysql-connector-java-8.0.23.tar.gz https://cdn.mysql.com//Downloads/Connector-J/mysql-connector-java-8.0.23.tar.gz
+            curl --output /tmp/postgresql-42.2.19.jar https://jdbc.postgresql.org/download/postgresql-42.2.19.jar
+            cd /tmp
+            tar xvzf /tmp/mysql-connector-java-8.0.23.tar.gz mysql-connector-java-8.0.23/mysql-connector-java-8.0.23.jar
+            cat >> /home/ec2-user/start-vnc <<EOF
+            echo "MYSQL_DRIVER_PATH=/tmp/mysql-connector-java-8.0.23/mysql-connector-java-8.0.23.jar"
+            echo "POSTGRE_DRIVER_PATH=/tmp/postgresql-42.2.19.jar"
+            EOF
+            echo "Executing ExtraUserData... Done"
+
+Outputs: 
+  InstancePublicDnsName:
+    Description: The EC2 Instance PublicDnsName
+    Value:
+      Fn::Sub: ${EC2Instance.Outputs.InstancePublicDnsName}
+
+  DBInstanceAddress:
+    Description: "DBInstance Address"
+    Value: 
+      Fn::GetAtt: DBInstance.Endpoint.Address
+
+  DBInstancePort:
+    Description: "DBInstance Port"
+    Value: 
+      Fn::GetAtt: DBInstance.Endpoint.Port
+

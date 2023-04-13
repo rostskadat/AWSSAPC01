@@ -1,0 +1,7 @@
+{
+    "StreamFunction": {
+        "ES_ENDPOINT": "search-dynamodb2es-domain-wzvndw7igt6ec6qc37ws55agwe.eu-west-1.es.amazonaws.com",
+        "ES_INDEX": "funds",
+        "ES_DOC_TYPE": "fund"
+    }
+}

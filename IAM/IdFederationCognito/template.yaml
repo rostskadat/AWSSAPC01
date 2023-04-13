@@ -1,0 +1,96 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  IdFederationCognito
+
+Parameters:
+
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+  KeyName:
+    Description: "The Key to login into the instance"
+    Type: "AWS::EC2::KeyPair::KeyName"
+    Default: "SAPC01"
+
+Resources:
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/job-function/ViewOnlyAccess
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - Ref: InstanceRole
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId:
+          Ref: LaunchTemplate
+        Version:
+          Fn::GetAtt: LaunchTemplate.LatestVersionNumber
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets:
+          default: [Install]
+        Install:
+          files:
+            /root/startup.sh:
+              content: |
+                #!/bin/bash
+                echo "Starting up $(uname -n)"
+              mode: "000700"
+              owner: root
+              group: root
+          commands:
+            01_startup:
+              command: "bash /root/startup.sh"
+    Properties:
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Arn:
+            Fn::GetAtt: InstanceProfile.Arn
+        ImageId:
+          Ref: ImageId
+        InstanceType: t3.micro
+        KeyName: 
+          Ref: KeyName
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: PLATFORM
+                Value: SAPC01
+        UserData:
+          Fn::Base64:
+            Fn::Sub: |
+              #!/bin/bash
+              yum-config-manager --enable epel ;  yum update -y ; yum install -y aws-cfn-bootstrap
+              /opt/aws/bin/cfn-init --verbose --region ${AWS::Region} --stack ${AWS::StackName} --resource LaunchTemplate --role ${InstanceRole}
+
+Outputs:
+  Instance:
+    Description: The Instance Id
+    Value:
+      Ref: Instance

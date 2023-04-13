@@ -1,0 +1,387 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - Yaml2Json
+Description: >
+  BatchProcessing. Showcase the use of en ECS cluster with EC2 provisioning for batch processing.
+
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: ECS-BatchProcessing
+    Description: Showcase the use of en ECS cluster with EC2 provisioning for batch processing.
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to VPC
+        Parameters:
+          - VpcId
+          - Subnets
+      - Label:
+          default: Parameters related to the AutoScalingGroup
+        Parameters:
+          - MinSize
+          - MaxSize
+          - DesiredCapacity
+      - Label:
+          default: Parameters related to the EC2 Instance
+        Parameters:
+          - ImageId
+          - ManagedPolicyArns
+      - Label:
+          default: Parameters related to the ECS Tasks
+        Parameters:
+          - DownloadImageRepository
+          - DownloadContainerName
+
+Parameters:
+  VpcId:
+    Description: "The VPC in which to put the load balancer"
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-9e9b9ffa
+
+  Subnets:
+    Description: "The Subnets in which to put the load balancer"
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581,subnet-58421700"
+
+  MinSize:
+    Description: "The minimum number of instance in the AutoScalingGroup"
+    Type: Number
+    Default: 0
+
+  DesiredCapacity:
+    Description: "The desired number of instance in the AutoScalingGroup"
+    Type: Number
+    Default: 0
+
+  MaxSize:
+    Description: "The maximum number of instance in the AutoScalingGroup"
+    Type: Number
+    Default: 10
+
+  ImageId:
+    Description: "The Image Id (AMI) to use. Default to ECS optimized"
+    Type: "String"
+    Default: "/aws/service/ecs/optimized-ami/amazon-linux-2/recommended/image_id"
+
+  ManagedPolicyArns:
+    Description: "A comma separated list of IAM Policy ARNs to attach to the Instance"
+    Type: String
+    Default: "arn:aws:iam::aws:policy/PowerUserAccess,arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role,arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceAutoscaleRole"
+
+  DownloadImageRepository:
+    Description: "The repository containing the Download Task"
+    Type: String
+
+  DownloadContainerName:
+    Description: "The friendly name for the container. In order to be triggered from outside"
+    Type: String
+    Default: "ZTFAlertsDownload"
+
+Resources:
+
+  # The bucket used to store all the ZTF Alerts...
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: "/${AWS::AccountId}/ecs/${AWS::StackName}"
+      RetentionInDays: 1
+
+  #
+  # This is a DEMO instance. However note that the ASG will use the template
+  #
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ImageId:
+          Ref: ImageId
+        ManagedPolicyArns:
+          Ref: ManagedPolicyArns
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel ;  yum update -y ; yum install -y aws-cfn-bootstrap awscli
+            echo ECS_CLUSTER=${AWS::StackName}-Cluster >> /etc/ecs/ecs.config
+        VolumeSize: 100
+
+  # This is the autoscaling group that the ECS cluster will rely on to 
+  # provision its tasks container
+  AutoScalingGroup: 
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      HealthCheckType: EC2
+      LaunchTemplate: 
+        LaunchTemplateId:
+          Fn::GetAtt: EC2Instance.Outputs.LaunchTemplateId
+        Version:
+          Fn::GetAtt: EC2Instance.Outputs.LaunchTemplateVersion
+      MetricsCollection:
+        - Granularity: 1Minute
+          Metrics:
+            - GroupInServiceInstances
+      MinSize:
+        Ref: MinSize
+      MaxSize: 
+        Ref: MaxSize
+      DesiredCapacity: 
+        Ref: DesiredCapacity
+      NewInstancesProtectedFromScaleIn: true
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+          PropagateAtLaunch: true
+        - Key: ScalingStrategy
+          Value: Target
+          PropagateAtLaunch: true
+      VPCZoneIdentifier:
+        Ref: Subnets
+
+  # 
+  # ECS CONFIGURATION
+  #
+  CapacityProvider:
+    Type: AWS::ECS::CapacityProvider
+    Properties:
+      AutoScalingGroupProvider:
+        AutoScalingGroupArn: 
+          Ref: AutoScalingGroup
+        ManagedScaling:
+          MaximumScalingStepSize: 2
+          MinimumScalingStepSize: 1
+          Status: ENABLED
+          TargetCapacity: 50
+        ManagedTerminationProtection: ENABLED
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+    DependsOn: EC2Instance
+    Properties:
+      CapacityProviders: 
+        - Ref: CapacityProvider
+      ClusterName: 
+        Fn::Sub: ${AWS::StackName}-Cluster
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  # The ExecutionRole is used by the container in order to launch a Task.
+  # We therefore need access to the ECR repository where the Task Image is 
+  # located.
+  ExecutionRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+        - arn:aws:iam::aws:policy/AmazonElasticFileSystemClientReadWriteAccess
+ 
+  # The DownloadTask needs to access S3 to upload the AVRO files
+  TaskRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action: "sts:AssumeRole"
+      Policies:
+        - S3CrudPolicy:
+            BucketName:
+              Ref: Bucket
+
+  DownloadTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Name: 
+            Ref: DownloadContainerName
+          Image:
+            Fn::Sub: "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${DownloadImageRepository}:latest"
+          Command: 
+            - "--bucket"
+            - Ref: Bucket
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region:
+                Fn::Sub: "${AWS::Region}"
+              awslogs-group:
+                Ref: LogGroup
+              awslogs-stream-prefix: "ZTFAlerts"
+          Essential: true
+          MountPoints:
+            - SourceVolume: host
+              ContainerPath: /tmp
+      ExecutionRoleArn:
+        Fn::GetAtt: ExecutionRole.Arn
+      Family: "ZTFAlerts"
+      Memory: 512
+      Cpu: 256
+      NetworkMode: host
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      TaskRoleArn:
+        Ref: TaskRole
+      Volumes:
+        - Name: host
+          Host: {}
+        - Name: efs
+          EFSVolumeConfiguration: 
+            FilesystemId: 
+              Ref: TaskFileSystem
+
+  # 
+  # EFS CONFIGURATION
+  #
+  TaskFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      BackupPolicy:
+        Status: DISABLED
+      Encrypted: true
+      FileSystemTags:
+        - Key: PLATFORM
+          Value: SAPC01
+        - Key: Name
+          Value: 
+            Fn::Sub: ${AWS::StackName}-FileSystem
+      LifecyclePolicies:
+        - TransitionToIA: AFTER_14_DAYS
+
+  MountTargetSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: SecurityGroup to allow access to EFS
+      GroupName: 
+        Fn::Sub: ${AWS::StackName}-EFS
+      SecurityGroupIngress:
+        - IpProtocol: TCP
+          FromPort: 2049
+          ToPort: 2049
+          CidrIp: 0.0.0.0/0
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+        - Key: Name
+          Value: 
+            Fn::Sub: "${AWS::StackName}-SecurityGroupEFS"
+      VpcId: 
+        Ref: VpcId
+
+  MountTarget0: 
+    Type: AWS::EFS::MountTarget
+    Properties: 
+      FileSystemId: 
+        Ref: TaskFileSystem
+      SubnetId: 
+        Fn::Select:
+          - 0 
+          - Ref: Subnets
+      SecurityGroups: 
+        - Ref: MountTargetSecurityGroup
+
+  MountTarget1: 
+    Type: AWS::EFS::MountTarget
+    Properties: 
+      FileSystemId: 
+        Ref: TaskFileSystem
+      SubnetId: 
+        Fn::Select:
+          - 1
+          - Ref: Subnets
+      SecurityGroups: 
+        - Ref: MountTargetSecurityGroup
+
+  MountTarget2: 
+    Type: AWS::EFS::MountTarget
+    Properties: 
+      FileSystemId: 
+        Ref: TaskFileSystem
+      SubnetId: 
+        Fn::Select:
+          - 2
+          - Ref: Subnets
+      SecurityGroups: 
+        - Ref: MountTargetSecurityGroup
+
+
+
+Outputs:
+  Bucket:
+    Description: The Bucket where ZTF alerts will go and be processed
+    Value:
+      Ref: Bucket
+
+  EC2Instance:
+    Description: The EC2Instance PublicDnsName
+    Value:
+      Fn::GetAtt: EC2Instance.Outputs.InstancePublicDnsName
+
+  Cluster:
+    Description: The Cluster Name
+    Value:
+      Ref: Cluster
+
+  CapacityProvider:
+    Description: The CapacityProvider Name
+    Value:
+      Ref: CapacityProvider
+
+  DownloadTaskDefinition: 
+    Description: The DownloadTaskDefinition
+    Value:
+      Ref: DownloadTaskDefinition
+
+  DownloadContainerName: 
+    Description: The DownloadContainerName
+    Value:
+      Ref: DownloadContainerName
+
+  TaskFileSystem:
+    Description: The TaskFileSystem
+    Value:
+      Ref: TaskFileSystem
+
+  AutoScalingGroup:
+    Description: The AutoScalingGroup
+    Value:
+      Ref: AutoScalingGroup

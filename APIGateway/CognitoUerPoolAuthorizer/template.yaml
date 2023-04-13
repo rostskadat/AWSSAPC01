@@ -1,0 +1,123 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  CognitoUerPoolAuthorizer
+
+Parameters:
+  EmailSourceArn:
+    Type: String
+    Description: The ARN of SES email to be used when comunicating with the user
+    Default: 'arn:aws:ses:eu-west-1:123456789012:identity/rostskadat@gmail.com'
+
+  DemoUserEmail:
+    Description: The email of the Demo User
+    Type: String
+    Default: "rostskadat@gmail.com"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: "CommonLayer01"
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Auth:
+        DefaultAuthorizer: CognitoUserPoolAuthorizer
+        Authorizers:
+          CognitoUserPoolAuthorizer:
+            UserPoolArn:
+              Fn::GetAtt: UserPool.Arn
+
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      AutoVerifiedAttributes: 
+        - email
+      EmailConfiguration: 
+        EmailSendingAccount: DEVELOPER
+        SourceArn: 
+          Ref: EmailSourceArn
+      UsernameAttributes: 
+        - email
+      UserPoolTags:
+        PLATFORM: SAPC01
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ExplicitAuthFlows: 
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      UserPoolId:
+        Ref: UserPool
+
+  DemoUser:
+    Type: AWS::Cognito::UserPoolUser
+    Properties:
+      DesiredDeliveryMediums:
+        - EMAIL
+      Username:
+        Ref: DemoUserEmail
+      UserPoolId:
+        Ref: UserPool
+
+  CommonLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/CommonLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  PostAuthenticationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/PostAuthenticationFunction
+      Events:
+        PostAuthentication:
+          Type: Cognito
+          Properties:
+            Trigger:
+              - PostAuthentication
+            UserPool:
+              Ref: UserPool
+
+  ExecuteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/ExecuteFunction
+      Events:
+        Execute:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGatewayApi
+            Path: /execute
+            Method: get
+
+Outputs:
+  UserPoolId:
+    Value:
+      Ref: UserPool
+  ClientId:
+    Value:
+      Ref: UserPoolClient
+  Username:
+    Value:
+      Ref: DemoUserEmail
+  ApiGatewayApi:
+    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+    Value:
+      Fn::Sub: "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/execute/"

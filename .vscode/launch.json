@@ -1,0 +1,97 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        // Node.js related launch configurations
+        {
+            "type": "pwa-node",
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "name": "RedisSession",
+            "program": "${workspaceFolder}/ElastiCache/RedisSession/node-app/index.js",
+            "request": "launch",
+            "restart": true,
+            "runtimeExecutable": "nodemon",
+            "skipFiles": [
+                "node_modeules/**"
+            ],
+            "env": {
+                "PORT": "3000",
+                "REGION": "eu-west-1",
+                "SECRET_ARN": "arn:aws:secretsmanager:eu-west-1:123456789012:secret:Secret-RonLg7o81RTg-YGPGJg",
+                "RDS_HOST": "sd153mlxpgho1sd.cgbdhswg43m4.eu-west-1.rds.amazonaws.com",
+                "LOG4JS_LEVEL": "debug"
+            }
+        },
+        // AWS SAM related launch configurations
+        {
+            "type": "aws-sam",
+            "request": "direct-invoke",
+            "name": "Invoke ListAllImagesInBucketFunction",
+            "invokeTarget": {
+                "target": "template",
+                "templatePath": "StepFunctions/BatchImageProcessing/template.yaml",
+                "logicalId": "ListAllImagesInBucketFunction"
+            },
+            "lambda": {
+                "payload": {
+                    "path": "StepFunctions/BatchImageProcessing/events/event.json"
+                },
+                "environmentVariables": {
+                    "BUCKET_NAME": "sapc01-batchimageprocessing-bucket-1vkqfvrshgf8y",
+                    "IS_DEBUG": "False"
+                }
+            }
+        },
+        // https://docs.aws.amazon.com/toolkit-for-vscode/latest/userguide/serverless-apps-run-debug-config-ref.html
+        {
+            "type": "aws-sam",
+            "request": "direct-invoke",
+            "name": "Invoke ListAllImagesInBucketFunction (code)",
+            "invokeTarget": {
+                "target": "code",
+                "projectRoot": "StepFunctions/BatchImageProcessing/lambdas/ListAllImagesInBucketFunction",
+                "lambdaHandler": "app.lambda_handler"
+            },
+            "lambda": {
+                "runtime": "python3.8",
+                "payload": {
+                    "path": "StepFunctions/BatchImageProcessing/events/event.json"
+                },
+                "environmentVariables": {
+                    "BUCKET_NAME": "sapc01-batchimageprocessing-bucket-1vkqfvrshgf8y",
+                    "IS_DEBUG": "False"
+                }
+            },
+            "sam": {
+                "containerBuild": true
+            }
+        },
+        {
+            "type": "aws-sam",
+            "request": "direct-invoke",
+            "name": "Invoke ProcessExifFunction (code)",
+            "invokeTarget": {
+                "target": "code",
+                "projectRoot": "StepFunctions/BatchImageProcessing/lambdas/ProcessExifFunction",
+                "lambdaHandler": "app.lambda_handler"
+            },
+            "lambda": {
+                "runtime": "python3.8",
+                "payload": {
+                    "path": "StepFunctions/BatchImageProcessing/events/process-exif-function.json"
+                },
+                "environmentVariables": {
+                    "BUCKET_NAME": "sapc01-batchimageprocessing-bucket-1vkqfvrshgf8y",
+                    "TABLE_NAME": "SAPC01-BatchImageProcessing-ImageMetadata-1LE8WD5PHLAR0",
+                    "IS_DEBUG": "false"
+                }
+            },
+            "sam": {
+                "containerBuild": true
+            }
+        }
+    ]
+}

@@ -1,0 +1,12 @@
+version = 0.1
+[default]
+[default.deploy]
+[default.deploy.parameters]
+stack_name = "CfIAMResources"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-1k65h3q7fy8g8"
+s3_prefix = "CfIAMResources"
+region = "eu-west-1"
+profile = "OrganizationAccountAccessRole@123456789012"
+capabilities = "CAPABILITY_IAM"
+
+tags = "PROJECT=\"SAPC01\" APPLICATION=\"SAPC01\" ENVIRONMENT=\"POC\""

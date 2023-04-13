@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - PolicyGenerator
+  - S3Objects
+Description: >
+  HtmlForm
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: "HtmlFormLayer01"
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+
+  IndexWebpage:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket: 
+          Ref: Bucket
+        Key: index.html
+        ContentType: text/html
+        ACL: public-read
+      Body: 
+        Fn::Sub: >
+          <html>
+          <title>Simple API Gateway form</title>
+          <script>
+            function myFunction() {
+              var xhttp = new XMLHttpRequest();
+              xhttp.onreadystatechange = function() {
+                if (this.readyState == 4 && this.status == 200) {
+                  document.getElementById("message").innerHTML = JSON.parse(this.response).message;
+                }
+              }
+              xhttp.open("GET", "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/", true);
+              xhttp.send();
+            }
+          </script>
+          <body>
+            <div align="center"><br><br><br><br>
+            <h1>Hello <span id="message"></span></h1>
+            <button onclick="myFunction()">Click To call API Gateway</button><br>
+          </body>
+          </html>
+
+  ErrorWebpage:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket: 
+          Ref: Bucket
+        Key: error.html
+        ContentType: text/html
+        ACL: public-read
+      Body: |
+        <html><body><h1>Sorry, there has been an error!</h1></body></html>
+
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      ## For Lambda proxy integration (https://docs.aws.amazon.com/apigateway/latest/developerguide/how-to-cors.html#apigateway-responding-to-cors-preflight)
+      ##   the Lambda function itself needs to set the headers.
+      # Cors: 
+      #   AllowOrigin: 
+      #     Fn::Sub: "'${Bucket.RegionalDomainName}'"
+      StageName: Prod
+
+  HtmlFormLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: "layers/HtmlFormLayer01"
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  HtmlFormFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/HtmlFormFunction/
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /hello
+            Method: get
+            RestApiId:
+              Ref: ApiGatewayApi
+
+Outputs:
+  BucketWebsiteURL:
+    Description: "Bucket WebsiteURL"
+    Value: 
+      Fn::GetAtt: Bucket.WebsiteURL
+  HelloWorldApi:
+    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+    Value:
+      Fn::Sub: "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"

@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - Yaml2Json
+Description: >
+  IndexingObject. Showcase how to index object upon storing them into S3 
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: S3-IndexingObject
+    Description: Showcase how to index object upon storing them into S3 
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Lambda
+        Parameters:
+          - "IndexingObjectParameter"
+
+Parameters:
+  "IndexingObjectParameter":
+    Description: Look at https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html
+    Type: String
+    Default: "IndexingObjectValue"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Environment:
+      Variables:
+        DOMAIN_NAME: 
+          Ref: Domain
+        DOMAIN_ENDPOINT:
+          Fn::GetAtt: Domain.DomainEndpoint
+    Layers:
+      - Ref: IndexingObjectLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Domain:
+    Type: AWS::Elasticsearch::Domain
+    Properties:
+      AccessPolicies:
+        Version: 2012-10-17
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              AWS: 
+                Fn::Sub: "arn:${AWS::Partition}:iam::${AWS::AccountId}:user/rostskadat"
+            Action: "es:*"
+            Resource: 
+              Fn::Sub: "arn:${AWS::Partition}:es:${AWS::Region}:${AWS::AccountId}:domain/*/*"
+          - Effect: "Allow"
+            Principal:
+              AWS: "*"
+            Action: "es:*"
+            Resource: 
+              Fn::Sub: "arn:${AWS::Partition}:es:${AWS::Region}:${AWS::AccountId}:domain/*/*"
+      AdvancedOptions:
+        rest.action.multi.allow_explicit_index: "true"
+      EBSOptions:
+        EBSEnabled: true
+        VolumeSize: 20
+        VolumeType: gp2
+      ElasticsearchClusterConfig:
+        InstanceCount: 1
+        InstanceType: m3.medium.elasticsearch
+      SnapshotOptions:
+        AutomatedSnapshotStartHour: 0
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  IndexingObjectLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/IndexingObjectLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  IndexingObjectFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/IndexingObjectFunction
+      Policies:
+        - ElasticsearchHttpPostPolicy:
+            DomainName: 
+              Ref: Domain
+      Events:
+        S3ObjectCreated:
+          Type: S3
+          Properties:
+            Bucket: 
+              Ref: Bucket
+            Events: "s3:ObjectCreated:*"
+            Filter: 
+              S3Key: 
+                Rules: 
+                  - Name: suffix
+                    Value: '.avro'
+
+Outputs:
+  Bucket:
+    Description: The Bucket
+    Value: 
+      Ref: Bucket
+
+  DomainEndpoint:
+    Description: The Domain Endpoint
+    Value: 
+      Fn::GetAtt: Domain.DomainEndpoint

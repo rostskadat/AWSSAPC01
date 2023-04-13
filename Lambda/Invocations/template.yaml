@@ -1,0 +1,168 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Invocations. Showcase the 3 different kind of Lambda invocations.
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: Lambda-Invocations
+    Description: Showcase the 3 different kind of Lambda invocations.
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Synchronous Lambda invocations
+        Parameters:
+          - StageName
+      - Label:
+          default: Parameters related to Asynchronous Lambda invocations
+        Parameters:
+          - DLQEmail
+Parameters:
+
+  StageName:
+    Description: "The StageName for ApiGateway"
+    Type: String
+    Default: "Prod"
+
+  DLQEmail:
+    Description: "The email where to send error message for asynchronous calls"
+    Type: String
+    Default: "rostskadat@gmail.com"
+
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: InvocationsLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  Api:
+    Type: AWS::Serverless::Api 
+    Properties:
+      StageName: 
+        Ref: StageName
+
+  InvocationsLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/InvocationsLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  SynchronousFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/SynchronousFunction
+      Policies:
+        - AWSLambdaExecute
+      Events:
+        Invoke:
+          Type: Api
+          Properties:
+            Method: GET
+            Path: /SynchronousFunction
+            RestApiId: 
+              Ref: Api
+
+  AsynchronousDLQTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Protocol: email-json
+          Endpoint:
+            Ref: DLQEmail
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  AsynchronousFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/AsynchronousFunction
+      DeadLetterQueue:
+        Type: SNS
+        TargetArn: 
+          Ref: AsynchronousDLQTopic
+      Events:
+        Invoke:
+          Type: S3
+          Properties:
+            Bucket: 
+              Ref: Bucket
+            Events: "s3:ObjectCreated:*"
+      Policies:
+        - AWSLambdaExecute
+
+  EventSourceMappingDLQTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Protocol: email-json
+          Endpoint:
+            Ref: DLQEmail
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Queue: 
+    Type: AWS::SQS::Queue
+    Properties: {}
+
+  EventSourceMappingFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/EventSourceMappingFunction
+      DeadLetterQueue:
+        Type: SNS
+        TargetArn: 
+          Ref: EventSourceMappingDLQTopic
+      Events:
+        Invoke:
+          Type: SQS
+          Properties:
+            BatchSize: 10
+            Enabled: true
+            Queue: 
+              Fn::GetAtt: Queue.Arn
+      Policies:
+        - AWSLambdaExecute
+
+Outputs:
+  ApiUrl:
+    Description: "The base url of the different functions"
+    Value: 
+      Fn::Sub: "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/SynchronousFunction"
+
+  Bucket:
+    Description: The S3 Bucket to simulate asynchronous events
+    Value: 
+      Ref: Bucket
+
+  Queue:
+    Description: The SQS Queue where message can be sent to
+    Value: 
+      Ref: Queue

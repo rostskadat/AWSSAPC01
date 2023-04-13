@@ -1,0 +1,21 @@
+{% extends "base.html" %} 
+
+{% block main %} 
+{% if message %}
+<p class="text-center text-danger">{{ message }}</p>
+{% endif %}
+{% if item is defined %}
+<form class="add-item-form" action="" method="post" enctype="multipart/form-data">
+    <div class="form-row">
+        <div class="form-group col-md-12">
+            <label for="first-name">Description</label>
+            <input type="text" class="form-control" name="description" id="description" value="{{ item.description }}" required>
+        </div>
+    </div>
+    <button type="submit" class="btn btn-success float-right">Update Item</button>
+</form>
+{% else %}
+<p class="text-center">Item Not Found. Go <a href="/add">here</a> to add items.</p>
+{% endif %}
+
+{% endblock %}

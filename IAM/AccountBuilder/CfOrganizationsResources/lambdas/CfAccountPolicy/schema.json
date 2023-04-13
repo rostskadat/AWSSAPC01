@@ -1,0 +1,135 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "$id": "http://example.com/example.json",
+  "type": "object",
+  "title": "The root schema",
+  "description": "The root schema comprises the entire JSON document.",
+  "default": {},
+  "examples": [
+      {
+          "Content": "string",
+          "Description": "string",
+          "Name": "string",
+          "Type": "string",
+          "Tags": [
+              {
+                  "Key": "string",
+                  "Value": "string"
+              }
+          ]
+      }
+  ],
+  "required": [
+      "Content",
+      "Description",
+      "Name",
+      "Type"
+  ],
+  "properties": {
+      "Content": {
+          "$id": "#/properties/Content",
+          "type": "string",
+          "title": "The Content schema",
+          "description": "The policy text content to add to the new policy. The text that you supply must adhere to the rules of the policy type you specify in the Type parameter.",
+          "default": "",
+          "examples": [
+              "string"
+          ]
+      },
+      "Description": {
+          "$id": "#/properties/Description",
+          "type": "string",
+          "title": "The Description schema",
+          "description": "An optional description to assign to the policy.",
+          "default": "",
+          "examples": [
+              "string"
+          ]
+      },
+      "Name": {
+          "$id": "#/properties/Name",
+          "type": "string",
+          "title": "The Name schema",
+          "description": "The friendly name to assign to the policy.",
+          "default": "",
+          "examples": [
+              "string"
+          ]
+      },
+      "Type": {
+          "$id": "#/properties/Type",
+          "type": "string",
+          "enum" : [
+            "SERVICE_CONTROL_POLICY","TAG_POLICY","BACKUP_POLICY","AISERVICES_OPT_OUT_POLICY"
+          ],
+          "title": "The Type schema",
+          "description": "The type of policy to create.",
+          "default": "",
+          "examples": [
+              "SERVICE_CONTROL_POLICY"
+          ]
+      },
+      "Tags": {
+          "$id": "#/properties/Tags",
+          "type": "array",
+          "title": "The Tags schema",
+          "description": "A list of tags that you want to attach to the newly created policy. For each tag in the list, you must specify both a tag key and a value. You can set the value to an empty string, but you can't set it to null.",
+          "default": [],
+          "examples": [
+              [
+                  {
+                      "Key": "string",
+                      "Value": "string"
+                  }
+              ]
+          ],
+          "additionalItems": true,
+          "items": {
+              "$id": "#/properties/Tags/items",
+              "anyOf": [
+                  {
+                      "$id": "#/properties/Tags/items/anyOf/0",
+                      "type": "object",
+                      "title": "The first anyOf schema",
+                      "description": "An explanation about the purpose of this instance.",
+                      "default": {},
+                      "examples": [
+                          {
+                              "Key": "string",
+                              "Value": "string"
+                          }
+                      ],
+                      "required": [
+                          "Key",
+                          "Value"
+                      ],
+                      "properties": {
+                          "Key": {
+                              "$id": "#/properties/Tags/items/anyOf/0/properties/Key",
+                              "type": "string",
+                              "title": "The Key schema",
+                              "description": "An explanation about the purpose of this instance.",
+                              "default": "",
+                              "examples": [
+                                  "string"
+                              ]
+                          },
+                          "Value": {
+                              "$id": "#/properties/Tags/items/anyOf/0/properties/Value",
+                              "type": "string",
+                              "title": "The Value schema",
+                              "description": "An explanation about the purpose of this instance.",
+                              "default": "",
+                              "examples": [
+                                  "string"
+                              ]
+                          }
+                      },
+                      "additionalProperties": true
+                  }
+              ]
+          }
+      }
+  },
+  "additionalProperties": true
+}

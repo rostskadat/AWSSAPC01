@@ -1,0 +1,1634 @@
+------------------------- MOUNT
+/dev/mapper/vgSys-root_lv on / type ext4 (rw)
+proc on /proc type proc (rw)
+sysfs on /sys type sysfs (rw)
+devpts on /dev/pts type devpts (rw,gid=5,mode=620)
+tmpfs on /dev/shm type tmpfs (rw,size=40G,rootcontext="system_u:object_r:tmpfs_t:s0")
+/dev/sda1 on /boot type ext4 (rw)
+/dev/mapper/vgSys-home_lv on /home type ext4 (rw)
+/dev/mapper/vgSys-tmp_lv on /tmp type ext4 (rw)
+/dev/mapper/vgSys-var_lv on /var type ext4 (rw)
+/dev/mapper/vgSys-varlog_lv on /var/log type ext4 (rw)
+/dev/mapper/vgSys-audit_lv on /var/log/audit type ext4 (rw)
+/dev/mapper/vgSys-sudoio on /var/log/sudo-io type ext4 (rw)
+/dev/mapper/vg_IBM-ctm_lv on /opt/ctmagent type ext4 (rw)
+/dev/mapper/vgMon-nmon_log_lv on /usr/local/logs/nmon type ext4 (rw)
+/dev/mapper/vgMon-wva_lv on /WVA type ext4 (rw)
+/dev/mapper/vgMon-nbu_lv on /usr/openv type ext4 (rw)
+/dev/mapper/vgMon-nimsoft on /opt/nimsoft type ext4 (rw)
+/dev/mapper/vgOraotaf-ora112_lv on /ora112 type ext4 (rw)
+/dev/mapper/vgOraotaf-ora121a_lv on /ora121a type ext4 (rw)
+/dev/mapper/vgOraotaf-otafwebc_lv on /db_otafwebc type ext4 (rw)
+/dev/mapper/vgOraotaf-otafxgen_lv on /db_otafxgen type ext4 (rw)
+/dev/mapper/vgOraotaf-otafxgenback_lv on /db_otafxgen/backup type ext4 (rw)
+/dev/mapper/vgOraotaf-otafwebcback_lv on /db_otafwebc/backup type ext4 (rw)
+/dev/mapper/vgOraotaf-asm_lv on /db_asm type ext4 (rw)
+/dev/mapper/vgOraotaf-trabajo_oracle on /trabajo/oracle type ext4 (rw)
+/dev/mapper/vgOraotaf-adminora_lv on /admin/oracle type ext4 (rw)
+/dev/mapper/vg_IBM-itm_lv on /opt/IBM/ITM type ext4 (rw)
+/dev/mapper/vgAfb-log on /afb-log type ext4 (rw)
+/dev/mapper/vgAfb-afb on /servicios/db/afb type ext4 (rw)
+/dev/mapper/vgMon-tsm_lv on /opt/tivoli/tsm type ext4 (rw)
+/dev/mapper/vgTemporal-temporal_lv on /temporal_imports type ext4 (rw)
+/dev/mapper/vgSys-cacheyum_lv on /var/cache/yum type ext4 (rw)
+none on /proc/sys/fs/binfmt_misc type binfmt_misc (rw)
+sunrpc on /var/lib/nfs/rpc_pipefs type rpc_pipefs (rw)
+BVAFLIRINI01.allfunds.bank:/nfs/allfundsbank on /allfundsbank type nfs (rw,nfsvers=3,addr=172.16.212.44)
+nfsd on /proc/fs/nfsd type nfsd (rw)
+------------------------- PS
+COMMAND
+/sbin/init
+[kthreadd]
+[migration/0]
+[ksoftirqd/0]
+[stopper/0]
+[watchdog/0]
+[migration/1]
+[stopper/1]
+[ksoftirqd/1]
+[watchdog/1]
+[migration/2]
+[stopper/2]
+[ksoftirqd/2]
+[watchdog/2]
+[migration/3]
+[stopper/3]
+[ksoftirqd/3]
+[watchdog/3]
+[migration/4]
+[stopper/4]
+[ksoftirqd/4]
+[watchdog/4]
+[migration/5]
+[stopper/5]
+[ksoftirqd/5]
+[watchdog/5]
+[migration/6]
+[stopper/6]
+[ksoftirqd/6]
+[watchdog/6]
+[migration/7]
+[stopper/7]
+[ksoftirqd/7]
+[watchdog/7]
+[events/0]
+[events/1]
+[events/2]
+[events/3]
+[events/4]
+[events/5]
+[events/6]
+[events/7]
+[events/0]
+[events/1]
+[events/2]
+[events/3]
+[events/4]
+[events/5]
+[events/6]
+[events/7]
+[events_long/0]
+[events_long/1]
+[events_long/2]
+[events_long/3]
+[events_long/4]
+[events_long/5]
+[events_long/6]
+[events_long/7]
+[events_power_ef]
+[events_power_ef]
+[events_power_ef]
+[events_power_ef]
+[events_power_ef]
+[events_power_ef]
+[events_power_ef]
+[events_power_ef]
+[cgroup]
+[khelper]
+[netns]
+[async/mgr]
+[pm]
+[sync_supers]
+[bdi-default]
+[kintegrityd/0]
+[kintegrityd/1]
+[kintegrityd/2]
+[kintegrityd/3]
+[kintegrityd/4]
+[kintegrityd/5]
+[kintegrityd/6]
+[kintegrityd/7]
+[kblockd/0]
+[kblockd/1]
+[kblockd/2]
+[kblockd/3]
+[kblockd/4]
+[kblockd/5]
+[kblockd/6]
+[kblockd/7]
+[kacpid]
+[kacpi_notify]
+[kacpi_hotplug]
+[ata_aux]
+[ata_sff/0]
+[ata_sff/1]
+[ata_sff/2]
+[ata_sff/3]
+[ata_sff/4]
+[ata_sff/5]
+[ata_sff/6]
+[ata_sff/7]
+[ksuspend_usbd]
+[khubd]
+[kseriod]
+[md/0]
+[md/1]
+[md/2]
+[md/3]
+[md/4]
+[md/5]
+[md/6]
+[md/7]
+[md_misc/0]
+[md_misc/1]
+[md_misc/2]
+[md_misc/3]
+[md_misc/4]
+[md_misc/5]
+[md_misc/6]
+[md_misc/7]
+[linkwatch]
+[khungtaskd]
+[lru-add-drain/0]
+[lru-add-drain/1]
+[lru-add-drain/2]
+[lru-add-drain/3]
+[lru-add-drain/4]
+[lru-add-drain/5]
+[lru-add-drain/6]
+[lru-add-drain/7]
+[kswapd0]
+[ksmd]
+[aio/0]
+[aio/1]
+[aio/2]
+[aio/3]
+[aio/4]
+[aio/5]
+[aio/6]
+[aio/7]
+[crypto/0]
+[crypto/1]
+[crypto/2]
+[crypto/3]
+[crypto/4]
+[crypto/5]
+[crypto/6]
+[crypto/7]
+[kthrotld/0]
+[kthrotld/1]
+[kthrotld/2]
+[kthrotld/3]
+[kthrotld/4]
+[kthrotld/5]
+[kthrotld/6]
+[kthrotld/7]
+[pciehpd]
+[kpsmoused]
+[usbhid_resumer]
+[deferwq]
+[kdmremove]
+[kstriped]
+[ttm_swap]
+[scsi_eh_0]
+[scsi_eh_1]
+[scsi_eh_2]
+[vmw_pvscsi_wq_2]
+[scsi_eh_3]
+[vmw_pvscsi_wq_3]
+[kdmflush]
+[kdmflush]
+[jbd2/dm-0-8]
+[ext4-dio-unwrit]
+/sbin/udevd -d
+[vmmemctl]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[kdmflush]
+[flush-253:27]
+[flush-253:28]
+[flush-253:25]
+[flush-253:29]
+[flush-253:5]
+[flush-253:16]
+[flush-253:18]
+[flush-253:19]
+[flush-253:2]
+[jbd2/sda1-8]
+[ext4-dio-unwrit]
+[jbd2/dm-26-8]
+[ext4-dio-unwrit]
+[jbd2/dm-27-8]
+[ext4-dio-unwrit]
+[jbd2/dm-28-8]
+[ext4-dio-unwrit]
+[jbd2/dm-29-8]
+[ext4-dio-unwrit]
+[jbd2/dm-25-8]
+[ext4-dio-unwrit]
+[jbd2/dm-30-8]
+[ext4-dio-unwrit]
+[jbd2/dm-5-8]
+[ext4-dio-unwrit]
+[jbd2/dm-11-8]
+[ext4-dio-unwrit]
+[jbd2/dm-9-8]
+[ext4-dio-unwrit]
+[jbd2/dm-12-8]
+[ext4-dio-unwrit]
+[jbd2/dm-13-8]
+[ext4-dio-unwrit]
+[jbd2/dm-16-8]
+[ext4-dio-unwrit]
+[jbd2/dm-17-8]
+[ext4-dio-unwrit]
+[jbd2/dm-18-8]
+[ext4-dio-unwrit]
+[jbd2/dm-19-8]
+[ext4-dio-unwrit]
+[jbd2/dm-20-8]
+[ext4-dio-unwrit]
+[jbd2/dm-22-8]
+[ext4-dio-unwrit]
+[jbd2/dm-21-8]
+[ext4-dio-unwrit]
+[jbd2/dm-24-8]
+[ext4-dio-unwrit]
+[jbd2/dm-23-8]
+[ext4-dio-unwrit]
+[jbd2/dm-2-8]
+[ext4-dio-unwrit]
+[jbd2/dm-6-8]
+[ext4-dio-unwrit]
+[jbd2/dm-7-8]
+[ext4-dio-unwrit]
+[jbd2/dm-14-8]
+[ext4-dio-unwrit]
+[jbd2/dm-32-8]
+[ext4-dio-unwrit]
+[jbd2/dm-31-8]
+[ext4-dio-unwrit]
+ora_pmon_otafxgen1
+ora_psp0_otafxgen1
+ora_vktm_otafxgen1
+ora_gen0_otafxgen1
+ora_diag_otafxgen1
+ora_dbrm_otafxgen1
+ora_ping_otafxgen1
+ora_acms_otafxgen1
+ora_dia0_otafxgen1
+ora_lmon_otafxgen1
+ora_lmd0_otafxgen1
+ora_lms0_otafxgen1
+[kauditd]
+/bin/sh /etc/init.d/init.ohasd run
+ora_lms1_otafxgen1
+ora_rms0_otafxgen1
+ora_lmhb_otafxgen1
+ora_mman_otafxgen1
+ora_dbw0_otafxgen1
+ora_lgwr_otafxgen1
+ora_ckpt_otafxgen1
+ora_smon_otafxgen1
+ora_reco_otafxgen1
+ora_rbal_otafxgen1
+ora_asmb_otafxgen1
+ora_mmon_otafxgen1
+oracle+ASM1_asmb_otafxgen1 (DESCRIPTION=(LOCAL=YES)(ADDRESS=(PROTOCOL=beq)))
+ora_mmnl_otafxgen1
+ora_d000_otafxgen1
+ora_mark_otafxgen1
+ora_lck0_otafxgen1
+ora_rsmn_otafxgen1
+ora_gtx0_otafxgen1
+ora_qmnc_otafxgen1
+oracleotafxgen1 (DESCRIPTION=(LOCAL=YES)(ADDRESS=(PROTOCOL=beq)))
+ora_q000_otafxgen1
+ora_cjq0_otafxgen1
+auditd
+/sbin/audispd
+/sbin/portreserve
+/usr/sbin/nslcd
+/sbin/rsyslogd -i /var/run/syslogd.pid -c 5
+irqbalance --pid=/var/run/irqbalance.pid
+rpcbind
+/opt/VRTSpbx/bin/pbx_exchange
+dbus-daemon --system
+winbindd
+winbindd
+rpc.statd --no-notify
+[rpciod/0]
+[rpciod/1]
+[rpciod/2]
+[rpciod/3]
+[rpciod/4]
+[rpciod/5]
+[rpciod/6]
+[rpciod/7]
+[kslowd000]
+[kslowd001]
+[nfsiod]
+[lockd]
+/usr/sbin/acpid
+hald
+hald-runner
+hald-addon-input: Listening on /dev/input/event0 /dev/input/event2
+hald-addon-acpi: listening on acpid socket /var/run/acpid.socket
+/usr/sbin/sssd -f -D
+/usr/libexec/sssd/sssd_nss --uid 0 --gid 0 --debug-to-files
+/usr/libexec/sssd/sssd_pam --uid 0 --gid 0 --debug-to-files
+rpc.rquotad
+rpc.mountd
+[nfsd4]
+[nfsd4_callbacks]
+[nfsd]
+[nfsd]
+[nfsd]
+[nfsd]
+[nfsd]
+[nfsd]
+[nfsd]
+[nfsd]
+rpc.idmapd
+/usr/sbin/sshd
+ntpd -u ntp:ntp -p /var/run/ntpd.pid -g -x
+/usr/sbin/vsftpd /etc/vsftpd/vsftpd.conf
+/usr/openv/netbackup/bin/vnetd -standalone
+/usr/openv/netbackup/bin/bpcd -standalone
+/usr/libexec/postfix/master
+qmgr -l -t fifo -u
+/usr/sbin/abrtd
+abrt-dump-oops -d /var/spool/abrt -rwx /var/log/messages
+crond
+/usr/sbin/atd
+/opt/tivoli/tsm/client/ba/bin/dsmcad
+winbindd
+/ora112/app/product/11.2.0/grid/bin/ohasd.bin reboot
+python /usr/bin/goferd
+/usr/bin/rhsmcertd
+winbindd
+/ora112/app/product/11.2.0/grid/bin/oraagent.bin
+/ora112/app/product/11.2.0/grid/bin/mdnsd.bin
+/ora112/app/product/11.2.0/grid/bin/gpnpd.bin
+/ora112/app/product/11.2.0/grid/bin/orarootagent.bin
+/ora112/app/product/11.2.0/grid/bin/gipcd.bin
+/ora112/app/product/11.2.0/grid/bin/osysmond.bin
+/ora112/app/product/11.2.0/grid/bin/ologgerd -M -d /ora112/app/product/11.2.0/grid/crf/db/bvafloraci01
+/usr/sbin/oddjobd -p /var/run/oddjobd.pid -t 300
+/usr/sbin/certmonger -S -p /var/run/certmonger.pid
+ora_smco_otafxgen1
+/opt/IBM/ITM/lx8266/08/bin/k08agent
+/opt/IBM/ITM/lx8266/12/bin/k12agent
+/opt/IBM/ITM/lx8266/lz/bin/klzagent
+ora_q001_otafxgen1
+ora_q001_otafwebc1
+/ora112/app/product/11.2.0/grid/bin/cssdmonitor
+/ora112/app/product/11.2.0/grid/bin/cssdagent
+/ora112/app/product/11.2.0/grid/bin/ocssd.bin 
+/ora112/app/product/11.2.0/grid/bin/octssd.bin
+/ora112/app/product/11.2.0/grid/bin/evmd.bin
+asm_pmon_+ASM1
+asm_psp0_+ASM1
+asm_vktm_+ASM1
+asm_gen0_+ASM1
+asm_diag_+ASM1
+asm_ping_+ASM1
+asm_dia0_+ASM1
+asm_lmon_+ASM1
+asm_lmd0_+ASM1
+asm_lms0_+ASM1
+asm_lmhb_+ASM1
+asm_mman_+ASM1
+asm_dbw0_+ASM1
+asm_lgwr_+ASM1
+asm_ckpt_+ASM1
+asm_smon_+ASM1
+asm_rbal_+ASM1
+asm_gmon_+ASM1
+asm_mmon_+ASM1
+asm_mmnl_+ASM1
+asm_lck0_+ASM1
+oracle+ASM1 (DESCRIPTION=(LOCAL=YES)(ADDRESS=(PROTOCOL=beq)))
+/ora112/app/product/11.2.0/grid/bin/crsd.bin reboot
+oracle+ASM1_ocr (DESCRIPTION=(LOCAL=YES)(ADDRESS=(PROTOCOL=beq)))
+asm_asmb_+ASM1
+oracle+ASM1_asmb_+asm1 (DESCRIPTION=(LOCAL=YES)(ADDRESS=(PROTOCOL=beq)))
+/ora112/app/product/11.2.0/grid/bin/evmlogger.bin -o /ora112/app/product/11.2.0/grid/evm/log/evmlogger.info -l /ora112/app/product/11.2.0/grid/evm/log/evmlogger.log
+/ora112/app/product/11.2.0/grid/bin/oraagent.bin
+/ora112/app/product/11.2.0/grid/bin/orarootagent.bin
+oracle+ASM1 (DESCRIPTION=(LOCAL=YES)(ADDRESS=(PROTOCOL=beq)))
+oracle+ASM1 (DESCRIPTION=(LOCAL=YES)(ADDRESS=(PROTOCOL=beq)))
+oracle+ASM1 (DESCRIPTION=(LOCAL=YES)(ADDRESS=(PROTOCOL=beq)))
+/ora112/app/product/11.2.0/grid/opmn/bin/ons -d
+/ora112/app/product/11.2.0/grid/opmn/bin/ons -d
+/ora112/app/product/11.2.0/grid/bin/tnslsnr LISTENER_SCAN1 -inherit
+/ora112/app/product/11.2.0/grid/bin/tnslsnr LISTENER -inherit
+pickup -l -t fifo -u
+/opt/managesoft/libexec/ndschedag -o ScheduleType=Machine -r {9cd800db-6301-4901-b1ca-e0a58cf0f706}
+/opt/managesoft/libexec/ndupload -t Machine -a
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (DESCRIPTION=(LOCAL=YES)(ADDRESS=(PROTOCOL=beq)))
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+ora_gtx1_otafxgen1
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+/usr/sbin/vmtoolsd
+/opt/managesoft/libexec/mgsusageag
+/opt/managesoft/libexec/ndtask
+/opt/ctmagent/ctm/exe/p_ctmag
+/opt/ctmagent/ctm/exe/p_ctmat
+/opt/ctmagent/ctm/exe/p_ctmatw -ATW_NAME ATW000
+/sbin/mingetty /dev/tty1
+/sbin/mingetty /dev/tty2
+/sbin/mingetty /dev/tty3
+/sbin/mingetty /dev/tty4
+/sbin/mingetty /dev/tty5
+/sbin/mingetty /dev/tty6
+/sbin/udevd -d
+/sbin/udevd -d
+/opt/IBM/ITM/lx8266/lz/bin/kcawd
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+oracleotafxgen1 (LOCAL=NO)
+[flush-253:0]
+ora_w000_otafxgen1
+ora_w000_otafwebc1
+[flush-253:26]
+oracleotafwebc1 (LOCAL=NO)
+oracleotafwebc1 (LOCAL=NO)
+sshd: afb [priv] 
+sshd: afb@notty  
+bash -c #!/bin/bash????echo "------------------------- MOUNT"??mount??echo "------------------------- PS"??ps -eo args??echo "------------------------- YUM"??yum list installed???
+ps -eo args
+oracleotafxgen1 (LOCAL=NO)
+/opt/aws/discovery/aws-discoveryd
+winbindd
+/usr/libexec/sssd/sssd_be --domain default --uid 0 --gid 0 --debug-to-files
+ora_pmon_otafwebc1
+ora_psp0_otafwebc1
+ora_vktm_otafwebc1
+ora_gen0_otafwebc1
+ora_diag_otafwebc1
+ora_dbrm_otafwebc1
+ora_ping_otafwebc1
+ora_acms_otafwebc1
+ora_dia0_otafwebc1
+ora_lmon_otafwebc1
+ora_lmd0_otafwebc1
+ora_lms0_otafwebc1
+ora_lms1_otafwebc1
+ora_lms2_otafwebc1
+ora_lms3_otafwebc1
+ora_lms4_otafwebc1
+ora_lms5_otafwebc1
+ora_rms0_otafwebc1
+ora_lmhb_otafwebc1
+ora_mman_otafwebc1
+ora_dbw0_otafwebc1
+ora_dbw1_otafwebc1
+ora_lgwr_otafwebc1
+ora_ckpt_otafwebc1
+ora_smon_otafwebc1
+ora_reco_otafwebc1
+ora_rbal_otafwebc1
+ora_asmb_otafwebc1
+ora_mmon_otafwebc1
+oracle+ASM1_asmb_otafwebc1 (DESCRIPTION=(LOCAL=YES)(ADDRESS=(PROTOCOL=beq)))
+ora_mmnl_otafwebc1
+ora_d000_otafwebc1
+ora_mark_otafwebc1
+ora_lck0_otafwebc1
+ora_rsmn_otafwebc1
+ora_gtx0_otafwebc1
+ora_qmnc_otafwebc1
+oracleotafwebc1 (DESCRIPTION=(LOCAL=YES)(ADDRESS=(PROTOCOL=beq)))
+oracleotafwebc1 (DESCRIPTION=(LOCAL=YES)(ADDRESS=(PROTOCOL=beq)))
+oracleotafwebc1 (DESCRIPTION=(LOCAL=YES)(ADDRESS=(PROTOCOL=beq)))
+oracleotafwebc1 (DESCRIPTION=(LOCAL=YES)(ADDRESS=(PROTOCOL=beq)))
+oracleotafwebc1 (DESCRIPTION=(LOCAL=YES)(ADDRESS=(PROTOCOL=beq)))
+oracleotafwebc1 (DESCRIPTION=(LOCAL=YES)(ADDRESS=(PROTOCOL=beq)))
+ora_q000_otafwebc1
+ora_cjq0_otafwebc1
+asm_o000_+ASM1
+oracle+ASM1_o000_+asm1 (DESCRIPTION=(LOCAL=YES)(ADDRESS=(PROTOCOL=beq)))
+ora_smco_otafwebc1
+------------------------- YUM
+Loaded plugins: enabled_repos_upload, package_upload, product-id, search-
+              : disabled-repos, security, subscription-manager
+Installed Packages
+ConsoleKit.x86_64             0.4.1-6.el6          @spain-rhel-x86_64-server-6  
+ConsoleKit-libs.x86_64        0.4.1-6.el6          @spain-rhel-x86_64-server-6  
+ConsoleKit-x11.x86_64         0.4.1-6.el6          @spain-rhel-x86_64-server-6  
+GConf2.x86_64                 2.28.0-7.el6         @spain-rhel-x86_64-server-6  
+MAKEDEV.x86_64                3.24-6.el6           @Red Hat Enterprise Linux/6.3
+ORBit2.x86_64                 2.14.17-7.el6        @rhel-6-server-rpms          
+PyXML.x86_64                  0.8.4-19.el6         @Red Hat Enterprise Linux/6.3
+Red_Hat_Enterprise_Linux-Release_Notes-6-de-DE.noarch
+                              8-5.el6              @spain-rhel-x86_64-server-6  
+Red_Hat_Enterprise_Linux-Release_Notes-6-es-ES.noarch
+                              8-3.el6              @spain-rhel-x86_64-server-6  
+Red_Hat_Enterprise_Linux-Release_Notes-6-pt-BR.noarch
+                              8-1.el6              @spain-rhel-x86_64-server-6  
+SDL.x86_64                    1.2.14-7.el6_7.1     @spain-rhel-x86_64-server-6  
+SYMCnbclt.x86_64              7.5.0.4-4            installed                    
+SYMCnbjava.x86_64             7.5.0.4-4            installed                    
+SYMCnbjre.x86_64              7.5.0.0-0            installed                    
+SYMCpddea.x86_64              7.0.0.0-0            installed                    
+TDP-Oracle.x86_64             7.1.3-0              installed                    
+TDP-Oracle.Utility.x86_64     7.1.3-0              installed                    
+TIVsm-API64.x86_64            7.1.8-0              installed                    
+TIVsm-BA.x86_64               7.1.8-0              installed                    
+VRTSpbx.x86_64                1.5.1.5-5            installed                    
+abrt.x86_64                   2.0.8-44.el6         @rhel-6-server-rpms          
+abrt-addon-ccpp.x86_64        2.0.8-44.el6         @rhel-6-server-rpms          
+abrt-addon-kerneloops.x86_64  2.0.8-44.el6         @rhel-6-server-rpms          
+abrt-addon-python.x86_64      2.0.8-44.el6         @rhel-6-server-rpms          
+abrt-cli.x86_64               2.0.8-44.el6         @rhel-6-server-rpms          
+abrt-libs.x86_64              2.0.8-44.el6         @rhel-6-server-rpms          
+abrt-python.x86_64            2.0.8-44.el6         @rhel-6-server-rpms          
+abrt-tui.x86_64               2.0.8-44.el6         @rhel-6-server-rpms          
+acl.x86_64                    2.2.49-7.el6_9.1     @rhel-6-server-rpms          
+acpid.x86_64                  1.0.10-3.el6         @spain-rhel-x86_64-server-6  
+alsa-lib.x86_64               1.1.0-4.el6          @spain-rhel-x86_64-server-6  
+alsa-utils.x86_64             1.1.0-10.el6         @spain-rhel-x86_64-server-6  
+at.x86_64                     3.1.10-49.el6        @spain-rhel-x86_64-server-6  
+atk.x86_64                    1.30.0-1.el6         @rhel-x86_64-server-6        
+atlas.x86_64                  3.8.4-2.el6          @Red Hat Enterprise Linux/6.3
+attr.x86_64                   2.4.44-7.el6         @Red Hat Enterprise Linux/6.3
+audit.x86_64                  2.4.5-6.el6          @spain-rhel-x86_64-server-6  
+audit-libs.i686               2.4.5-6.el6          @spain-rhel-x86_64-server-6  
+audit-libs.x86_64             2.4.5-6.el6          @spain-rhel-x86_64-server-6  
+augeas-libs.x86_64            1.0.0-10.el6         @spain-rhel-x86_64-server-6  
+authconfig.x86_64             6.1.12-23.el6        @spain-rhel-x86_64-server-6  
+authconfig-gtk.x86_64         6.1.12-23.el6        @spain-rhel-x86_64-server-6  
+autofs.x86_64                 1:5.0.5-140.el6_10.1 @rhel-6-server-rpms          
+avahi.x86_64                  0.6.25-17.el6        @spain-rhel-x86_64-server-6  
+avahi-glib.x86_64             0.6.25-17.el6        @spain-rhel-x86_64-server-6  
+avahi-libs.x86_64             0.6.25-17.el6        @spain-rhel-x86_64-server-6  
+aws-discovery-agent.i386      1943:2.0.1943.0-1943 installed                    
+basesystem.noarch             10.0-4.el6           @Red Hat Enterprise Linux/6.3
+bash.x86_64                   4.1.2-48.el6         @spain-rhel-x86_64-server-6  
+bc.x86_64                     1.06.95-1.el6        @Red Hat Enterprise Linux/6.3
+bfa-firmware.noarch           3.2.23.0-2.el6       @spain-rhel-x86_64-server-6  
+bind-libs.x86_64              32:9.8.2-0.68.rc1.el6_10.8
+                                                   @rhel-6-server-rpms          
+bind-utils.x86_64             32:9.8.2-0.68.rc1.el6_10.8
+                                                   @rhel-6-server-rpms          
+binutils.x86_64               2.20.51.0.2-5.48.el6_10.1
+                                                   @rhel-6-server-rpms          
+biosdevname.x86_64            0.7.2-1.el6          @spain-rhel-x86_64-server-6  
+blktrace.x86_64               1.0.1-7.el6          @spain-rhel-x86_64-server-6  
+bridge-utils.x86_64           1.2-10.el6           @RHEL-unix_boadilla          
+btparser.x86_64               0.17-2.el6           @rhel-x86_64-server-6        
+busybox.x86_64                1:1.15.1-21.el6_6    @spain-rhel-x86_64-server-6  
+bzip2.x86_64                  1.0.5-7.el6_0        @Red Hat Enterprise Linux/6.3
+bzip2-libs.x86_64             1.0.5-7.el6_0        @Red Hat Enterprise Linux/6.3
+c-ares.x86_64                 1.10.0-3.el6         @spain-rhel-x86_64-server-6  
+c2050.x86_64                  0.3b-3.1.el6         @Red Hat Enterprise Linux/6.3
+c2070.x86_64                  0.99-7.el6           @Red Hat Enterprise Linux/6.3
+ca-certificates.noarch        2020.2.41-65.1.el6_10
+                                                   @rhel-6-server-rpms          
+cairo.x86_64                  1.8.8-6.el6_6        @spain-rhel-x86_64-server-6  
+cdparanoia-libs.x86_64        10.2-5.1.el6         @Red Hat Enterprise Linux/6.3
+certmonger.x86_64             0.77.5-4.el6         @spain-rhel-x86_64-server-6  
+checkpolicy.x86_64            2.0.22-1.el6         @Red Hat Enterprise Linux/6.3
+chkconfig.x86_64              1.3.49.5-1.el6       @spain-rhel-x86_64-server-6  
+cifs-utils.x86_64             4.8.1-20.el6         @rhel-6-server-rpms          
+cjet.x86_64                   0.8.9-9.1.el6        @Red Hat Enterprise Linux/6.3
+cloog-ppl.x86_64              0.15.7-1.2.el6       @Red Hat Enterprise Linux/6.3
+compat-db.x86_64              4.6.21-17.el6        @spain-rhel-x86_64-server-6  
+compat-db42.x86_64            4.2.52-17.el6        @spain-rhel-x86_64-server-6  
+compat-db43.x86_64            4.3.29-17.el6        @spain-rhel-x86_64-server-6  
+compat-glibc.x86_64           1:2.5-46.2           @Red Hat Enterprise Linux/6.3
+compat-glibc-headers.x86_64   1:2.5-46.2           @Red Hat Enterprise Linux/6.3
+compat-libcap1.x86_64         1.10-1               @rhel-x86_64-server-6        
+compat-libstdc++-296.i686     2.96-144.el6         @Red Hat Enterprise Linux/6.3
+compat-libstdc++-33.i686      3.2.3-69.el6         @PRB-Kid-RHEL-Repository     
+compat-libstdc++-33.x86_64    3.2.3-69.el6         @Red Hat Enterprise Linux/6.3
+compat-openldap.x86_64        1:2.3.43-2.el6       @Red Hat Enterprise Linux/6.3
+compat-opensm-libs.x86_64     3.3.5-3.el6          @Red Hat Enterprise Linux/6.3
+compat-xcb-util.x86_64        0.4.0-2.2.el6        @spain-rhel-x86_64-server-6  
+control-center-filesystem.x86_64
+                              1:2.28.1-41.el6      @spain-rhel-x86_64-server-6  
+copy-jdk-configs.noarch       3.3-9.el6            @rhel-6-server-rpms          
+coreutils.x86_64              8.4-47.el6           @rhel-6-server-rpms          
+coreutils-libs.x86_64         8.4-47.el6           @rhel-6-server-rpms          
+cpio.x86_64                   2.10-13.el6          @spain-rhel-x86_64-server-6  
+cpp.x86_64                    4.4.7-23.el6         @rhel-6-server-rpms          
+cracklib.i686                 2.8.16-4.el6         @PRB-Kid-RHEL-Repository     
+cracklib.x86_64               2.8.16-4.el6         @Red Hat Enterprise Linux/6.3
+cracklib-dicts.x86_64         2.8.16-4.el6         @Red Hat Enterprise Linux/6.3
+cracklib-python.x86_64        2.8.16-4.el6         @Red Hat Enterprise Linux/6.3
+crda.x86_64                   3.13_2015.10.22-3.el6
+                                                   @spain-rhel-x86_64-server-6  
+cronie.x86_64                 1.4.4-16.el6_8.2     @spain-rhel-x86_64-server-6  
+cronie-anacron.x86_64         1.4.4-16.el6_8.2     @spain-rhel-x86_64-server-6  
+crontabs.noarch               1.10-33.el6          @Red Hat Enterprise Linux/6.3
+cryptsetup-luks.x86_64        1.2.0-11.el6         @spain-rhel-x86_64-server-6  
+cryptsetup-luks-libs.x86_64   1.2.0-11.el6         @spain-rhel-x86_64-server-6  
+cups.x86_64                   1:1.4.2-81.el6_10    @rhel-6-server-rpms          
+cups-libs.x86_64              1:1.4.2-81.el6_10    @rhel-6-server-rpms          
+cups-pk-helper.x86_64         0.0.4-13.el6         @spain-rhel-x86_64-server-6  
+curl.x86_64                   7.19.7-54.el6_10     @rhel-6-server-rpms          
+cvs.x86_64                    1.11.23-16.el6       @rhel-x86_64-server-6        
+cyrus-sasl.x86_64             2.1.23-15.el6_6.2    @spain-rhel-x86_64-server-6  
+cyrus-sasl-gssapi.x86_64      2.1.23-15.el6_6.2    @spain-rhel-x86_64-server-6  
+cyrus-sasl-lib.x86_64         2.1.23-15.el6_6.2    @spain-rhel-x86_64-server-6  
+cyrus-sasl-plain.x86_64       2.1.23-15.el6_6.2    @spain-rhel-x86_64-server-6  
+dash.x86_64                   0.5.5.1-4.el6        @RHEL-unix_boadilla          
+db4.i686                      4.7.25-22.el6        @spain-rhel-x86_64-server-6  
+db4.x86_64                    4.7.25-22.el6        @spain-rhel-x86_64-server-6  
+db4-cxx.x86_64                4.7.25-22.el6        @spain-rhel-x86_64-server-6  
+db4-devel.x86_64              4.7.25-22.el6        @spain-rhel-x86_64-server-6  
+db4-utils.x86_64              4.7.25-22.el6        @spain-rhel-x86_64-server-6  
+dbus.x86_64                   1:1.2.24-11.el6_10   @rhel-6-server-rpms          
+dbus-glib.x86_64              0.86-6.el6_4         @rhel-x86_64-server-6        
+dbus-libs.i686                1:1.2.24-11.el6_10   @rhel-6-server-rpms          
+dbus-libs.x86_64              1:1.2.24-11.el6_10   @rhel-6-server-rpms          
+dbus-python.x86_64            0.83.0-6.1.el6       @Red Hat Enterprise Linux/6.3
+dbus-x11.x86_64               1:1.2.24-11.el6_10   @rhel-6-server-rpms          
+dejavu-fonts-common.noarch    2.33-1.el6           @spain-rhel-x86_64-server-6  
+dejavu-sans-fonts.noarch      2.33-1.el6           @spain-rhel-x86_64-server-6  
+desktop-file-utils.x86_64     0.15-9.el6           @Red Hat Enterprise Linux/6.3
+device-mapper.x86_64          1.02.117-12.el6_9.1  @rhel-6-server-rpms          
+device-mapper-event.x86_64    1.02.117-12.el6_9.1  @rhel-6-server-rpms          
+device-mapper-event-libs.x86_64
+                              1.02.117-12.el6_9.1  @rhel-6-server-rpms          
+device-mapper-libs.x86_64     1.02.117-12.el6_9.1  @rhel-6-server-rpms          
+device-mapper-persistent-data.x86_64
+                              0.6.2-0.2.rc7.el6    @rhel-6-server-rpms          
+dialog.x86_64                 1.1-10.20080819.el6  @spain-rhel-x86_64-server-6  
+diffutils.x86_64              2.8.1-28.el6         @Red Hat Enterprise Linux/6.3
+dmidecode.x86_64              1:2.12-7.el6         @spain-rhel-x86_64-server-6  
+dmraid.x86_64                 1.0.0.rc16-11.el6    @Red Hat Enterprise Linux/6.3
+dmraid-events.x86_64          1.0.0.rc16-11.el6    @Red Hat Enterprise Linux/6.3
+dmz-cursor-themes.noarch      0.4-4.el6            @Red Hat Enterprise Linux/6.3
+docbook-dtds.noarch           1.0-51.el6           @Red Hat Enterprise Linux/6.3
+dos2unix.x86_64               3.1-37.el6           @Red Hat Enterprise Linux/6.3
+dracut.noarch                 004-411.el6          @rhel-6-server-rpms          
+dracut-kernel.noarch          004-411.el6          @rhel-6-server-rpms          
+dstat.noarch                  0.7.0-3.el6_9.1      @rhel-6-server-rpms          
+e2fsprogs.x86_64              1.41.12-24.el6       @rhel-6-server-rpms          
+e2fsprogs-libs.x86_64         1.41.12-24.el6       @rhel-6-server-rpms          
+ed.x86_64                     1.1-3.3.el6          @Red Hat Enterprise Linux/6.3
+efibootmgr.x86_64             0.5.4-15.el6         @spain-rhel-x86_64-server-6  
+eggdbus.x86_64                0.6-3.el6            @Red Hat Enterprise Linux/6.3
+elfutils.x86_64               0.164-2.el6          @spain-rhel-x86_64-server-6  
+elfutils-libelf.x86_64        0.164-2.el6          @spain-rhel-x86_64-server-6  
+elfutils-libelf-devel.x86_64  0.164-2.el6          @spain-rhel-x86_64-server-6  
+elfutils-libs.x86_64          0.164-2.el6          @spain-rhel-x86_64-server-6  
+enscript.x86_64               1.6.4-15.el6         @Red Hat Enterprise Linux/6.3
+environment-modules.x86_64    3.2.10-3.el6         @spain-rhel-x86_64-server-6  
+ethtool.x86_64                2:3.5-6.el6          @spain-rhel-x86_64-server-6  
+expat.x86_64                  2.0.1-13.el6_8       @spain-rhel-x86_64-server-6  
+file.x86_64                   5.04-30.el6          @spain-rhel-x86_64-server-6  
+file-libs.x86_64              5.04-30.el6          @spain-rhel-x86_64-server-6  
+filesystem.x86_64             2.4.30-3.el6         @Red Hat Enterprise Linux/6.3
+findutils.x86_64              1:4.4.2-9.el6        @spain-rhel-x86_64-server-6  
+fipscheck.x86_64              1.2.0-7.el6          @Red Hat Enterprise Linux/6.3
+fipscheck-lib.x86_64          1.2.0-7.el6          @Red Hat Enterprise Linux/6.3
+firstboot.x86_64              1.110.15-4.el6       @spain-rhel-x86_64-server-6  
+flac.x86_64                   1.2.1-7.el6_6        @spain-rhel-x86_64-server-6  
+fontconfig.x86_64             2.8.0-5.el6          @spain-rhel-x86_64-server-6  
+fontpackages-filesystem.noarch
+                              1.41-1.1.el6         @Red Hat Enterprise Linux/6.3
+foomatic.x86_64               4.0.4-5.el6_7        @spain-rhel-x86_64-server-6  
+foomatic-db.noarch            4.0-8.20091126.el6   @spain-rhel-x86_64-server-6  
+foomatic-db-filesystem.noarch 4.0-8.20091126.el6   @spain-rhel-x86_64-server-6  
+foomatic-db-ppds.noarch       4.0-8.20091126.el6   @spain-rhel-x86_64-server-6  
+fprintd.x86_64                0.1-22.git04fd09cfa.el6
+                                                   @spain-rhel-x86_64-server-6  
+fprintd-pam.x86_64            0.1-22.git04fd09cfa.el6
+                                                   @spain-rhel-x86_64-server-6  
+freetype.x86_64               2.3.11-19.el6_10     @rhel-6-server-rpms          
+ftp.x86_64                    0.17-54.el6          @rhel-x86_64-server-6        
+gamin.x86_64                  0.1.10-9.el6         @Red Hat Enterprise Linux/6.3
+gawk.x86_64                   3.1.7-10.el6_7.3     @spain-rhel-x86_64-server-6  
+gcc.x86_64                    4.4.7-23.el6         @rhel-6-server-rpms          
+gcc-c++.x86_64                4.4.7-23.el6         @rhel-6-server-rpms          
+gdbm.x86_64                   1.8.0-39.el6         @spain-rhel-x86_64-server-6  
+gdbm-devel.x86_64             1.8.0-39.el6         @spain-rhel-x86_64-server-6  
+gdk-pixbuf2.x86_64            2.24.1-6.el6_7       @spain-rhel-x86_64-server-6  
+gettext.x86_64                0.17-18.el6          @spain-rhel-x86_64-server-6  
+ghostscript.x86_64            8.70-24.el6_10.2     @rhel-6-server-rpms          
+ghostscript-fonts.noarch      5.50-23.2.el6        @spain-rhel-x86_64-server-6  
+giflib.x86_64                 4.1.6-3.1.el6        @Red Hat Enterprise Linux/6.3
+glib2.x86_64                  2.28.8-10.el6        @rhel-6-server-rpms          
+glibc.i686                    2.12-1.212.el6_10.3  @rhel-6-server-rpms          
+glibc.x86_64                  2.12-1.212.el6_10.3  @rhel-6-server-rpms          
+glibc-common.x86_64           2.12-1.212.el6_10.3  @rhel-6-server-rpms          
+glibc-devel.x86_64            2.12-1.212.el6_10.3  @rhel-6-server-rpms          
+glibc-headers.x86_64          2.12-1.212.el6_10.3  @rhel-6-server-rpms          
+glx-utils.x86_64              11.0.7-4.el6         @spain-rhel-x86_64-server-6  
+gmp.x86_64                    4.3.1-13.el6         @rhel-6-server-rpms          
+gnome-doc-utils-stylesheets.noarch
+                              0.18.1-1.el6         @Red Hat Enterprise Linux/6.3
+gnome-icon-theme.noarch       2.28.0-8.el6         @spain-rhel-x86_64-server-6  
+gnome-keyring.x86_64          2.28.2-8.el6_3       @RHEL-unix_boadilla          
+gnome-python2.x86_64          2.28.0-3.el6         @Red Hat Enterprise Linux/6.3
+gnome-python2-bonobo.x86_64   2.28.0-3.el6         @Red Hat Enterprise Linux/6.3
+gnome-python2-canvas.x86_64   2.28.0-3.el6         @Red Hat Enterprise Linux/6.3
+gnome-python2-desktop.x86_64  2.28.0-5.el6         @rhel-x86_64-server-6        
+gnome-python2-gnome.x86_64    2.28.0-3.el6         @Red Hat Enterprise Linux/6.3
+gnome-python2-gnomekeyring.x86_64
+                              2.28.0-5.el6         @rhel-x86_64-server-6        
+gnome-python2-gnomevfs.x86_64 2.28.0-3.el6         @Red Hat Enterprise Linux/6.3
+gnome-themes.noarch           2.28.1-7.el6         @spain-rhel-x86_64-server-6  
+gnome-user-docs.noarch        2.28.0-4.el6         @Red Hat Enterprise Linux/6.3
+gnome-vfs2.x86_64             2.24.2-8.el6         @spain-rhel-x86_64-server-6  
+gnupg2.x86_64                 2.0.14-9.el6_10      @rhel-6-server-rpms          
+gnutls.x86_64                 2.12.23-22.el6       @rhel-6-server-rpms          
+gofer.noarch                  2.7.8-1.el6sat       @rhel-6-server-satellite-tools-6.3-rpms
+gpgme.x86_64                  1.1.8-3.el6          @Red Hat Enterprise Linux/6.3
+gpm-libs.x86_64               1.20.6-12.el6        @Red Hat Enterprise Linux/6.3
+grep.x86_64                   2.20-6.el6           @spain-rhel-x86_64-server-6  
+groff.x86_64                  1.18.1.4-21.el6      @Red Hat Enterprise Linux/6.3
+grub.x86_64                   1:0.97-99.el6        @spain-rhel-x86_64-server-6  
+grubby.x86_64                 7.0.15-7.el6         @spain-rhel-x86_64-server-6  
+gskcrypt64.x86_64             8.0-50.78            installed                    
+gskssl64.x86_64               8.0-50.78            installed                    
+gstreamer.x86_64              0.10.29-1.el6        @Red Hat Enterprise Linux/6.3
+gstreamer-plugins-base.x86_64 0.10.29-2.el6        @RHEL-unix_boadilla          
+gstreamer-tools.x86_64        0.10.29-1.el6        @Red Hat Enterprise Linux/6.3
+gtk2.x86_64                   2.24.23-9.el6        @spain-rhel-x86_64-server-6  
+gtk2-engines.x86_64           2.18.4-5.el6         @Red Hat Enterprise Linux/6.3
+gzip.x86_64                   1.3.12-24.el6        @spain-rhel-x86_64-server-6  
+hal.x86_64                    0.5.14-14.el6        @spain-rhel-x86_64-server-6  
+hal-info.noarch               20090716-5.el6       @spain-rhel-x86_64-server-6  
+hal-libs.x86_64               0.5.14-14.el6        @spain-rhel-x86_64-server-6  
+hdparm.x86_64                 9.43-4.el6           @rhel-x86_64-server-6        
+hesiod.x86_64                 3.1.0-19.el6         @Red Hat Enterprise Linux/6.3
+hicolor-icon-theme.noarch     0.11-1.1.el6         @Red Hat Enterprise Linux/6.3
+hunspell.x86_64               1.2.8-16.el6         @Red Hat Enterprise Linux/6.3
+hunspell-de.noarch            0.20090107-4.1.el6   @Red Hat Enterprise Linux/6.3
+hunspell-es.noarch            0.20081215-3.1.el6   @Red Hat Enterprise Linux/6.3
+hunspell-pt.noarch            0.20090702-4.el6     @Red Hat Enterprise Linux/6.3
+hwdata.noarch                 0.233-20.1.el6       @rhel-6-server-rpms          
+infinipath-psm.x86_64         3.3-19_g67c0807_open.el6
+                                                   @spain-rhel-x86_64-server-6  
+info.x86_64                   4.13a-8.el6          @Red Hat Enterprise Linux/6.3
+initscripts.x86_64            9.03.61-1.el6        @rhel-6-server-rpms          
+iotop.noarch                  0.3.2-9.el6          @spain-rhel-x86_64-server-6  
+ipa-client.x86_64             3.0.0-51.el6         @spain-rhel-x86_64-server-6  
+ipa-python.x86_64             3.0.0-51.el6         @spain-rhel-x86_64-server-6  
+iproute.x86_64                2.6.32-57.el6        @rhel-6-server-rpms          
+iptables.x86_64               1.4.7-19.el6         @rhel-6-server-rpms          
+iptables-ipv6.x86_64          1.4.7-19.el6         @rhel-6-server-rpms          
+iputils.x86_64                20071127-24.el6      @spain-rhel-x86_64-server-6  
+irqbalance.x86_64             2:1.0.7-9.el6        @rhel-6-server-rpms          
+iso-codes.noarch              3.16-2.el6           @Red Hat Enterprise Linux/6.3
+iw.x86_64                     4.1-1.el6            @spain-rhel-x86_64-server-6  
+iwl5150-firmware.noarch       8.24.2.2-1.el6       @Red Hat Enterprise Linux/6.3
+jabberpy.noarch               0.5-0.22.el6sat      @boa-rhel-x86_64-server-tools-6.base2016
+jasper-libs.x86_64            1.900.1-22.el6       @rhel-6-server-rpms          
+java-1.5.0-gcj.x86_64         1.5.0.0-29.1.el6     @PRB-Kid-RHEL-Repository     
+java-1.6.0-openjdk.x86_64     1:1.6.0.41-1.13.13.1.el6_8
+                                                   @spain-rhel-x86_64-server-6  
+java-1.7.0-openjdk.x86_64     1:1.7.0.261-2.6.22.1.el6_10
+                                                   @rhel-6-server-rpms          
+java_cup.x86_64               1:0.10k-5.el6        @PRB-Kid-RHEL-Repository     
+javapackages-tools.noarch     3.4.1-1.1.el6        @spain-rhel-x86_64-server-rhscl-6
+jline.noarch                  0.9.94-0.8.el6       @Red Hat Enterprise Linux/6.3
+json-c.x86_64                 0.11-13.el6          @spain-rhel-x86_64-server-6  
+katello-agent.noarch          3.1.0-2.el6sat       @rhel-6-server-satellite-tools-6.3-rpms
+katello-ca-consumer-satellite-capsule01-santander.santander.corp.noarch
+                              1.0-1                installed                    
+katello-host-tools.noarch     3.1.0-2.el6sat       @rhel-6-server-satellite-tools-6.3-rpms
+katello-host-tools-fact-plugin.noarch
+                              3.1.0-2.el6sat       @rhel-6-server-satellite-tools-6.3-rpms
+kbd.x86_64                    1.15-11.el6          @Red Hat Enterprise Linux/6.3
+kbd-misc.noarch               1.15-11.el6          @Red Hat Enterprise Linux/6.3
+kernel.x86_64                 2.6.32-696.30.1.el6  @rhel-6-server-rpms          
+kernel.x86_64                 2.6.32-754.9.1.el6   @rhel-6-server-rpms          
+kernel.x86_64                 2.6.32-754.35.1.el6  @rhel-6-server-rpms          
+kernel-devel.x86_64           2.6.32-696.30.1.el6  @rhel-6-server-rpms          
+kernel-devel.x86_64           2.6.32-754.9.1.el6   @rhel-6-server-rpms          
+kernel-devel.x86_64           2.6.32-754.35.1.el6  @rhel-6-server-rpms          
+kernel-firmware.noarch        2.6.32-754.35.1.el6  @rhel-6-server-rpms          
+kernel-headers.x86_64         2.6.32-754.35.1.el6  @rhel-6-server-rpms          
+kexec-tools.x86_64            2.0.0-310.el6        @rhel-6-server-rpms          
+keyutils.x86_64               1.4-5.el6            @spain-rhel-x86_64-server-6  
+keyutils-libs.i686            1.4-5.el6            @spain-rhel-x86_64-server-6  
+keyutils-libs.x86_64          1.4-5.el6            @spain-rhel-x86_64-server-6  
+keyutils-libs-devel.x86_64    1.4-5.el6            @spain-rhel-x86_64-server-6  
+kpartx.x86_64                 0.4.9-106.el6_10.1   @rhel-6-server-rpms          
+krb5-devel.x86_64             1.10.3-65.el6        @spain-rhel-x86_64-server-6  
+krb5-libs.i686                1.10.3-65.el6        @spain-rhel-x86_64-server-6  
+krb5-libs.x86_64              1.10.3-65.el6        @spain-rhel-x86_64-server-6  
+krb5-workstation.x86_64       1.10.3-65.el6        @spain-rhel-x86_64-server-6  
+ksh.x86_64                    20120801-37.el6_9    @rhel-6-server-rpms          
+latencytop.x86_64             0.5-9.el6            @Red Hat Enterprise Linux/6.3
+latencytop-common.x86_64      0.5-9.el6            @Red Hat Enterprise Linux/6.3
+latencytop-tui.x86_64         0.5-9.el6            @Red Hat Enterprise Linux/6.3
+lcms-libs.x86_64              1.19-1.el6           @Red Hat Enterprise Linux/6.3
+ledmon.x86_64                 0.79-1.el6           @spain-rhel-x86_64-server-6  
+less.x86_64                   436-13.el6           @spain-rhel-x86_64-server-6  
+libICE.i686                   1.0.6-1.el6          @PRB-Kid-RHEL-Repository     
+libICE.x86_64                 1.0.6-1.el6          @Red Hat Enterprise Linux/6.3
+libIDL.x86_64                 0.8.13-2.1.el6       @Red Hat Enterprise Linux/6.3
+libSM.i686                    1.2.1-2.el6          @RHEL-unix_boadilla          
+libSM.x86_64                  1.2.1-2.el6          @RHEL-unix_boadilla          
+libX11.i686                   1.6.4-4.el6_10       @rhel-6-server-rpms          
+libX11.x86_64                 1.6.4-4.el6_10       @rhel-6-server-rpms          
+libX11-common.noarch          1.6.4-4.el6_10       @rhel-6-server-rpms          
+libX11-devel.x86_64           1.6.4-4.el6_10       @rhel-6-server-rpms          
+libXau.i686                   1.0.6-4.el6          @RHEL-unix_boadilla          
+libXau.x86_64                 1.0.6-4.el6          @RHEL-unix_boadilla          
+libXau-devel.x86_64           1.0.6-4.el6          @RHEL-unix_boadilla          
+libXaw.x86_64                 1.0.11-2.el6         @RHEL-unix_boadilla          
+libXcomposite.x86_64          0.4.3-4.el6          @RHEL-unix_boadilla          
+libXcursor.x86_64             1.1.14-2.1.el6       @spain-rhel-x86_64-server-6  
+libXdamage.x86_64             1.1.3-4.el6          @RHEL-unix_boadilla          
+libXdmcp.x86_64               1.1.1-3.el6          @RHEL-unix_boadilla          
+libXdmcp-devel.x86_64         1.1.1-3.el6          @RHEL-unix_boadilla          
+libXext.i686                  1.3.3-1.el6          @spain-rhel-x86_64-server-6  
+libXext.x86_64                1.3.3-1.el6          @spain-rhel-x86_64-server-6  
+libXext-devel.x86_64          1.3.3-1.el6          @spain-rhel-x86_64-server-6  
+libXfixes.x86_64              5.0.3-1.el6          @spain-rhel-x86_64-server-6  
+libXfont.x86_64               1.5.1-2.el6          @spain-rhel-x86_64-server-6  
+libXft.x86_64                 2.3.2-1.el6          @spain-rhel-x86_64-server-6  
+libXi.i686                    1.7.8-1.el6          @spain-rhel-x86_64-server-6  
+libXi.x86_64                  1.7.8-1.el6          @spain-rhel-x86_64-server-6  
+libXinerama.x86_64            1.1.3-2.1.el6        @spain-rhel-x86_64-server-6  
+libXmu.i686                   1.1.1-2.el6          @RHEL-unix_boadilla          
+libXmu.x86_64                 1.1.1-2.el6          @RHEL-unix_boadilla          
+libXp.i686                    1.0.2-2.1.el6        @spain-rhel-x86_64-server-6  
+libXp.x86_64                  1.0.2-2.1.el6        @spain-rhel-x86_64-server-6  
+libXp-devel.i686              1.0.2-2.1.el6        @spain-rhel-x86_64-server-6  
+libXp-devel.x86_64            1.0.2-2.1.el6        @spain-rhel-x86_64-server-6  
+libXpm.i686                   3.5.10-2.el6         @RHEL-unix_boadilla          
+libXpm.x86_64                 3.5.10-2.el6         @RHEL-unix_boadilla          
+libXpm-devel.i686             3.5.10-2.el6         @RHEL-unix_boadilla          
+libXpm-devel.x86_64           3.5.10-2.el6         @RHEL-unix_boadilla          
+libXrandr.x86_64              1.5.1-1.el6          @spain-rhel-x86_64-server-6  
+libXrender.x86_64             0.9.10-1.el6         @spain-rhel-x86_64-server-6  
+libXres.x86_64                1.0.7-2.1.el6        @spain-rhel-x86_64-server-6  
+libXt.i686                    1.1.4-6.1.el6        @spain-rhel-x86_64-server-6  
+libXt.x86_64                  1.1.4-6.1.el6        @spain-rhel-x86_64-server-6  
+libXtst.i686                  1.2.3-1.el6          @spain-rhel-x86_64-server-6  
+libXtst.x86_64                1.2.3-1.el6          @spain-rhel-x86_64-server-6  
+libXv.x86_64                  1.0.11-1.el6         @spain-rhel-x86_64-server-6  
+libXvMC.x86_64                1.0.10-1.el6         @spain-rhel-x86_64-server-6  
+libXxf86dga.x86_64            1.1.4-2.1.el6        @spain-rhel-x86_64-server-6  
+libXxf86misc.x86_64           1.0.3-4.el6          @RHEL-unix_boadilla          
+libXxf86vm.x86_64             1.1.3-2.1.el6        @spain-rhel-x86_64-server-6  
+libacl.x86_64                 2.2.49-7.el6_9.1     @rhel-6-server-rpms          
+libaio.i686                   0.3.107-10.el6       @PRB-Kid-RHEL-Repository     
+libaio.x86_64                 0.3.107-10.el6       @Red Hat Enterprise Linux/6.3
+libaio-devel.x86_64           0.3.107-10.el6       @Red Hat Enterprise Linux/6.3
+libarchive.x86_64             2.8.3-7.el6_8        @rhel-6-server-rpms          
+libart_lgpl.x86_64            2.3.20-5.1.el6       @Red Hat Enterprise Linux/6.3
+libasyncns.x86_64             0.8-1.1.el6          @Red Hat Enterprise Linux/6.3
+libattr.x86_64                2.4.44-7.el6         @Red Hat Enterprise Linux/6.3
+libbasicobjects.x86_64        0.1.1-13.el6         @rhel-6-server-rpms          
+libblkid.x86_64               2.17.2-12.28.el6_9.2 @rhel-6-server-rpms          
+libbonobo.x86_64              2.24.2-5.el6         @Red Hat Enterprise Linux/6.3
+libbonoboui.x86_64            2.24.2-3.el6         @Red Hat Enterprise Linux/6.3
+libcanberra.x86_64            0.22-3.el6           @spain-rhel-x86_64-server-6  
+libcanberra-gtk2.x86_64       0.22-3.el6           @spain-rhel-x86_64-server-6  
+libcap.x86_64                 2.16-5.5.el6         @Red Hat Enterprise Linux/6.3
+libcap-ng.x86_64              0.6.4-3.el6_0.1      @Red Hat Enterprise Linux/6.3
+libcollection.x86_64          0.6.2-13.el6         @rhel-6-server-rpms          
+libcom_err.i686               1.41.12-24.el6       @rhel-6-server-rpms          
+libcom_err.x86_64             1.41.12-24.el6       @rhel-6-server-rpms          
+libcom_err-devel.x86_64       1.41.12-24.el6       @rhel-6-server-optional-rpms 
+libcroco.x86_64               0.6.2-5.el6          @Red Hat Enterprise Linux/6.3
+libcurl.x86_64                7.19.7-54.el6_10     @rhel-6-server-rpms          
+libdaemon.x86_64              0.14-1.el6           @Red Hat Enterprise Linux/6.3
+libdhash.x86_64               0.4.3-13.el6         @rhel-6-server-rpms          
+libdmx.x86_64                 1.1.3-3.el6          @spain-rhel-x86_64-server-6  
+libdrm.x86_64                 2.4.65-2.el6         @spain-rhel-x86_64-server-6  
+libedit.x86_64                2.11-4.20080712cvs.1.el6
+                                                   @Red Hat Enterprise Linux/6.3
+libepoxy.x86_64               1.2-3.el6            @spain-rhel-x86_64-server-6  
+liberation-fonts-common.noarch
+                              1.05.1.20090721-5.el6
+                                                   @Red Hat Enterprise Linux/6.3
+liberation-sans-fonts.noarch  1.05.1.20090721-5.el6
+                                                   @Red Hat Enterprise Linux/6.3
+libertas-usb8388-firmware.noarch
+                              2:5.110.22.p23-3.1.el6
+                                                   @Red Hat Enterprise Linux/6.3
+libesmtp.x86_64               1.0.4-15.el6         @rhel-x86_64-server-6        
+libevdev.x86_64               1.4.5-2.el6          @spain-rhel-x86_64-server-6  
+libevent.x86_64               1.4.13-4.el6         @Red Hat Enterprise Linux/6.3
+libffi.x86_64                 3.0.5-3.2.el6        @Red Hat Enterprise Linux/6.3
+libfontenc.x86_64             1.1.2-3.el6          @spain-rhel-x86_64-server-6  
+libfprint.x86_64              0.1.0-19.pre2.el6    @Red Hat Enterprise Linux/6.3
+libgcc.i686                   4.4.7-23.el6         @rhel-6-server-rpms          
+libgcc.x86_64                 4.4.7-23.el6         @rhel-6-server-rpms          
+libgcj.x86_64                 4.4.7-23.el6         @rhel-6-server-rpms          
+libgcrypt.x86_64              1.4.5-12.el6_8       @spain-rhel-x86_64-server-6  
+libgfortran.x86_64            4.4.7-23.el6         @rhel-6-server-rpms          
+libglade2.x86_64              2.6.4-3.1.el6        @Red Hat Enterprise Linux/6.3
+libgnome.x86_64               2.28.0-11.el6        @Red Hat Enterprise Linux/6.3
+libgnomecanvas.x86_64         2.26.0-4.el6         @Red Hat Enterprise Linux/6.3
+libgnomeui.x86_64             2.24.1-4.el6         @Red Hat Enterprise Linux/6.3
+libgomp.x86_64                4.4.7-23.el6         @rhel-6-server-rpms          
+libgpg-error.x86_64           1.7-4.el6            @Red Hat Enterprise Linux/6.3
+libgsf.x86_64                 1.14.15-5.el6        @Red Hat Enterprise Linux/6.3
+libgssglue.x86_64             0.1-11.el6           @Red Hat Enterprise Linux/6.3
+libgudev1.x86_64              147-2.74.el6_10      @rhel-6-server-rpms          
+libibcm.x86_64                1.0.5-3.el6          @Red Hat Enterprise Linux/6.3
+libibverbs.x86_64             1.1.8-4.el6          @spain-rhel-x86_64-server-6  
+libidn.x86_64                 1.18-2.el6           @Red Hat Enterprise Linux/6.3
+libini_config.x86_64          1.1.0-13.el6         @rhel-6-server-rpms          
+libipa_hbac.x86_64            1.13.3-60.el6_10.2   @rhel-6-server-rpms          
+libjpeg-turbo.i686            1.2.1-3.el6_5        @rhel-x86_64-server-6        
+libjpeg-turbo.x86_64          1.2.1-3.el6_5        @rhel-x86_64-server-6        
+libjpeg-turbo-devel.i686      1.2.1-3.el6_5        @rhel-x86_64-server-6        
+libjpeg-turbo-devel.x86_64    1.2.1-3.el6_5        @rhel-x86_64-server-6        
+libkadm5.x86_64               1.10.3-65.el6        @spain-rhel-x86_64-server-6  
+libldb.x86_64                 1.1.25-2.el6_7       @spain-rhel-x86_64-server-6  
+libmcpp.x86_64                2.7.2-4.1.el6        @Red Hat Enterprise Linux/6.3
+libmng.x86_64                 1.0.10-4.1.el6       @Red Hat Enterprise Linux/6.3
+libnih.x86_64                 1.0.1-8.el6          @rhel-6-server-rpms          
+libnl.x86_64                  1.1.4-2.el6          @rhel-x86_64-server-6        
+libnl3.x86_64                 3.2.21-8.el6         @spain-rhel-x86_64-server-6  
+libnotify.x86_64              0.5.0-1.el6          @Red Hat Enterprise Linux/6.3
+libogg.x86_64                 2:1.1.4-2.1.el6      @Red Hat Enterprise Linux/6.3
+liboil.x86_64                 0.3.16-4.1.el6       @Red Hat Enterprise Linux/6.3
+libpath_utils.x86_64          0.2.1-13.el6         @rhel-6-server-rpms          
+libpcap.x86_64                14:1.4.0-4.20130826git2dbcaa1.el6
+                                                   @spain-rhel-x86_64-server-6  
+libpciaccess.x86_64           0.13.4-1.el6         @spain-rhel-x86_64-server-6  
+libpng.x86_64                 2:1.2.49-2.el6_7     @spain-rhel-x86_64-server-6  
+libproxy.x86_64               0.3.0-10.el6         @spain-rhel-x86_64-server-6  
+libproxy-bin.x86_64           0.3.0-10.el6         @spain-rhel-x86_64-server-6  
+libproxy-python.x86_64        0.3.0-10.el6         @spain-rhel-x86_64-server-6  
+librdmacm.x86_64              1.0.21-0.el6         @spain-rhel-x86_64-server-6  
+libref_array.x86_64           0.1.4-13.el6         @rhel-6-server-rpms          
+libreport.x86_64              2.0.9-34.el6         @rhel-6-server-rpms          
+libreport-cli.x86_64          2.0.9-34.el6         @rhel-6-server-rpms          
+libreport-compat.x86_64       2.0.9-34.el6         @rhel-6-server-rpms          
+libreport-filesystem.x86_64   2.0.9-34.el6         @rhel-6-server-rpms          
+libreport-gtk.x86_64          2.0.9-34.el6         @rhel-6-server-rpms          
+libreport-newt.x86_64         2.0.9-34.el6         @rhel-6-server-rpms          
+libreport-plugin-kerneloops.x86_64
+                              2.0.9-34.el6         @rhel-6-server-rpms          
+libreport-plugin-logger.x86_64
+                              2.0.9-34.el6         @rhel-6-server-rpms          
+libreport-plugin-mailx.x86_64 2.0.9-34.el6         @rhel-6-server-rpms          
+libreport-plugin-reportuploader.x86_64
+                              2.0.9-34.el6         @rhel-6-server-rpms          
+libreport-plugin-rhtsupport.x86_64
+                              2.0.9-34.el6         @rhel-6-server-rpms          
+libreport-plugin-ureport.x86_64
+                              2.0.9-34.el6         @rhel-6-server-rpms          
+libreport-python.x86_64       2.0.9-34.el6         @rhel-6-server-rpms          
+librsvg2.x86_64               2.26.0-14.el6        @spain-rhel-x86_64-server-6  
+libselinux.i686               2.0.94-7.el6         @spain-rhel-x86_64-server-6  
+libselinux.x86_64             2.0.94-7.el6         @spain-rhel-x86_64-server-6  
+libselinux-devel.x86_64       2.0.94-7.el6         @spain-rhel-x86_64-server-6  
+libselinux-python.x86_64      2.0.94-7.el6         @spain-rhel-x86_64-server-6  
+libselinux-utils.x86_64       2.0.94-7.el6         @spain-rhel-x86_64-server-6  
+libsemanage.x86_64            2.0.43-5.1.el6       @spain-rhel-x86_64-server-6  
+libsepol.x86_64               2.0.41-4.el6         @Red Hat Enterprise Linux/6.3
+libsepol-devel.x86_64         2.0.41-4.el6         @RHEL-unix_boadilla          
+libsmbclient.x86_64           3.6.23-53.el6_10     @rhel-6-server-rpms          
+libsndfile.x86_64             1.0.20-5.el6         @Red Hat Enterprise Linux/6.3
+libss.x86_64                  1.41.12-24.el6       @rhel-6-server-rpms          
+libssh2.x86_64                1.4.2-3.el6_10.1     @rhel-6-server-rpms          
+libsss_idmap.x86_64           1.13.3-60.el6_10.2   @rhel-6-server-rpms          
+libstdc++.i686                4.4.7-23.el6         @rhel-6-server-rpms          
+libstdc++.x86_64              4.4.7-23.el6         @rhel-6-server-rpms          
+libstdc++-devel.i686          4.4.7-23.el6         @rhel-6-server-rpms          
+libstdc++-devel.x86_64        4.4.7-23.el6         @rhel-6-server-rpms          
+libtalloc.x86_64              2.1.5-1.el6_7        @spain-rhel-x86_64-server-6  
+libtar.x86_64                 1.2.11-17.el6_4.1    @rhel-x86_64-server-6        
+libtasn1.x86_64               2.3-6.el6_5          @spain-rhel-x86_64-server-6  
+libtdb.x86_64                 1.3.8-3.el6_8.2      @spain-rhel-x86_64-server-6  
+libtevent.x86_64              0.9.26-2.el6_7       @spain-rhel-x86_64-server-6  
+libthai.x86_64                0.1.12-3.el6         @Red Hat Enterprise Linux/6.3
+libtheora.x86_64              1:1.1.0-2.el6        @Red Hat Enterprise Linux/6.3
+libtiff.x86_64                3.9.4-21.el6_8       @spain-rhel-x86_64-server-6  
+libtirpc.x86_64               0.2.1-15.el6         @rhel-6-server-rpms          
+libtool-ltdl.x86_64           2.2.6-15.5.el6       @Red Hat Enterprise Linux/6.3
+libudev.x86_64                147-2.74.el6_10      @rhel-6-server-rpms          
+libunistring.x86_64           0.9.3-5.el6          @Red Hat Enterprise Linux/6.3
+libusb.x86_64                 0.1.12-23.el6        @Red Hat Enterprise Linux/6.3
+libusb1.x86_64                1.0.9-0.7.rc1.el6    @spain-rhel-x86_64-server-6  
+libuser.x86_64                0.56.13-8.el6_7      @spain-rhel-x86_64-server-6  
+libuser-python.x86_64         0.56.13-8.el6_7      @spain-rhel-x86_64-server-6  
+libutempter.x86_64            1.1.5-4.1.el6        @Red Hat Enterprise Linux/6.3
+libuuid.i686                  2.17.2-12.28.el6_9.2 @rhel-6-server-rpms          
+libuuid.x86_64                2.17.2-12.28.el6_9.2 @rhel-6-server-rpms          
+libvisual.x86_64              0.4.0-10.el6         @spain-rhel-x86_64-server-6  
+libvorbis.x86_64              1:1.2.3-5.el6_9.1    @rhel-6-server-rpms          
+libwnck.x86_64                2.28.0-3.el6         @Red Hat Enterprise Linux/6.3
+libxcb.i686                   1.12-4.el6           @spain-rhel-x86_64-server-6  
+libxcb.x86_64                 1.12-4.el6           @spain-rhel-x86_64-server-6  
+libxcb-devel.x86_64           1.12-4.el6           @spain-rhel-x86_64-server-6  
+libxkbfile.x86_64             1.0.6-1.1.el6        @Red Hat Enterprise Linux/6.3
+libxml2.x86_64                2.7.6-21.el6_8.1     @spain-rhel-x86_64-server-6  
+libxml2-python.x86_64         2.7.6-21.el6_8.1     @spain-rhel-x86_64-server-6  
+libxshmfence.x86_64           1.2-1.el6            @spain-rhel-x86_64-server-6  
+libxslt.x86_64                1.1.26-2.el6_3.1     @RHEL-unix_boadilla          
+lksctp-tools.x86_64           1.0.10-7.el6         @spain-rhel-x86_64-server-6  
+lm_sensors-libs.x86_64        3.1.1-17.el6         @spain-rhel-x86_64-server-6  
+logrotate.x86_64              3.7.8-28.el6         @spain-rhel-x86_64-server-6  
+lsof.x86_64                   4.82-5.el6           @spain-rhel-x86_64-server-6  
+lsscsi.x86_64                 0.23-3.el6           @spain-rhel-x86_64-server-6  
+lua.x86_64                    5.1.4-4.1.el6        @Red Hat Enterprise Linux/6.3
+lvm2.x86_64                   2.02.143-12.el6_9.1  @rhel-6-server-rpms          
+lvm2-libs.x86_64              2.02.143-12.el6_9.1  @rhel-6-server-rpms          
+lx.x86_64                     20030328-5.1.el6     @Red Hat Enterprise Linux/6.3
+lzo.x86_64                    2.03-3.1.el6_5.1     @spain-rhel-x86_64-server-6  
+m2crypto.x86_64               0.20.2-9.el6         @Red Hat Enterprise Linux/6.3
+m4.x86_64                     1.4.13-5.el6         @Red Hat Enterprise Linux/6.3
+mailcap.noarch                2.1.31-2.el6         @Red Hat Enterprise Linux/6.3
+mailx.x86_64                  12.4-10.el6_10       @rhel-6-server-rpms          
+make.x86_64                   1:3.81-23.el6        @spain-rhel-x86_64-server-6  
+man.x86_64                    1.6f-39.el6          @spain-rhel-x86_64-server-6  
+man-pages.noarch              3.22-20.el6          @RHEL-unix_boadilla          
+man-pages-es.noarch           1.55-14.el6          @Red Hat Enterprise Linux/6.3
+man-pages-es-extra.noarch     1.55-14.el6          @Red Hat Enterprise Linux/6.3
+man-pages-overrides.noarch    6.10.0-1.el6         @rhel-6-server-rpms          
+managesoft.x86_64             12.0.0-1             installed                    
+mcpp.x86_64                   2.7.2-4.1.el6        @Red Hat Enterprise Linux/6.3
+mdadm.x86_64                  3.3.4-8.el6          @spain-rhel-x86_64-server-6  
+mesa-dri-drivers.x86_64       11.0.7-4.el6         @spain-rhel-x86_64-server-6  
+mesa-dri-filesystem.x86_64    11.0.7-4.el6         @spain-rhel-x86_64-server-6  
+mesa-dri1-drivers.x86_64      7.11-8.el6           @RHEL-unix_boadilla          
+mesa-libEGL.x86_64            11.0.7-4.el6         @spain-rhel-x86_64-server-6  
+mesa-libGL.x86_64             11.0.7-4.el6         @spain-rhel-x86_64-server-6  
+mesa-libGLU.x86_64            11.0.7-4.el6         @spain-rhel-x86_64-server-6  
+mesa-libgbm.x86_64            11.0.7-4.el6         @spain-rhel-x86_64-server-6  
+mesa-libxatracker.x86_64      11.0.7-4.el6         @spain-rhel-x86_64-server-6  
+mesa-private-llvm.x86_64      3.6.2-1.el6          @spain-rhel-x86_64-server-6  
+metacity.x86_64               2.28.0-23.el6        @Red Hat Enterprise Linux/6.3
+microcode_ctl.x86_64          2:1.17-33.31.el6_10  @rhel-6-server-rpms          
+min12xxw.x86_64               0.0.9-5.1.el6        @Red Hat Enterprise Linux/6.3
+mingetty.x86_64               1.08-5.el6           @Red Hat Enterprise Linux/6.3
+mlocate.x86_64                0.22.2-6.el6         @spain-rhel-x86_64-server-6  
+module-init-tools.x86_64      3.9-26.el6           @spain-rhel-x86_64-server-6  
+mozilla-filesystem.x86_64     1.9-5.1.el6          @Red Hat Enterprise Linux/6.3
+mpfr.x86_64                   2.4.1-6.el6          @Red Hat Enterprise Linux/6.3
+mtdev.x86_64                  1.1.5-1.el6          @spain-rhel-x86_64-server-6  
+mysql-libs.x86_64             5.1.73-8.el6_8       @spain-rhel-x86_64-server-6  
+nc.x86_64                     1.84-24.el6          @spain-rhel-x86_64-server-6  
+ncurses.x86_64                5.7-4.20090207.el6   @spain-rhel-x86_64-server-6  
+ncurses-base.x86_64           5.7-4.20090207.el6   @spain-rhel-x86_64-server-6  
+ncurses-libs.i686             5.7-4.20090207.el6   @spain-rhel-x86_64-server-6  
+ncurses-libs.x86_64           5.7-4.20090207.el6   @spain-rhel-x86_64-server-6  
+net-tools.x86_64              1.60-114.el6         @spain-rhel-x86_64-server-6  
+newt.x86_64                   0.52.11-4.el6        @spain-rhel-x86_64-server-6  
+newt-python.x86_64            0.52.11-4.el6        @spain-rhel-x86_64-server-6  
+nfs-utils.x86_64              1:1.2.3-78.el6_10.2  @rhel-6-server-rpms          
+nfs-utils-lib.x86_64          1.1.5-13.el6         @spain-rhel-x86_64-server-6  
+nfs4-acl-tools.x86_64         0.3.3-8.el6          @spain-rhel-x86_64-server-6  
+nmap.x86_64                   2:5.51-6.el6         @spain-rhel-x86_64-server-6  
+notification-daemon.x86_64    0.5.0-1.el6          @Red Hat Enterprise Linux/6.3
+notify-python.x86_64          0.1.1-10.el6         @Red Hat Enterprise Linux/6.3
+nscd.x86_64                   2.12-1.212.el6_10.3  @rhel-6-server-rpms          
+nspr.x86_64                   4.21.0-1.el6_10      @rhel-6-server-rpms          
+nss.x86_64                    3.44.0-7.el6_10      @rhel-6-server-rpms          
+nss-pam-ldapd.x86_64          0.7.5-32.el6_10.1    @rhel-6-server-rpms          
+nss-softokn.x86_64            3.44.0-6.el6_10      @rhel-6-server-rpms          
+nss-softokn-freebl.i686       3.44.0-6.el6_10      @rhel-6-server-rpms          
+nss-softokn-freebl.x86_64     3.44.0-6.el6_10      @rhel-6-server-rpms          
+nss-sysinit.x86_64            3.44.0-7.el6_10      @rhel-6-server-rpms          
+nss-tools.x86_64              3.44.0-7.el6_10      @rhel-6-server-rpms          
+nss-util.x86_64               3.44.0-1.el6_10      @rhel-6-server-rpms          
+ntp.x86_64                    4.2.6p5-15.el6_10    @rhel-6-server-rpms          
+ntpdate.x86_64                4.2.6p5-15.el6_10    @rhel-6-server-rpms          
+ntsysv.x86_64                 1.3.49.5-1.el6       @spain-rhel-x86_64-server-6  
+numactl.x86_64                2.0.9-2.el6          @spain-rhel-x86_64-server-6  
+numactl-devel.x86_64          2.0.9-2.el6          @spain-rhel-x86_64-server-6  
+numpy.x86_64                  1.4.1-9.el6          @Red Hat Enterprise Linux/6.3
+oddjob.x86_64                 0.30-6.el6           @spain-rhel-x86_64-server-6  
+oddjob-mkhomedir.i686         0.30-6.el6           @rhel-6-server-rpms          
+oddjob-mkhomedir.x86_64       0.30-6.el6           @spain-rhel-x86_64-server-6  
+openjpeg-libs.x86_64          1.3-16.el6_8         @spain-rhel-x86_64-server-6  
+openldap.x86_64               2.4.40-16.el6        @spain-rhel-x86_64-server-6  
+openldap-clients.x86_64       2.4.40-16.el6        @spain-rhel-x86_64-server-6  
+openmpi-1.4.x86_64            1.4.3-5.el6          @spain-rhel-x86_64-server-6  
+openmpi-1.4-psm.x86_64        1.4.3-5.el6          @spain-rhel-x86_64-server-6  
+openmpi-1.5.3.x86_64          1.5.3-5.el6          @spain-rhel-x86_64-server-6  
+openmpi-1.5.3-psm.x86_64      1.5.3-5.el6          @spain-rhel-x86_64-server-6  
+openssh.x86_64                5.3p1-124.el6_10     @rhel-6-server-rpms          
+openssh-clients.x86_64        5.3p1-124.el6_10     @rhel-6-server-rpms          
+openssh-server.x86_64         5.3p1-124.el6_10     @rhel-6-server-rpms          
+openssl.x86_64                1.0.1e-58.el6_10     @rhel-6-server-rpms          
+openssl-devel.x86_64          1.0.1e-58.el6_10     @rhel-6-server-rpms          
+oprofile.x86_64               0.9.9-21.el6         @spain-rhel-x86_64-server-6  
+p11-kit.x86_64                0.18.5-2.el6_5.2     @rhel-x86_64-server-6        
+p11-kit-trust.x86_64          0.18.5-2.el6_5.2     @rhel-x86_64-server-6        
+pam.i686                      1.1.1-24.el6         @spain-rhel-x86_64-server-6  
+pam.x86_64                    1.1.1-24.el6         @spain-rhel-x86_64-server-6  
+pam_krb5.x86_64               2.3.11-9.el6         @Red Hat Enterprise Linux/6.3
+pam_ldap.x86_64               185-11.el6           @Red Hat Enterprise Linux/6.3
+pam_passwdqc.x86_64           1.0.5-8.el6          @spain-rhel-x86_64-server-6  
+pango.x86_64                  1.28.1-11.el6        @spain-rhel-x86_64-server-6  
+papi.x86_64                   5.1.1-12.el6         @spain-rhel-x86_64-server-6  
+paps.x86_64                   0.6.8-13.el6.3       @spain-rhel-x86_64-server-6  
+paps-libs.x86_64              0.6.8-13.el6.3       @spain-rhel-x86_64-server-6  
+parted.x86_64                 2.1-29.el6           @spain-rhel-x86_64-server-6  
+passwd.x86_64                 0.77-7.el6           @spain-rhel-x86_64-server-6  
+patch.x86_64                  2.6-8.el6_9          @rhel-6-server-rpms          
+pax.x86_64                    3.4-10.1.el6         @Red Hat Enterprise Linux/6.3
+pbm2l2030.x86_64              1.4-5.1.el6          @Red Hat Enterprise Linux/6.3
+pbm2l7k.x86_64                990321-8.el6         @Red Hat Enterprise Linux/6.3
+pciutils.x86_64               3.1.10-4.el6         @spain-rhel-x86_64-server-6  
+pciutils-libs.x86_64          3.1.10-4.el6         @spain-rhel-x86_64-server-6  
+pcre.x86_64                   7.8-7.el6            @spain-rhel-x86_64-server-6  
+pcsc-lite-libs.x86_64         1.5.2-16.el6         @spain-rhel-x86_64-server-6  
+perf.x86_64                   2.6.32-754.35.1.el6  @rhel-6-server-rpms          
+perl.x86_64                   4:5.10.1-144.el6     @spain-rhel-x86_64-server-6  
+perl-Archive-Extract.x86_64   1:0.38-144.el6       @spain-rhel-x86_64-server-6  
+perl-Archive-Tar.x86_64       1.58-144.el6         @spain-rhel-x86_64-server-6  
+perl-CGI.x86_64               3.51-144.el6         @spain-rhel-x86_64-server-6  
+perl-CPAN.x86_64              1.9402-144.el6       @spain-rhel-x86_64-server-6  
+perl-CPANPLUS.x86_64          0.88-144.el6         @spain-rhel-x86_64-server-6  
+perl-Compress-Raw-Bzip2.x86_64
+                              2.021-144.el6        @spain-rhel-x86_64-server-6  
+perl-Compress-Raw-Zlib.x86_64 1:2.021-144.el6      @spain-rhel-x86_64-server-6  
+perl-Compress-Zlib.x86_64     2.021-144.el6        @spain-rhel-x86_64-server-6  
+perl-Crypt-SSLeay.x86_64      0.57-17.el6          @boa-rhel-x86_64-server-6.base2016
+perl-DBD-SQLite.x86_64        1.27-3.el6           @Red Hat Enterprise Linux/6.3
+perl-DBI.x86_64               1.609-4.el6          @Red Hat Enterprise Linux/6.3
+perl-DBIx-Simple.noarch       1.32-3.el6           @Red Hat Enterprise Linux/6.3
+perl-Digest-SHA.x86_64        1:5.47-144.el6       @spain-rhel-x86_64-server-6  
+perl-ExtUtils-CBuilder.x86_64 1:0.27-144.el6       @spain-rhel-x86_64-server-6  
+perl-ExtUtils-Embed.x86_64    1.28-144.el6         @spain-rhel-x86_64-server-6  
+perl-ExtUtils-MakeMaker.x86_64
+                              6.55-144.el6         @spain-rhel-x86_64-server-6  
+perl-ExtUtils-ParseXS.x86_64  1:2.2003.0-144.el6   @spain-rhel-x86_64-server-6  
+perl-File-Fetch.x86_64        0.26-144.el6         @spain-rhel-x86_64-server-6  
+perl-HTML-Parser.x86_64       3.64-2.el6           @Red Hat Enterprise Linux/6.3
+perl-HTML-Tagset.noarch       3.20-4.el6           @Red Hat Enterprise Linux/6.3
+perl-IO-Compress-Base.x86_64  2.021-144.el6        @spain-rhel-x86_64-server-6  
+perl-IO-Compress-Bzip2.x86_64 2.021-144.el6        @spain-rhel-x86_64-server-6  
+perl-IO-Compress-Zlib.x86_64  2.021-144.el6        @spain-rhel-x86_64-server-6  
+perl-IO-Zlib.x86_64           1:1.09-144.el6       @spain-rhel-x86_64-server-6  
+perl-IPC-Cmd.x86_64           1:0.56-144.el6       @spain-rhel-x86_64-server-6  
+perl-Locale-Maketext-Simple.x86_64
+                              1:0.18-144.el6       @spain-rhel-x86_64-server-6  
+perl-Log-Message.x86_64       1:0.02-144.el6       @spain-rhel-x86_64-server-6  
+perl-Log-Message-Simple.x86_64
+                              0.04-144.el6         @spain-rhel-x86_64-server-6  
+perl-Module-Build.x86_64      1:0.3500-144.el6     @spain-rhel-x86_64-server-6  
+perl-Module-CoreList.x86_64   2.18-144.el6         @spain-rhel-x86_64-server-6  
+perl-Module-Load.x86_64       1:0.16-144.el6       @spain-rhel-x86_64-server-6  
+perl-Module-Load-Conditional.x86_64
+                              0.30-144.el6         @spain-rhel-x86_64-server-6  
+perl-Module-Loaded.x86_64     1:0.02-144.el6       @spain-rhel-x86_64-server-6  
+perl-Module-Pluggable.x86_64  1:3.90-144.el6       @spain-rhel-x86_64-server-6  
+perl-Object-Accessor.x86_64   1:0.34-144.el6       @spain-rhel-x86_64-server-6  
+perl-Package-Constants.x86_64 1:0.02-144.el6       @spain-rhel-x86_64-server-6  
+perl-Params-Check.x86_64      1:0.26-144.el6       @spain-rhel-x86_64-server-6  
+perl-Parse-CPAN-Meta.x86_64   1:1.40-144.el6       @spain-rhel-x86_64-server-6  
+perl-Pod-Escapes.x86_64       1:1.04-144.el6       @spain-rhel-x86_64-server-6  
+perl-Pod-Simple.x86_64        1:3.13-144.el6       @spain-rhel-x86_64-server-6  
+perl-Term-UI.x86_64           0.20-144.el6         @spain-rhel-x86_64-server-6  
+perl-Test-Harness.x86_64      3.17-144.el6         @spain-rhel-x86_64-server-6  
+perl-Test-Simple.x86_64       0.92-144.el6         @spain-rhel-x86_64-server-6  
+perl-Time-HiRes.x86_64        4:1.9721-144.el6     @spain-rhel-x86_64-server-6  
+perl-Time-Piece.x86_64        1.15-144.el6         @spain-rhel-x86_64-server-6  
+perl-URI.noarch               1.40-2.el6           @Red Hat Enterprise Linux/6.3
+perl-XML-Dumper.noarch        0.81-8.el6           @rhel-x86_64-server-6        
+perl-XML-Grove.noarch         0.46alpha-40.el6     @Red Hat Enterprise Linux/6.3
+perl-XML-Parser.x86_64        2.36-7.el6           @Red Hat Enterprise Linux/6.3
+perl-XML-Twig.noarch          3.34-1.el6           @Red Hat Enterprise Linux/6.3
+perl-core.x86_64              5.10.1-144.el6       @spain-rhel-x86_64-server-6  
+perl-devel.x86_64             4:5.10.1-144.el6     @spain-rhel-x86_64-server-6  
+perl-libs.x86_64              4:5.10.1-144.el6     @spain-rhel-x86_64-server-6  
+perl-libwww-perl.noarch       5.833-5.el6          @spain-rhel-x86_64-server-6  
+perl-libxml-perl.noarch       0.08-10.el6          @Red Hat Enterprise Linux/6.3
+perl-parent.x86_64            1:0.221-144.el6      @spain-rhel-x86_64-server-6  
+perl-version.x86_64           3:0.77-144.el6       @spain-rhel-x86_64-server-6  
+phonon-backend-gstreamer.x86_64
+                              1:4.6.2-28.el6_5     @rhel-x86_64-server-6        
+pinentry.x86_64               0.7.6-8.el6          @spain-rhel-x86_64-server-6  
+pinfo.x86_64                  0.6.9-12.el6         @Red Hat Enterprise Linux/6.3
+pixman.x86_64                 0.32.8-1.el6         @spain-rhel-x86_64-server-6  
+pkgconfig.x86_64              1:0.23-9.1.el6       @Red Hat Enterprise Linux/6.3
+plpa-libs.x86_64              1.3.2-2.1.el6        @Red Hat Enterprise Linux/6.3
+plymouth.x86_64               0.8.3-29.el6         @spain-rhel-x86_64-server-6  
+plymouth-core-libs.x86_64     0.8.3-29.el6         @spain-rhel-x86_64-server-6  
+plymouth-graphics-libs.x86_64 0.8.3-29.el6         @spain-rhel-x86_64-server-6  
+plymouth-plugin-label.x86_64  0.8.3-29.el6         @spain-rhel-x86_64-server-6  
+plymouth-plugin-two-step.x86_64
+                              0.8.3-29.el6         @spain-rhel-x86_64-server-6  
+plymouth-scripts.x86_64       0.8.3-29.el6         @spain-rhel-x86_64-server-6  
+plymouth-system-theme.noarch  0.8.3-29.el6         @spain-rhel-x86_64-server-6  
+plymouth-theme-rings.noarch   0.8.3-29.el6         @spain-rhel-x86_64-server-6  
+pm-utils.x86_64               1.2.5-11.el6         @spain-rhel-x86_64-server-6  
+pnm2ppa.x86_64                1:1.04-19.el6        @Red Hat Enterprise Linux/6.3
+policycoreutils.x86_64        2.0.83-30.1.el6_8    @spain-rhel-x86_64-server-6  
+polkit.x86_64                 0.96-11.el6_10.1     @rhel-6-server-rpms          
+poppler.x86_64                0.12.4-12.el6_10.1   @rhel-6-server-rpms          
+poppler-data.noarch           0.4.0-1.el6          @Red Hat Enterprise Linux/6.3
+poppler-utils.x86_64          0.12.4-12.el6_10.1   @rhel-6-server-rpms          
+popt.x86_64                   1.13-7.el6           @Red Hat Enterprise Linux/6.3
+portreserve.x86_64            0.0.4-11.el6         @spain-rhel-x86_64-server-6  
+postfix.x86_64                2:2.6.6-8.el6        @spain-rhel-x86_64-server-6  
+ppl.x86_64                    0.10.2-11.el6        @Red Hat Enterprise Linux/6.3
+printer-filters.noarch        1.1-4.1.el6          @Red Hat Enterprise Linux/6.3
+procps.x86_64                 3.2.8-45.el6_9.3     @rhel-6-server-rpms          
+psacct.x86_64                 6.3.2-70.el6         @spain-rhel-x86_64-server-6  
+psmisc.x86_64                 22.6-24.el6          @spain-rhel-x86_64-server-6  
+psutils.x86_64                1.17-34.el6          @Red Hat Enterprise Linux/6.3
+pth.x86_64                    2.0.7-9.3.el6        @Red Hat Enterprise Linux/6.3
+ptouch-driver.x86_64          1.3-2.1.el6          @Red Hat Enterprise Linux/6.3
+pulp-rpm-handlers.noarch      2.13.4.8-1.el6sat    @rhel-6-server-satellite-tools-6.3-rpms
+pulseaudio-libs.x86_64        0.9.21-26.el6        @spain-rhel-x86_64-server-6  
+pyOpenSSL.x86_64              0.13.1-2.el6         @boa-rhel-x86_64-server-6.base2016
+pycairo.x86_64                1.8.6-2.1.el6        @Red Hat Enterprise Linux/6.3
+pygobject2.x86_64             2.20.0-5.el6         @Red Hat Enterprise Linux/6.3
+pygpgme.x86_64                0.1-18.20090824bzr68.el6
+                                                   @Red Hat Enterprise Linux/6.3
+pygtk2.x86_64                 2.16.0-3.el6         @Red Hat Enterprise Linux/6.3
+pygtk2-libglade.x86_64        2.16.0-3.el6         @Red Hat Enterprise Linux/6.3
+pyorbit.x86_64                2.24.0-5.el6         @Red Hat Enterprise Linux/6.3
+pytalloc.x86_64               2.1.5-1.el6_7        @spain-rhel-x86_64-server-6  
+python.x86_64                 2.6.6-68.el6_10      @rhel-6-server-rpms          
+python-argparse.noarch        1.2.1-2.1.el6        @spain-rhel-x86_64-server-6  
+python-dateutil.noarch        1.4.1-7.el6          @spain-rhel-x86_64-server-6  
+python-decorator.noarch       3.0.1-3.1.el6        @spain-rhel-x86_64-server-6  
+python-dmidecode.x86_64       3.10.15-2.el6        @rhel-6-server-rpms          
+python-ethtool.x86_64         0.6-6.el6            @spain-rhel-x86_64-server-6  
+python-gofer.noarch           2.7.8-1.el6sat       @rhel-6-server-satellite-tools-6.3-rpms
+python-gofer-proton.noarch    2.7.8-1.el6sat       @rhel-6-server-satellite-tools-6.3-rpms
+python-gudev.x86_64           147.1-4.el6_0.1      @Red Hat Enterprise Linux/6.3
+python-iniparse.noarch        0.3.1-2.1.el6        @Red Hat Enterprise Linux/6.3
+python-isodate.noarch         0.5.0-4.el6sat       @rhel-6-server-satellite-tools-6.2-rpms
+python-iwlib.x86_64           0.1-1.2.el6          @Red Hat Enterprise Linux/6.3
+python-javapackages.noarch    3.4.1-1.1.el6        @spain-rhel-x86_64-server-rhscl-6
+python-kerberos.x86_64        1.1-7.el6            @spain-rhel-x86_64-server-6  
+python-krbV.x86_64            1.0.90-3.el6         @Red Hat Enterprise Linux/6.3
+python-ldap.x86_64            2.3.10-1.el6         @Red Hat Enterprise Linux/6.3
+python-libipa_hbac.x86_64     1.13.3-60.el6_10.2   @rhel-6-server-rpms          
+python-libs.x86_64            2.6.6-68.el6_10      @rhel-6-server-rpms          
+python-lxml.x86_64            2.2.3-1.1.el6        @Red Hat Enterprise Linux/6.3
+python-matplotlib.x86_64      0.99.1.2-1.el6       @Red Hat Enterprise Linux/6.3
+python-meh.noarch             0.12.1-3.el6         @Red Hat Enterprise Linux/6.3
+python-netaddr.noarch         0.7.5-4.el6          @Red Hat Enterprise Linux/6.3
+python-nose.noarch            0.10.4-3.1.el6       @Red Hat Enterprise Linux/6.3
+python-nss.x86_64             0.16.0-1.el6         @spain-rhel-x86_64-server-6  
+python-pulp-agent-lib.noarch  2.13.4.10-1.el6sat   @rhel-6-server-satellite-tools-6.3-rpms
+python-pulp-common.noarch     2.13.4.10-1.el6sat   @rhel-6-server-satellite-tools-6.3-rpms
+python-pulp-rpm-common.noarch 2.13.4.8-1.el6sat    @rhel-6-server-satellite-tools-6.3-rpms
+python-pycurl.x86_64          7.19.0-9.el6         @spain-rhel-x86_64-server-6  
+python-qpid-proton.x86_64     0.16.0-12.el6sat     @rhel-6-server-satellite-tools-6.3-rpms
+python-setuptools.noarch      0.6.10-4.el6_9       @rhel-6-server-rpms          
+python-simplejson.x86_64      2.0.9-3.1.el6        @Red Hat Enterprise Linux/6.3
+python-six.noarch             1.9.0-2.el6          @spain-rhel-x86_64-server-6  
+python-slip.noarch            0.2.20-1.el6_2       @Red Hat Enterprise Linux/6.3
+python-sss-murmur.x86_64      1.13.3-60.el6_10.2   @rhel-6-server-rpms          
+python-sssdconfig.noarch      1.13.3-60.el6_10.2   @rhel-6-server-rpms          
+python-urlgrabber.noarch      3.9.1-11.el6         @spain-rhel-x86_64-server-6  
+pytz.noarch                   2010h-2.el6          @Red Hat Enterprise Linux/6.3
+pyxf86config.x86_64           0.3.37-7.1.el6       @Red Hat Enterprise Linux/6.3
+ql2200-firmware.noarch        2.02.08-3.1.el6      @Red Hat Enterprise Linux/6.3
+qpid-proton-c.x86_64          0.16.0-12.el6sat     @rhel-6-server-satellite-tools-6.3-rpms
+qt.x86_64                     1:4.6.2-28.el6_5     @rhel-x86_64-server-6        
+qt-sqlite.x86_64              1:4.6.2-28.el6_5     @rhel-x86_64-server-6        
+qt-x11.x86_64                 1:4.6.2-28.el6_5     @rhel-x86_64-server-6        
+qt3.x86_64                    3.3.8b-30.el6        @Red Hat Enterprise Linux/6.3
+quota.x86_64                  1:3.17-23.el6        @spain-rhel-x86_64-server-6  
+rarian.x86_64                 0.8.1-5.1.el6        @Red Hat Enterprise Linux/6.3
+rarian-compat.x86_64          0.8.1-5.1.el6        @Red Hat Enterprise Linux/6.3
+rdma.noarch                   6.9_4.1-3.el6        @spain-rhel-x86_64-server-6  
+readahead.x86_64              1:1.5.6-2.el6        @rhel-x86_64-server-6        
+readline.x86_64               6.0-4.el6            @Red Hat Enterprise Linux/6.3
+redhat-indexhtml.noarch       6-6.el6              @rhel-x86_64-server-6        
+redhat-logos.noarch           60.0.14-1.el6        @Red Hat Enterprise Linux/6.3
+redhat-lsb.x86_64             4.0-7.el6            @RHEL-unix_boadilla          
+redhat-lsb-compat.x86_64      4.0-7.el6            @RHEL-unix_boadilla          
+redhat-lsb-core.x86_64        4.0-7.el6            @RHEL-unix_boadilla          
+redhat-lsb-graphics.x86_64    4.0-7.el6            @RHEL-unix_boadilla          
+redhat-lsb-printing.x86_64    4.0-7.el6            @RHEL-unix_boadilla          
+redhat-release-server.x86_64  6Server-6.10.0.13.el6_10.9
+                                                   @rhel-6-server-rpms          
+rhino.noarch                  1.7R4-4.el6          @spain-rhel-x86_64-server-6  
+rng-tools.x86_64              5-2.el6_7            @spain-rhel-x86_64-server-6  
+rootfiles.noarch              8.1-6.1.el6          @Red Hat Enterprise Linux/6.3
+rpcbind.x86_64                0.2.0-16.el6         @rhel-6-server-rpms          
+rpm.x86_64                    4.8.0-59.el6         @rhel-6-server-rpms          
+rpm-libs.x86_64               4.8.0-59.el6         @rhel-6-server-rpms          
+rpm-python.x86_64             4.8.0-59.el6         @rhel-6-server-rpms          
+rsh.x86_64                    0.17-64.el6_9.1      @spain-rhel-x86_64-server-6  
+rsync.x86_64                  3.0.6-12.el6         @spain-rhel-x86_64-server-6  
+rsyslog.x86_64                5.8.10-12.el6        @rhel-6-server-rpms          
+rt61pci-firmware.noarch       1.2-7.el6            @Red Hat Enterprise Linux/6.3
+rt73usb-firmware.noarch       1.8-7.el6            @Red Hat Enterprise Linux/6.3
+samba-client.x86_64           3.6.23-53.el6_10     @rhel-6-server-rpms          
+samba-common.x86_64           3.6.23-53.el6_10     @rhel-6-server-rpms          
+samba-winbind.x86_64          3.6.23-53.el6_10     @rhel-6-server-rpms          
+samba-winbind-clients.x86_64  3.6.23-53.el6_10     @rhel-6-server-rpms          
+samba4-libs.x86_64            4.2.10-15.el6        @rhel-6-server-rpms          
+satyr.x86_64                  0.16-2.el6           @spain-rhel-x86_64-server-6  
+scl-utils.x86_64              20120927-29.el6_9    @rhel-6-server-rpms          
+sed.x86_64                    4.2.1-10.el6         @Red Hat Enterprise Linux/6.3
+seekwatcher.noarch            0.12-5.el6           @Red Hat Enterprise Linux/6.3
+selinux-policy.noarch         3.7.19-312.el6       @rhel-6-server-rpms          
+selinux-policy-targeted.noarch
+                              3.7.19-312.el6       @rhel-6-server-rpms          
+setserial.x86_64              2.17-25.el6          @Red Hat Enterprise Linux/6.3
+setup.noarch                  2.8.14-23.el6        @spain-rhel-x86_64-server-6  
+setuptool.x86_64              1.19.9-4.el6         @rhel-x86_64-server-6        
+sg3_utils-libs.x86_64         1.28-13.el6          @rhel-6-server-rpms          
+sgml-common.noarch            0.6.3-33.el6         @spain-rhel-x86_64-server-6  
+sgpio.x86_64                  1.2.0.10-5.el6       @Red Hat Enterprise Linux/6.3
+shadow-utils.x86_64           2:4.1.5.1-5.el6      @spain-rhel-x86_64-server-6  
+shared-mime-info.x86_64       0.70-6.el6           @spain-rhel-x86_64-server-6  
+sharutils.x86_64              4.7-6.1.el6          installed                    
+sinjdoc.x86_64                0.5-9.1.el6          @PRB-Kid-RHEL-Repository     
+slang.x86_64                  2.2.1-1.el6          @Red Hat Enterprise Linux/6.3
+snappy.x86_64                 1.1.0-1.el6          @rhel-x86_64-server-6        
+sos.noarch                    3.2-63.el6_10.4      @rhel-6-server-rpms          
+sound-theme-freedesktop.noarch
+                              0.7-3.el6            @Red Hat Enterprise Linux/6.3
+spice-vdagent.x86_64          0.14.0-13.el6_10.1   @rhel-6-server-rpms          
+sqlite.x86_64                 3.6.20-1.el6_7.2     @spain-rhel-x86_64-server-6  
+sssd.x86_64                   1.13.3-60.el6_10.2   @rhel-6-server-rpms          
+sssd-ad.x86_64                1.13.3-60.el6_10.2   @rhel-6-server-rpms          
+sssd-client.x86_64            1.13.3-60.el6_10.2   @rhel-6-server-rpms          
+sssd-common.x86_64            1.13.3-60.el6_10.2   @rhel-6-server-rpms          
+sssd-common-pac.x86_64        1.13.3-60.el6_10.2   @rhel-6-server-rpms          
+sssd-ipa.x86_64               1.13.3-60.el6_10.2   @rhel-6-server-rpms          
+sssd-krb5.x86_64              1.13.3-60.el6_10.2   @rhel-6-server-rpms          
+sssd-krb5-common.x86_64       1.13.3-60.el6_10.2   @rhel-6-server-rpms          
+sssd-ldap.x86_64              1.13.3-60.el6_10.2   @rhel-6-server-rpms          
+sssd-proxy.x86_64             1.13.3-60.el6_10.2   @rhel-6-server-rpms          
+startup-notification.x86_64   0.10-2.1.el6         @Red Hat Enterprise Linux/6.3
+strace.x86_64                 4.8-11.el6           @spain-rhel-x86_64-server-6  
+subscription-manager.x86_64   1.20.10-8.el6        @rhel-6-server-rpms          
+subscription-manager-migration-data.noarch
+                              2.0.43-1.el6         @rhel-6-server-rpms          
+subscription-manager-rhsm.x86_64
+                              1.20.10-8.el6        @rhel-6-server-rpms          
+subscription-manager-rhsm-certificates.x86_64
+                              1.20.10-8.el6        @rhel-6-server-rpms          
+sudo.x86_64                   1.8.6p3-29.el6_10.3  @rhel-6-server-rpms          
+sysstat.x86_64                9.0.4-33.el6_9.1     @rhel-6-server-rpms          
+system-config-date.noarch     1.9.60-3.el6         @spain-rhel-x86_64-server-6  
+system-config-date-docs.noarch
+                              1.0.11-1.el6         @Red Hat Enterprise Linux/6.3
+system-config-firewall-base.noarch
+                              1.2.27-7.2.el6_6     @spain-rhel-x86_64-server-6  
+system-config-firewall-tui.noarch
+                              1.2.27-7.2.el6_6     @spain-rhel-x86_64-server-6  
+system-config-keyboard.x86_64 1.3.1-6.el6          @spain-rhel-x86_64-server-6  
+system-config-keyboard-base.x86_64
+                              1.3.1-6.el6          @spain-rhel-x86_64-server-6  
+system-config-network-tui.noarch
+                              1.6.0.el6.3-4.el6    @spain-rhel-x86_64-server-6  
+system-config-printer.x86_64  1.1.16-26.el6        @spain-rhel-x86_64-server-6  
+system-config-printer-libs.x86_64
+                              1.1.16-26.el6        @spain-rhel-x86_64-server-6  
+system-config-printer-udev.x86_64
+                              1.1.16-26.el6        @spain-rhel-x86_64-server-6  
+system-config-users.noarch    1.2.106-9.el6        @spain-rhel-x86_64-server-6  
+system-config-users-docs.noarch
+                              1.0.8-2.el6          @rhel-x86_64-server-6        
+system-gnome-theme.noarch     60.0.2-1.el6         @Red Hat Enterprise Linux/6.3
+system-icon-theme.noarch      6.0.0-2.el6          @Red Hat Enterprise Linux/6.3
+system-setup-keyboard.x86_64  0.7-4.el6            @Red Hat Enterprise Linux/6.3
+systemtap-runtime.x86_64      2.9-9.el6            @rhel-6-server-rpms          
+sysvinit-tools.x86_64         2.87-6.dsf.el6       @spain-rhel-x86_64-server-6  
+tar.x86_64                    2:1.23-15.el6_8      @spain-rhel-x86_64-server-6  
+tcl.x86_64                    1:8.5.7-6.el6        @Red Hat Enterprise Linux/6.3
+tcp_wrappers.x86_64           7.6-58.el6           @spain-rhel-x86_64-server-6  
+tcp_wrappers-libs.x86_64      7.6-58.el6           @spain-rhel-x86_64-server-6  
+tcpdump.x86_64                14:4.0.0-11.20090921gitdf3cb4.2.el6
+                                                   @spain-rhel-x86_64-server-6  
+tcsh.x86_64                   6.17-38.el6          @spain-rhel-x86_64-server-6  
+telnet.x86_64                 1:0.17-49.el6_10     @rhel-6-server-rpms          
+theora-tools.x86_64           1:1.1.0-2.el6        @Red Hat Enterprise Linux/6.3
+time.x86_64                   1.7-38.el6           @spain-rhel-x86_64-server-6  
+tmpwatch.x86_64               2.9.16-6.el6         @spain-rhel-x86_64-server-6  
+traceroute.x86_64             3:2.0.14-2.el6       @Red Hat Enterprise Linux/6.3
+ttmkfdir.x86_64               3.0.9-32.1.el6       @rhel-x86_64-server-6        
+tzdata.noarch                 2020d-1.el6          @rhel-6-server-rpms          
+tzdata-java.noarch            2020d-1.el6          @rhel-6-server-rpms          
+udev.x86_64                   147-2.74.el6_10      @rhel-6-server-rpms          
+unix2dos.x86_64               2.2-35.el6           @Red Hat Enterprise Linux/6.3
+unixODBC.x86_64               2.2.14-14.el6        @spain-rhel-x86_64-server-6  
+unixODBC-devel.x86_64         2.2.14-14.el6        @spain-rhel-x86_64-server-6  
+unzip.x86_64                  6.0-5.el6            @spain-rhel-x86_64-server-6  
+upstart.x86_64                0.6.5-17.el6         @rhel-6-server-rpms          
+urw-fonts.noarch              2.4-11.el6           @spain-rhel-x86_64-server-6  
+usermode.x86_64               1.102-3.el6          @Red Hat Enterprise Linux/6.3
+usermode-gtk.x86_64           1.102-3.el6          @Red Hat Enterprise Linux/6.3
+ustr.x86_64                   1.0.4-9.1.el6        @Red Hat Enterprise Linux/6.3
+util-linux-ng.x86_64          2.17.2-12.28.el6_9.2 @rhel-6-server-rpms          
+vconfig.x86_64                1.9-8.1.el6          @Red Hat Enterprise Linux/6.3
+vim-common.x86_64             2:7.4.629-5.el6_10.2 @rhel-6-server-rpms          
+vim-enhanced.x86_64           2:7.4.629-5.el6_10.2 @rhel-6-server-rpms          
+vim-filesystem.x86_64         2:7.4.629-5.el6_10.2 @rhel-6-server-rpms          
+vim-minimal.x86_64            2:7.4.629-5.el6_10.2 @rhel-6-server-rpms          
+virt-what.x86_64              1.11-1.3.el6         @spain-rhel-x86_64-server-6  
+vsftpd.x86_64                 2.2.2-24.el6         @spain-rhel-x86_64-server-6  
+wget.x86_64                   1.12-10.el6          @spain-rhel-x86_64-server-6  
+which.x86_64                  2.19-6.el6           @Red Hat Enterprise Linux/6.3
+wireless-tools.x86_64         1:29-6.el6           @spain-rhel-x86_64-server-6  
+xcb-util.x86_64               0.4.0-2.2.el6        @spain-rhel-x86_64-server-6  
+xdg-utils.noarch              1.0.2-17.20091016cvs.el6
+                                                   @Red Hat Enterprise Linux/6.3
+xerces-j2.x86_64              2.7.1-12.7.el6_5     @spain-rhel-x86_64-server-6  
+xkeyboard-config.noarch       2.16-1.el6           @spain-rhel-x86_64-server-6  
+xml-common.noarch             0.6.3-33.el6         @spain-rhel-x86_64-server-6  
+xml-commons-apis.x86_64       1.3.04-3.6.el6       @PRB-Kid-RHEL-Repository     
+xml-commons-resolver.x86_64   1.1-4.18.el6         @PRB-Kid-RHEL-Repository     
+xmlrpc-c.x86_64               1.16.24-1210.1840.el6
+                                                   @rhel-x86_64-server-6        
+xmlrpc-c-client.x86_64        1.16.24-1210.1840.el6
+                                                   @rhel-x86_64-server-6        
+xorg-x11-apps.x86_64          7.7-6.el6            @spain-rhel-x86_64-server-6  
+xorg-x11-drivers.x86_64       7.3-13.4.el6         @RHEL-unix_boadilla          
+xorg-x11-drv-acecad.x86_64    1.5.0-8.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-aiptek.x86_64    1.4.1-6.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-apm.x86_64       1.2.5-11.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-ast.x86_64       1.1.5-1.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-ati.x86_64       7.6.1-4.el6          @rhel-6-server-optional-rpms 
+xorg-x11-drv-ati-firmware.noarch
+                              7.6.1-4.el6          @rhel-6-server-rpms          
+xorg-x11-drv-cirrus.x86_64    1.5.3-1.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-dummy.x86_64     0.3.6-16.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-elographics.x86_64
+                              1.4.1-4.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-evdev.x86_64     2.9.2-1.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-fbdev.x86_64     0.4.3-17.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-fpit.x86_64      1.4.0-7.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-glint.x86_64     1.2.8-11.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-hyperpen.x86_64  1.4.1-6.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-i128.x86_64      1.3.6-11.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-i740.x86_64      1.3.4-12.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-intel.x86_64     2.99.917-0.4.20151111.el6
+                                                   @spain-rhel-x86_64-server-6  
+xorg-x11-drv-keyboard.x86_64  1.8.1-1.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-mach64.x86_64    6.9.5-1.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-mga.x86_64       1.6.3-12.el6         @rhel-6-server-rpms          
+xorg-x11-drv-mouse.x86_64     1.9.1-1.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-mutouch.x86_64   1.3.0-6.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-nouveau.x86_64   1:1.0.12-1.el6       @spain-rhel-x86_64-server-6  
+xorg-x11-drv-nv.x86_64        2.1.20-6.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-openchrome.x86_64
+                              0.3.3-7.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-penmount.x86_64  1.5.0-6.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-qxl.x86_64       0.1.1-19.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-r128.x86_64      6.10.0-1.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-rendition.x86_64 4.2.6-1.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-s3virge.x86_64   1.10.7-1.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-savage.x86_64    2.3.7-3.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-siliconmotion.x86_64
+                              1.7.8-1.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-sis.x86_64       0.10.8-1.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-sisusb.x86_64    0.9.6-11.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-synaptics.x86_64 1.8.3-1.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-tdfx.x86_64      1.4.6-1.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-trident.x86_64   1.3.6-11.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-v4l.x86_64       0.2.0-37.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-vesa.x86_64      2.3.4-1.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-vmmouse.x86_64   13.1.0-1.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-vmware.x86_64    13.1.0-2.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-void.x86_64      1.4.1-1.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-drv-voodoo.x86_64    1.2.5-11.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-wacom.x86_64     0.32.0-1.el6         @spain-rhel-x86_64-server-6  
+xorg-x11-drv-xgi.x86_64       1.6.1-1.el6          @spain-rhel-x86_64-server-6  
+xorg-x11-font-utils.x86_64    1:7.2-11.el6         @Red Hat Enterprise Linux/6.3
+xorg-x11-fonts-Type1.noarch   7.2-11.el6           @spain-rhel-x86_64-server-6  
+xorg-x11-proto-devel.noarch   7.7-14.el6           @spain-rhel-x86_64-server-6  
+xorg-x11-server-Xorg.x86_64   1.17.4-18.el6_10     @rhel-6-server-rpms          
+xorg-x11-server-common.x86_64 1.17.4-18.el6_10     @rhel-6-server-rpms          
+xorg-x11-server-utils.x86_64  7.7-14.el6           @spain-rhel-x86_64-server-6  
+xorg-x11-utils.x86_64         7.5-14.el6           @spain-rhel-x86_64-server-6  
+xorg-x11-xauth.x86_64         1:1.0.9-1.el6        @spain-rhel-x86_64-server-6  
+xorg-x11-xinit.x86_64         1.0.9-14.el6         @rhel-x86_64-server-6        
+xorg-x11-xkb-utils.x86_64     7.7-12.el6           @spain-rhel-x86_64-server-6  
+xulrunner.x86_64              17.0.10-1.el6_4      @rhel-x86_64-server-6        
+xz.x86_64                     4.999.9-0.5.beta.20091007git.el6
+                                                   @spain-rhel-x86_64-server-6  
+xz-libs.x86_64                4.999.9-0.5.beta.20091007git.el6
+                                                   @spain-rhel-x86_64-server-6  
+xz-lzma-compat.x86_64         4.999.9-0.5.beta.20091007git.el6
+                                                   @spain-rhel-x86_64-server-6  
+yelp.x86_64                   2.28.1-17.el6_3      @rhel-x86_64-server-6        
+yum.noarch                    3.2.29-81.el6        @spain-rhel-x86_64-server-6  
+yum-metadata-parser.x86_64    1.1.2-16.el6         @Red Hat Enterprise Linux/6.3
+yum-plugin-security.noarch    1.1.30-42.el6_10     @rhel-6-server-rpms          
+yum-utils.noarch              1.1.30-42.el6_10     @rhel-6-server-rpms          
+zenity.x86_64                 2.28.0-1.el6         @Red Hat Enterprise Linux/6.3
+zip.x86_64                    3.0-1.el6_7.1        @spain-rhel-x86_64-server-6  
+zlib.i686                     1.2.3-29.el6         @RHEL-unix_boadilla          
+zlib.x86_64                   1.2.3-29.el6         @RHEL-unix_boadilla          
+zlib-devel.x86_64             1.2.3-29.el6         @RHEL-unix_boadilla          
+zsh.x86_64                    4.3.11-11.el6_10     @rhel-6-server-rpms          
+Uploading Enabled Repositories Report
+Loaded plugins: product-id, subscription-manager

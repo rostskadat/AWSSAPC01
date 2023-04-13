@@ -1,0 +1,110 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  DeployToEC2. Showcase deploying to EC2 instance (could be on-premise server)
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "CodeDeploy-DeployToEC2"
+    Description: Showcase deploying to EC2 instance (could be on-premise server)
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "CodeDeploy" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to EC2
+        Parameters:
+          - Bucket
+
+Parameters:
+
+  Bucket:
+    Description: The bucket where the app versions are located
+    Type: String
+    Default: "sapc01-deploytoec2-bucket-bucket-k5gbf0rysc08"
+
+Resources:
+
+  EC2Instance:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        CreateInstance: true
+        # to be able to read the S3Bucket
+        ManagedPolicyArns: arn:aws:iam::aws:policy/AmazonS3FullAccess
+        ParentStackName:
+          Ref: AWS::StackName
+        UserData:
+          Fn::Sub: |
+            #!/bin/bash
+            yum-config-manager --enable epel
+            yum update -y
+            yum install -y ruby wget
+            wget https://aws-codedeploy-${AWS::Region}.s3.${AWS::Region}.amazonaws.com/latest/install
+            chmod +x ./install
+            ./install auto
+            service codedeploy-agent start
+            service codedeploy-agent status
+            echo "Instance initialization... Done"
+
+  Application:
+    Type: AWS::CodeDeploy::Application
+    Properties: 
+      ComputePlatform: Server
+  
+  DeploymentGroup:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    Properties: 
+      ApplicationName: 
+        Ref: Application
+      Deployment: 
+        IgnoreApplicationStopFailures: true
+        Revision:
+          RevisionType: S3
+          S3Location: 
+            Bucket:
+              Ref: Bucket
+            BundleType: tgz
+            Key: application.tgz
+      DeploymentConfigName: CodeDeployDefault.AllAtOnce
+      Ec2TagSet: 
+        Ec2TagSetList: 
+          - Ec2TagGroup:
+              - Type: KEY_AND_VALUE
+                Key: aws:cloudformation:stack-id
+                Value: 
+                  Ref: EC2Instance
+              - Type: KEY_AND_VALUE
+                Key: aws:cloudformation:logical-id
+                Value: Instance
+      ServiceRoleArn: 
+        Fn::GetAtt: AWSCodeDeployRole.Arn
+
+  AWSCodeDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - codedeploy.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSCodeDeployRole
+
+Outputs:
+
+  EC2Instance:
+    Description: The EC2Instance
+    Value: 
+      Fn::Sub: "${EC2Instance.Outputs.InstancePublicDnsName}"

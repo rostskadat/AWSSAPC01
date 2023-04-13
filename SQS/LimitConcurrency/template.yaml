@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  LimitConcurrency...
+
+Parameters:
+  AffiliateConcurrentExecutions:
+    Type: Number
+    Description: The maximum number of call per second the Affiliate can Handler
+    Default: 1
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: CommonLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  OrderQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  CommonLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/CommonLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  CallAffiliateFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/CallAffiliateFunction
+      Policies: 
+        - SQSPollerPolicy:
+            QueueName: 
+              Fn::GetAtt: OrderQueue.QueueName
+      ReservedConcurrentExecutions:
+        Ref: AffiliateConcurrentExecutions
+      Environment:
+        Variables:
+          QUEUE_URL:
+            Ref: OrderQueue
+      Events:
+        Call:
+          Type: SQS
+          Properties:
+            BatchSize: 1
+            Queue: 
+              Fn::GetAtt: OrderQueue.Arn
+            Enabled: true
+
+Outputs:
+  OrderQueueUrl:
+    Description: "Queue Url where to post new order"
+    Value: 
+      Ref: OrderQueue
+
+  MonitoringUrl:
+    Value: 
+      Fn::Sub: "https://${AWS::Region}.console.aws.amazon.com/lambda/home?region=${AWS::Region}#/functions/${CallAffiliateFunction}?tab=monitoring"

@@ -1,0 +1,171 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+Description: >
+  BucketPolicies
+
+Parameters:
+  ExternalAccountId:
+    Type: Number
+    Description: The account to trust when accesing the S3 bucket
+    Default: 610150951079
+
+Resources:
+  PublicBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  PublicBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: PublicBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:GetObjectVersion
+            Resource:
+              - Fn::Sub: "${PublicBucket.Arn}/*"
+            Principal: "*"
+
+  PublicS3Object:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: PublicBucket
+        Key: s3object
+        ContentType: text/plain
+      Body: |
+        Hello World!
+
+  ForceEncryptionBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  ForceEncryptionS3Object:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: ForceEncryptionBucket
+        Key: s3object
+        ContentType: text/plain
+      Body: |
+        Hello World!
+
+  ForceEncryptionBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: ForceEncryptionS3Object
+    Properties:
+      Bucket:
+        Ref: ForceEncryptionBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Deny
+            Action:
+              - s3:PutObject
+            Resource:
+              - Fn::Sub: "${ForceEncryptionBucket.Arn}/*"
+            Principal: "*"
+            Condition:
+              "Null":
+                "s3:x-amz-server-side-encryption": true
+
+  GrantAccessBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  GrantAccessS3Object:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: GrantAccessBucket
+        Key: s3object
+        ContentType: text/plain
+      Body: |
+        Hello World!
+
+  GrantAccessBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: GrantAccessBucket
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - s3:*
+            Resource:
+              - Fn::Sub: "${GrantAccessBucket.Arn}/*"
+            Principal: 
+              AWS: 
+                Fn::Sub: "arn:aws:iam::${ExternalAccountId}:root"
+
+  CloudTrail:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: ../../SamApplications/CloudTrail/template.yaml
+      Parameters:
+        DataEventS3BucketArns:
+          # I do not add ,${GrantAccessBucket.Arn}/ because that will require 
+          # to update the log bucket policy with the correct OU
+          Fn::Sub: "${PublicBucket.Arn}/,${ForceEncryptionBucket.Arn}/"
+      Tags:
+        PLATFORM: SAPC01
+
+Outputs:
+  PublicBucket:
+    Description: "PublicBucket Id"
+    Value:
+      Ref: PublicBucket
+
+  PublicS3ObjectUrl:
+    Description: "PublicS3Object Id"
+    Value:
+      Fn::Sub: "https://${PublicS3Object.Bucket}.s3-${AWS::Region}.amazonaws.com/${PublicS3Object.Key}"
+
+  ForceEncryptionBucket:
+    Description: "ForceEncryptionBucket Id"
+    Value:
+      Ref: ForceEncryptionBucket
+
+  ForceEncryptionS3Object:
+    Description: "ForceEncryptionS3Object Id"
+    Value:
+      Ref: ForceEncryptionS3Object
+
+  GrantAccessBucket:
+    Description: "GrantAccessBucket Id"
+    Value:
+      Ref: GrantAccessBucket
+
+  GrantAccessS3Object:
+    Description: "GrantAccessS3Object Id"
+    Value:
+      Ref: GrantAccessS3Object
+
+  CloudTrail:
+    Description: "CloudTrail Trail Name"
+    Value:
+      Fn::GetAtt: CloudTrail.Outputs.Trail
+

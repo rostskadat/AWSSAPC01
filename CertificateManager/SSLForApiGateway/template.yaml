@@ -1,0 +1,123 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  SSLForApiGateway. Showcase SSL termination for APIGateway. Please note that the Certificate being in the region eu-west-1 means that we need a REGIONAL ApiGateway...
+
+Parameters:
+
+  HostedZoneName:
+    Description: "The hosted zone name"
+    Type: String
+    Default: domain.com
+
+  SubDomainName:
+    Description: "The subdomain of the API"
+    Type: String
+    Default: sapc01-api
+
+  CertificateArn:
+    Description: "The ACM certificate Arn. Must be valid in the current region."
+    Type: String
+    Default: "arn:aws:acm:eu-west-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+
+  StageName:
+    Description: "The stage name for the API Gateway"
+    Type: String
+    Default: "prod"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: SSLForApiGatewayLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  ApiDomainName:
+    Type: AWS::ApiGateway::DomainName
+    Properties:
+      DomainName: 
+        Fn::Sub: "${SubDomainName}-${StageName}.${HostedZoneName}"
+      EndpointConfiguration:
+        Types: 
+          - REGIONAL
+      RegionalCertificateArn: 
+        Ref: CertificateArn
+      SecurityPolicy: TLS_1_2
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  RecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      AliasTarget:
+        DNSName: 
+          Fn::GetAtt: ApiDomainName.RegionalDomainName
+        HostedZoneId: 
+          Fn::GetAtt: ApiDomainName.RegionalHostedZoneId
+      HostedZoneName: 
+        # NOTE: the final dot
+        Fn::Sub: "${HostedZoneName}."
+      Name: 
+        Fn::Sub: "${SubDomainName}-${StageName}.${HostedZoneName}"
+      Type: A
+
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      EndpointConfiguration:
+        Type: REGIONAL
+      StageName: 
+        Ref: StageName
+
+  BasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    DependsOn: ApiDomainName
+    Properties: 
+      DomainName: 
+        Ref: ApiDomainName
+      RestApiId: 
+        Ref: ApiGatewayApi
+      Stage: 
+        Ref: StageName
+
+  SSLForApiGatewayLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: "layers/SSLForApiGatewayLayer01"
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  SSLForApiGatewayFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/SSLForApiGatewayFunction
+      Events:
+        Execute:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGatewayApi
+            Path: /execute
+            Method: get
+
+Outputs:
+
+  ApiGatewayUrl:
+    Description: ApiGateway Url
+    Value: 
+      Fn::Sub: "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/execute"
+
+  UserFriendlyName:
+    Description: UserFriendlyName
+    Value: 
+      Fn::Sub: "https://${RecordSet}/execute"
+

@@ -1,0 +1,56 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  BillingAlarm
+
+Parameters:
+
+  AdministratorEmail:
+    Description: The email to send Billing Alarm to
+    Type: String
+    Default: "rostskadat@gmail.com"
+
+  MaxBillAmount:
+    Description: The max amount in USD per 6H periods
+    Type: Number
+    Default: 10
+
+Resources:
+
+  BillingAlarmSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint: 
+        Ref: AdministratorEmail
+      Protocol: email
+      TopicArn: 
+        Ref: BillingAlarmTopic
+
+  BillingAlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  SpendingAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: 
+        Fn::Sub: 'Alarm if AWS spending is over ${MaxBillAmount} USD'
+      Namespace: AWS/Billing
+      MetricName: EstimatedCharges
+      Dimensions:
+      - Name: Currency
+        Value: USD
+      Statistic: Maximum
+      Period: '21600'
+      EvaluationPeriods: '1'
+      Threshold:
+        Ref: MaxBillAmount
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - Ref: BillingAlarmTopic
+      InsufficientDataActions:
+        - Ref: BillingAlarmTopic
+

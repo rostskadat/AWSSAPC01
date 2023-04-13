@@ -1,0 +1,189 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ReduceKinesisCost.
+Parameters:
+  AthenaDatabase:
+    Type: String
+    Description: The name of the Athena Database
+    Default: "ReduceKinesisCostDB"
+  S3Prefix:
+    Type: String
+    Description: The prefix for the device logs in the S3 bucket
+    Default: "device_logs"
+
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: CommonLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+  ApplicationStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: ApplicationStream
+      ShardCount: 1
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  EventsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  CommonLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/CommonLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  ProcessStreamFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/ProcessStreamFunction
+      Policies:
+        - KinesisStreamReadPolicy:
+            StreamName:
+              Ref: ApplicationStream
+        - S3WritePolicy:
+            BucketName:
+              Ref: EventsBucket
+      Environment:
+        Variables:
+          BUCKET_NAME:
+            Ref: EventsBucket
+          S3_PREFIX: 
+            Ref: S3Prefix
+      Events:
+        Process:
+          Type: Kinesis
+          Properties:
+            Stream:
+              Fn::GetAtt: ApplicationStream.Arn
+            StartingPosition: TRIM_HORIZON
+            BatchSize: 10
+            Enabled: false
+
+  OutlierQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  CreateDataBaseQuery:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database:
+        Ref: AthenaDatabase
+      Description: "The query to detect the Outliers"
+      QueryString: 
+        Fn::Sub: |
+          CREATE DATABASE ${AthenaDatabase}
+
+  CreateTableQuery:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database:
+        Ref: AthenaDatabase
+      Description: "The query to detect the Outliers"
+      QueryString: 
+        Fn::Sub: |
+          CREATE EXTERNAL TABLE IF NOT EXISTS device_logs (
+            `Date` DATE,
+            Time STRING,
+            DeviceId STRING,
+            DeviceValue DOUBLE
+          ) 
+          ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.RegexSerDe'
+          WITH SERDEPROPERTIES ("input.regex" = "^([^ ]+)\\s+([^ ]+)\\s+([^ ]+)\\s+(.*)$") 
+          LOCATION 's3://${EventsBucket}/${S3Prefix}/';
+
+  DetectOutlierQuery:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database:
+        Ref: AthenaDatabase
+      Description: "The query to detect the Outliers"
+      QueryString: 
+        Fn::Sub: |
+          SELECT workflowname, AVG(activitytaskstarted) AS AverageWorkflow
+          FROM ${AthenaDatabase}
+          WHERE year='17' AND GROUP BY workflowname
+          ORDER BY AverageWorkflow DESC LIMIT 10
+
+  DetectOutliersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/DetectOutliersFunction
+      Policies:
+        - AthenaQueryPolicy:
+            WorkGroupName: "primary"
+        - S3CrudPolicy:
+            BucketName:
+              Ref: EventsBucket
+        - SQSSendMessagePolicy:
+            QueueName:
+              Fn::GetAtt: OutlierQueue.QueueName
+      Environment:
+        Variables:
+          BUCKET_NAME:
+            Ref: EventsBucket
+          DATABASE:
+            Ref: AthenaDatabase
+          QUEUE_NAME:
+            Fn::GetAtt: OutlierQueue.QueueName
+      Events:
+        EveryHour:
+          Type: Schedule
+          Properties:
+            Schedule: "rate(10 minutes)"
+            Description: Run Athena query on S3 bucket to look for outliers
+            Enabled: False
+
+  AddressOutliersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/AddressOutliersFunction
+      Policies:
+        - SQSPollerPolicy:
+            QueueName:
+              Fn::GetAtt: OutlierQueue.QueueName
+      Events:
+        Outlier:
+          Type: SQS
+          Properties:
+            Queue:
+              Fn::GetAtt: OutlierQueue.Arn
+      Tags:
+        PLATFORM: SAPC01
+
+Outputs:
+  ApplicationStream:
+    Description: "The ApplicationStream"
+    Value:
+      Ref: ApplicationStream
+
+  ApplicationStreamArn:
+    Description: "ApplicationStream Arn"
+    Value:
+      Fn::GetAtt: "ApplicationStream.Arn"
+
+  AddressOutliersFunctionArn:
+    Description: "AddressOutliersFunction Arn"
+    Value:
+      Fn::GetAtt: "AddressOutliersFunction.Arn"

@@ -1,0 +1,69 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ConcurrentExecutions
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: CommonLayer01
+    Environment:
+      Variables:
+        TABLE_NAME: 
+          Ref: ConcurrentExecutionsTable
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+
+  ConcurrentExecutionsTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      PrimaryKey: 
+        Name: location
+        Type: String
+      Tags:
+        PLATFORM: SAPC01
+
+  CommonLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/CommonLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  ConcurrentExecutionsFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/ConcurrentExecutionsFunction
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName:
+              Ref: ConcurrentExecutionsTable
+      Events:
+        Execute:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: ApiGatewayApi
+            Path: /execute
+            Method: get
+      
+
+Outputs:
+      
+  ApiGatewayApi:
+    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+    Value:
+      Fn::Sub: "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/execute/"

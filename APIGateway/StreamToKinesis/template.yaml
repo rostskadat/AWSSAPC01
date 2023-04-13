@@ -1,0 +1,161 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform:
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+Description: >
+  StreamToKinesis. Showcase streaming call to an API Gateway to a Kinesis Stream and process them later. IOT stuff
+  Process the data in batches to avoid reaching the write limits to the DynamoDB table. Group the requests from API Gateway by streaming the data into an Amazon Kinesis data stream.
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "ApiGateway-StreamToKinesis"
+    Description: Showcase streaming call to an API Gateway to a Kinesis Stream and process them later. IOT stuff
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "ApiGateway" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Route53 and ELB
+        Parameters:
+          - HostedZoneName
+          - SubDomainName
+          - CertificateArn
+      - Label:
+          default: Parameters related to API GateWay
+        Parameters:
+          - StageName
+          
+Parameters:
+  HostedZoneName:
+    Description: "The hosted zone name"
+    Type: String
+    Default: domain.com
+
+  SubDomainName:
+    Description: "The subdomain of the API"
+    Type: String
+    Default: sapc01-streamtokinesis
+
+  CertificateArn:
+    Description: "The ACM certificate Arn. Must be valid in the current region."
+    Type: String
+    Default: "arn:aws:acm:eu-west-1:123456789012:certificate/12345678-1234-1234-1234-123456789012"
+
+  StageName:
+    Description: "The StageName for ApiGateway"
+    Type: String
+    Default: "Prod"
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  Stream: 
+    Type: AWS::Kinesis::Stream 
+    Properties: 
+        RetentionPeriodHours: 24 
+        ShardCount: 1 
+        Tags:
+          - Key: PLATFORM
+            Value: SAPC01
+
+  ApiRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - apigateway.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Description: Role to allow ApiGateway to access Kinesis
+      ManagedPolicyArns: 
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonKinesisFullAccess
+      Path: "/"
+      # This is necessary in order to be able to reference the role in the
+      # OpenAPI template...
+      RoleName: !Sub SAPC01-StreamToKinesis-ApiRole-${AWS::Region}
+
+  Api:
+    Type: AWS::Serverless::Api
+    DependsOn: ApiRole
+    Properties:
+      DefinitionUri: resources/api.yaml
+      Domain: 
+        CertificateArn: !Ref CertificateArn
+        DomainName: !Sub "${SubDomainName}.${HostedZoneName}"
+        Route53: 
+          # NOTE: the final dot
+          HostedZoneName: !Sub "${HostedZoneName}."
+      StageName: !Ref StageName
+      Variables:
+        StreamName: !Ref Stream
+
+  ConsumerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/ConsumerFunction
+      Environment:
+        Variables: 
+          TABLE_NAME : !Ref Table
+      Events:
+        KinesisEvent:
+          Type: Kinesis
+          Properties:
+            BatchSize: 10
+            Enabled: false
+            StartingPosition: TRIM_HORIZON
+            Stream: !GetAtt Stream.Arn
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Table
+      Tracing: Active
+
+  Table:
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - AttributeName: SmartMeterId
+          AttributeType: S
+        - AttributeName: Timestamp
+          AttributeType: N
+      BillingMode: PAY_PER_REQUEST
+      KeySchema: 
+        - AttributeName: SmartMeterId
+          KeyType: HASH
+        - AttributeName: Timestamp
+          KeyType: RANGE
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+Outputs:
+
+  ApiRole:
+    Description: The ApiRole
+    Value: !GetAtt ApiRole.Arn
+
+  ApiUrl:
+    Description: The URL to access the API Gateway
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/smart_meter"
+
+  ApiFriendlyUrl:
+    Description: "The LoadBalancer DNSName"
+    Value: !Sub "https://${SubDomainName}.${HostedZoneName}/${StageName}/smart_meter"
+
+  Stream:
+    Description: The Stream
+    Value: !Ref Stream

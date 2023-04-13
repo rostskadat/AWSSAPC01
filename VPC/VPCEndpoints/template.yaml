@@ -1,0 +1,228 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  VPCEndpoints. Showcase the different VPC endpoints Available
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "VPC-VPCEndpoints"
+    Description: Showcase the different VPC endpoints Available
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "VPC" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to VPC Endpoints
+        Parameters:
+          - VpcId
+          - VpcCidr
+          - SubnetIds
+          - MyIP
+
+Parameters:
+
+  VpcId:
+    Description: The Vpc where to create the endpoints (DEFAULT_VPC)
+    Type: AWS::EC2::VPC::Id
+    Default: "vpc-9e9b9ffa"
+
+  VpcCidr:
+    Description: The Vpc CIDR block (DEFAULT_VPC)
+    Type: "String"
+    Default: "172.31.0.0/16"
+
+  SubnetIds:
+    Description: The subnet Ids (DEFAULT_VPC)
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581,subnet-58421700"
+
+  RouteTableIds:
+    Description: The RouteTable Ids (DEFAULT_VPC)
+    Type: List<String>
+    Default: "rtb-c6924aa1"
+
+  MyIP:
+    Description: The IP from which to allow full control
+    Type: String
+    Default: "90.162.185.145/32"
+
+Resources:
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      # no restriction from endpoint policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action:
+              - "s3:*"
+            Resource:
+              - Fn::Sub: "${Bucket.Arn}"
+              - Fn::Sub: "${Bucket.Arn}/*"
+      RouteTableIds:
+        Ref: RouteTableIds
+      ServiceName: 
+        Fn::Sub: 'com.amazonaws.${AWS::Region}.s3'
+      VpcEndpointType: Gateway
+      VpcId: 
+        Ref: VpcId
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: S3Endpoint
+    Properties: 
+      Bucket: 
+        Ref: Bucket
+      PolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+          - Sid: "Allow-from-VPCEndpoint"
+            Effect: Allow
+            Action:
+              - "s3:*"
+            Resource:
+              - Fn::Sub: "${Bucket.Arn}"
+              - Fn::Sub: "${Bucket.Arn}/*"
+            Principal: "*"      
+            Condition:
+              StringEquals:
+                aws:SourceVpce: 
+                  Ref: S3Endpoint
+          - Sid: "Deny-from-MyIP"
+            Effect: Deny
+            Action:
+              - "s3:PutObject"
+            Resource:
+              - Fn::Sub: "${Bucket.Arn}"
+              - Fn::Sub: "${Bucket.Arn}/*"
+            Principal: "*"      
+            Condition:
+              IpAddress:
+                aws:SourceIp: 
+                  - Ref: MyIP
+
+  Queue:
+    Type: AWS::SQS::Queue
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  QueuePolicy: 
+    Type: AWS::SQS::QueuePolicy
+    DependsOn: SQSEndpoint
+    Properties: 
+      Queues: 
+        - Ref: Queue
+      PolicyDocument: 
+        Statement: 
+          - Sid: "Allow-from-VPCEndpoint"
+            Effect: Allow
+            Action:
+              - "sqs:*"
+            Resource:
+              - Fn::Sub: "${Queue.Arn}"
+            Principal: "*"      
+            Condition:
+              StringEquals:
+                aws:SourceVpce: 
+                  Ref: SQSEndpoint
+          - Sid: "Deny-from-MyIP"
+            Effect: Deny
+            Action:
+              - "sqs:SendMessage"
+            Resource:
+              - Fn::Sub: "${Queue.Arn}"
+            Principal: "*"      
+            Condition:
+              IpAddress:
+                aws:SourceIp: 
+                  - Ref: MyIP
+
+  SQSEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action:
+              - "sqs:*"
+            Resource:
+              - Fn::Sub: "${Queue.Arn}"
+      PrivateDnsEnabled: true
+      SubnetIds: 
+        Ref: SubnetIds
+      ServiceName: 
+        Fn::Sub: 'com.amazonaws.${AWS::Region}.sqs'
+      VpcEndpointType: Interface
+      VpcId: 
+        Ref: VpcId
+
+  Instance:
+    Type: AWS::Serverless::Application
+    DependsOn: S3Endpoint
+    Properties:
+      Location: ../../SamApplications/EC2Instance/template.yaml
+      Parameters:
+        ParentStackName:
+          Ref: AWS::StackName
+        ManagedPolicyArns: "arn:aws:iam::aws:policy/PowerUserAccess"
+
+Outputs:
+
+  Bucket:
+    Description: The Bucket
+    Value: 
+      Ref: Bucket
+
+  S3Endpoint:
+    Description: The S3Endpoint
+    Value: 
+      Ref: S3Endpoint
+
+  Queue:
+    Description: The S3Endpoint
+    Value: 
+      Ref: Queue
+
+  SQSEndpointUrl:
+    Description: The SQSEndpoint PrivateDNS
+    Value:
+      Fn::Join:
+        - ''
+        - - 'https://'
+          - Fn::Select:
+              - 1
+              - Fn::Split:
+                  - ':'
+                  - Fn::Select: 
+                    - 2
+                    - Fn::GetAtt: SQSEndpoint.DnsEntries
+          - '/'
+          - Ref: AWS::AccountId
+          - '/'
+          - Fn::GetAtt: Queue.QueueName
+
+
+  Instance:
+    Description: The Instance
+    Value: 
+      Fn::GetAtt: Instance.Outputs.InstancePublicDnsName

@@ -1,0 +1,65 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  OpenApiDefinition. This stack demonstrates a OpenAPI definition
+
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 30
+    Layers:
+      - Ref: CommonLayer01
+    Tags:
+      PLATFORM: SAPC01
+
+Resources:
+
+  ApiGatewayApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      # Look at https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-swagger-extensions.html for more details
+      DefinitionUri: ./openapi/api.yaml
+
+  CommonLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/CommonLayer01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  ExecuteFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      CodeUri: lambdas/ExecuteFunction
+      # Required to be referenced within Open API template
+      FunctionName: ExecuteFunction
+
+  # This permission is necessary in order for the APIGateway to be able to 
+  # call the function. This is done automatically when using the 'Events'
+  # construct but not when using an OpenAPI definition
+  InvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: 
+        Fn::GetAtt: ExecuteFunction.Arn
+      Action: lambda:*
+      Principal: apigateway.amazonaws.com
+      SourceArn: 
+        Fn::Sub: "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayApi}/*/GET/*"
+
+Outputs:
+  FunctionArn:
+    Description: "Execute Lambda Function ARN"
+    Value:
+      Fn::GetAtt: "ExecuteFunction.Arn"
+
+  ApiGatewayApi:
+    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+    Value:
+      Fn::Sub: "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/execute/"
+    

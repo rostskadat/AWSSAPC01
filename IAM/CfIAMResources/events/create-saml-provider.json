@@ -1,0 +1,13 @@
+{
+  "RequestType": "Create",
+  "ServiceToken": "arn:aws:lambda:eu-west-1:123456789012:function:CfIAMSamProviderFunction",
+  "ResponseURL": "https://cloudformation-custom-resource-response-euwest1.s3-eu-west-1.amazonaws.com/arn%3Aaws%3Acloudformation%3Aeu-west-1%3A123456789012%3Astack/ACCOUNT-Architecture-AFDS/123932c0-6d03-11eb-add7-0a3ba0c9cf3f%7CSAMLProvider%7Cd01d0332-b435-4239-abdd-c5683556a479?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210212T072237Z&X-Amz-SignedHeaders=host&X-Amz-Expires=7199&X-Amz-Credential=AKIAJ7MCS7PVEUOADEEA%2F20210212%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Signature=3f7d9551a75c9f007646675904c3bca774152eb5469373cb5b2fffd5c6845c9e",
+  "StackId": "arn:aws:cloudformation:eu-west-1:123456789012:stack/ACCOUNT-Architecture-AFDS/123932c0-6d03-11eb-add7-0a3ba0c9cf3f",
+  "RequestId": "d01d0332-b435-4239-abdd-c5683556a479",
+  "LogicalResourceId": "SAMLProvider",
+  "ResourceType": "Custom::CfIAMSamProviderFunction",
+  "ResourceProperties": {
+    "ServiceToken": "arn:aws:lambda:eu-west-1:123456789012:function:CfIAMSamProviderFunction",
+    "SAMLMetadataDocumentUrl": "https://federation.allfunds.com/FederationMetadata/2007-06/FederationMetadata.xml"
+  }
+}

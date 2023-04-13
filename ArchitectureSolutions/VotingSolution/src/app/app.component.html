@@ -1,0 +1,24 @@
+<amplify-authenticator>
+  <div>
+    Voting Solution
+    <amplify-sign-out></amplify-sign-out>
+  </div>
+  <div class="form-body">
+    <form autocomplete="off" [formGroup]="createForm" (ngSubmit)="onCreate(createForm.value)">
+      <div>
+        <label>Election: </label>
+        <input type="text" formControlName="election" autocomplete="off">
+      </div>
+      <div>
+        <label>Vote: </label>
+        <input type="text" formControlName="vote" autocomplete="off">
+      </div>
+      <button type="submit">Submit</button>
+    </form>
+  </div>
+  <div *ngFor="let vote of votes">
+    <div>{{ vote.id }}</div>
+    <div>{{ vote.election }}</div>
+    <div>{{ vote.vote }}</div>
+  </div>
+</amplify-authenticator>

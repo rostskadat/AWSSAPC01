@@ -1,0 +1,22 @@
+{% extends "base.html" %} 
+
+{% block main %} 
+{% if message %}
+<p class="text-center text-danger">{{ message }}</p>
+{% endif %}
+<form class="add-item-form" action="" method="post" enctype="multipart/form-data">
+    <div class="form-row">
+        <div class="form-group col-md-12">
+            <label for="first-name">Description</label>
+            <input type="text" class="form-control" name="description" id="description" value="" required>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="col-md-12">
+            <label for="item-img"><b>Item Image</b></label><br>
+            <input type="file" name="image" id="item-img" class="" required>
+        </div>
+    </div>
+    <button type="submit" class="btn btn-success float-right">Update Item</button>
+</form>
+{% endblock %}

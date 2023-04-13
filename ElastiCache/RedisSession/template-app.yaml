@@ -1,0 +1,314 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  RedisSession. Showacse the use of Redis AUTH, AOF, for Session Managment
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "ElastiCache-RedisSession"
+    Description: Showacse the use of Redis AUTH, AOF, for Session Managment
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "ElastiCache" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Lambda
+        Parameters:
+          - PublicSubnets
+          - BucketName
+          - ApplicationKey
+          - KeyName
+
+Parameters:
+  PublicSubnets:
+    Description: The Public Subnets
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4,subnet-f76b6581"
+
+  BucketName:
+    Description: The S3 Bucket where the Application code has been uploaded
+    Type: String
+  
+  ApplicationKey:
+    Description: The S3 Key of the zip that contains the application code
+    Type: String
+    Default: node-app.zip
+
+  # Otherwise get a permission denied during deploy
+  ApplicationPort: 
+    Description: The Port on which to listen
+    Type: Number
+    Default: 3000
+  
+  KeyName:
+    Description: The SSH Key to use
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: SAPC01
+
+Resources:
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub ${AWS::StackId}
+      # To be able to bootstrap it locally... NOT FOR PRODUCTION
+      SubnetIds: !Ref PublicSubnets
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Secret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: The DBInstance MasterUserPassword
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "root"}'
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  SecretTargetAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref Secret
+      TargetId: !Ref DBInstance
+      TargetType: AWS::RDS::DBInstance
+
+  DBParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description: RDS DBParameterGroup
+      Family: mysql8.0
+      Parameters:
+        log_bin_trust_function_creators: 1
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    Properties:
+      AllocatedStorage: 8
+      DBInstanceClass: db.m4.large
+      DBName: dev
+      DBParameterGroupName: !Ref DBParameterGroup
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      Engine: MySQL
+      MasterUsername: !Sub "{{resolve:secretsmanager:${Secret}:SecretString:username}}"
+      MasterUserPassword: !Sub "{{resolve:secretsmanager:${Secret}:SecretString:password}}"
+      # To be able to bootstrap it locally... NOT FOR PRODUCTION
+      PubliclyAccessible: true
+
+  ElasticacheSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ElasticCache SecurityGroup
+      # To be able to bootstrap it locally... NOT FOR PRODUCTION
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 6379
+          ToPort: 6379
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 11211
+          ToPort: 11211
+          CidrIp: 0.0.0.0/0
+
+  ElasticacheSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties: 
+      Description: ElastiCache SubnetGroup
+      # To be able to bootstrap it locally... NOT FOR PRODUCTION
+      SubnetIds: !Ref PublicSubnets
+
+  ReplicationGroup:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      AtRestEncryptionEnabled: true
+      AutomaticFailoverEnabled: true
+      CacheNodeType: cache.t3.micro
+      CacheSubnetGroupName: !Ref ElasticacheSubnetGroup
+      Engine: redis
+      MultiAZEnabled: true
+      NumCacheClusters: 2
+      ReplicationGroupDescription: ElastiCache ReplicationGroup
+      SecurityGroupIds: 
+        - !GetAtt ElasticacheSecurityGroup.GroupId      
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      TransitEncryptionEnabled: true
+      UserGroupIds:
+        - !Ref Users
+
+  User:
+    Type: AWS::ElastiCache::User
+    Properties: 
+      # as per https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/Clusters.RBAC.html
+      AccessString: "on ~* +@all"
+      Engine: redis
+      # BEWARE: Share the same secret as DBInstance. NOT FOR PRODUCTION 
+      Passwords: 
+        - !Sub "{{resolve:secretsmanager:${Secret}:SecretString:password}}"
+      UserId: !Sub "{{resolve:secretsmanager:${Secret}:SecretString:username}}"
+      UserName: !Sub "{{resolve:secretsmanager:${Secret}:SecretString:username}}"
+
+  Users:
+    Type: AWS::ElastiCache::UserGroup
+    Properties: 
+      Engine: redis
+      UserGroupId: users
+      UserIds: 
+        # As per https://docs.aws.amazon.com/AmazonElastiCache/latest/red-ug/Clusters.RBAC.html#rbac-using
+        - default
+        - !Ref User
+
+  Application:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      Description: "AWS Elastic Beanstalk NodeJs Application"
+
+  ApplicationVersion:
+    Type: AWS::ElasticBeanstalk::ApplicationVersion
+    Properties:
+      ApplicationName: !Ref Application
+      Description: "1.0"
+      SourceBundle:
+        S3Bucket: !Ref BucketName
+        S3Key: !Ref ApplicationKey
+
+  Environment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties: 
+      ApplicationName: !Ref Application
+      # As per https://docs.aws.amazon.com/elasticbeanstalk/latest/dg/command-options-specific.html#command-options-nodejs
+      OptionSettings: 
+        - Namespace: "aws:autoscaling:launchconfiguration"
+          OptionName: IamInstanceProfile
+          Value: !Ref InstanceProfile
+        - Namespace: "aws:autoscaling:launchconfiguration"
+          OptionName: EC2KeyName
+          Value: !Ref KeyName
+        - Namespace: "aws:elasticbeanstalk:environment"
+          OptionName: ServiceRole
+          Value: !Ref EBServiceRole
+        - Namespace: "aws:elasticbeanstalk:xray"
+          OptionName: XRayEnabled
+          Value: "true"
+        - Namespace: "aws:elasticbeanstalk:application"
+          OptionName: Application Healthcheck URL
+          Value: !Sub HTTP:${ApplicationPort}/health
+        - Namespace: "aws:elasticbeanstalk:application:environment"
+          OptionName: PORT
+          Value: !Ref ApplicationPort
+        - Namespace: "aws:elasticbeanstalk:application:environment"
+          OptionName: REGION
+          Value: !Ref AWS::Region
+        - Namespace: "aws:elasticbeanstalk:application:environment"
+          OptionName: SECRET_ARN
+          Value: !Ref Secret
+        - Namespace: "aws:elasticbeanstalk:application:environment"
+          OptionName: RDS_HOST
+          Value: !GetAtt DBInstance.Endpoint.Address
+        - Namespace: "aws:elasticbeanstalk:application:environment"
+          OptionName: RDS_PORT
+          Value: !GetAtt DBInstance.Endpoint.Port
+        - Namespace: "aws:elasticbeanstalk:application:environment"
+          OptionName: REDIS_HOST
+          Value: !GetAtt ReplicationGroup.PrimaryEndPoint.Address
+        - Namespace: "aws:elasticbeanstalk:application:environment"
+          OptionName: REDIS_PORT
+          Value: !GetAtt ReplicationGroup.PrimaryEndPoint.Port
+        - Namespace: "aws:elasticbeanstalk:application:environment"
+          OptionName: LOG4JS_LEVEL
+          Value: "debug"
+        - Namespace: aws:elasticbeanstalk:cloudwatch:logs
+          OptionName: StreamLogs
+          Value: "true"
+        - Namespace: aws:elasticbeanstalk:cloudwatch:logs
+          OptionName: DeleteOnTerminate
+          Value: "true"
+        - Namespace: aws:elasticbeanstalk:cloudwatch:logs
+          OptionName: RetentionInDays
+          Value: "7"
+        - Namespace: "aws:elb:listener"
+          OptionName: InstancePort
+          Value: !Ref ApplicationPort
+
+      PlatformArn: !Sub "arn:${AWS::Partition}:elasticbeanstalk:${AWS::Region}::platform/Node.js 12 running on 64bit Amazon Linux 2/5.3.0"
+      VersionLabel: !Ref ApplicationVersion
+
+  EBServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: elasticbeanstalk.amazonaws.com
+            Action: 
+              - sts:AssumeRole
+            Condition:
+              StringEquals:
+                'sts:ExternalId': elasticbeanstalk
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkService
+        - arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref InstanceProfileRole
+
+  InstanceProfileRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/PowerUserAccess
+      Path: /
+
+Outputs:
+
+  Secret:
+    Description: The Secret
+    Value: !Ref Secret
+
+  DBInstanceEndpointAddress:
+    Description: The DBInstance Endpoint Address
+    Value: !GetAtt DBInstance.Endpoint.Address
+
+  DBInstanceEndpointPort:
+    Description: The DBInstance Endpoint Port
+    Value: !GetAtt DBInstance.Endpoint.Port
+
+  ReplicationGroupEndpointAddress:
+    Description: The ReplicationGroup RedisEndpoint Address
+    Value: !GetAtt ReplicationGroup.PrimaryEndPoint.Address
+
+  ReplicationGroupEndpointPort:
+    Description: The ReplicationGroup PrimaryEndPoint Port
+    Value: !GetAtt ReplicationGroup.PrimaryEndPoint.Port
+
+  # Environment:
+  #   Description: The Environment EndpointURL
+  #   Value: !GetAtt Environment.EndpointURL

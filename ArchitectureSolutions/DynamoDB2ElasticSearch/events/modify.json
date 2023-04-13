@@ -1,0 +1,139 @@
+{
+  "Records": [
+    {
+      "eventID": "bbd02968fb0ad8a97bb01a0fe062fe71",
+      "eventName": "MODIFY",
+      "eventVersion": "1.1",
+      "eventSource": "aws:dynamodb",
+      "awsRegion": "eu-west-1",
+      "dynamodb": {
+        "ApproximateCreationDateTime": 1612874432.0,
+        "Keys": {
+          "id": {
+            "S": "LU0090724625"
+          }
+        },
+        "NewImage": {
+          "SORIGEN_NAVS": {
+            "S": "G"
+          },
+          "PARTICIPACION_ADICIONAL": {
+            "N": "0"
+          },
+          "COLLOCABILI": {
+            "S": "N"
+          },
+          "INDREPAR": {
+            "NULL": true
+          },
+          "SINDCONTRATABLE": {
+            "S": "N"
+          },
+          "NOMBR_FONDO_ANTIG": {
+            "NULL": true
+          },
+          "SINDBLOOMBERG": {
+            "S": "N"
+          },
+          "STYPFUND": {
+            "S": "T"
+          },
+          "SCODCLASE": {
+            "S": " "
+          },
+          "SCODULTUSUARIO": {
+            "S": "LOADER"
+          },
+          "SINDESTANDAR": {
+            "NULL": true
+          },
+          "SINDVISIBLEBO": {
+            "S": "N"
+          },
+          "SORIGENDATOS": {
+            "S": "A"
+          },
+          "INDECUAL": {
+            "S": "0"
+          },
+          "SUSCRIPCION_ADICIONAL": {
+            "N": "0"
+          },
+          "ISIN_FONDO": {
+            "S": "LU0090724625"
+          },
+          "SINDACUM": {
+            "S": "S"
+          },
+          "id": {
+            "S": "LU0090724625"
+          },
+          "ID_SIGIM": {
+            "S": "106008"
+          },
+          "SINDTRASPASABLE": {
+            "S": "S"
+          },
+          "DCODTIMESTAMP": {
+            "S": "2021-01-01T00:00:01"
+          },
+          "SCONSOB": {
+            "S": "S"
+          },
+          "NOMBRE_FOND": {
+            "S": "SGAM EQUITIES EUROLAND CYCLICALS \"A\" ACC"
+          },
+          "SUSCRIPCION_MINIMA": {
+            "N": "0"
+          },
+          "FECHA_CONS": {
+            "S": "2016-06-02T00:00:00"
+          },
+          "NCODPAIS": {
+            "N": "18"
+          },
+          "SINDICAFA": {
+            "S": "S"
+          },
+          "VALIDAR_FOND": {
+            "S": "B"
+          },
+          "ABREVIATURA_DIVI": {
+            "S": "EUR"
+          },
+          "STIPO_FONDO": {
+            "S": "00"
+          },
+          "VALORACION": {
+            "S": "0"
+          },
+          "CDGESTOR": {
+            "N": "27"
+          },
+          "CDFAMILI": {
+            "N": "672"
+          },
+          "ABREVIATURA_FONDO": {
+            "S": "SGAM EQ EUROLAN"
+          },
+          "ES_GRUPO": {
+            "S": "S"
+          },
+          "COLCHON": {
+            "N": "10"
+          },
+          "SINDPRIVADO": {
+            "S": "N"
+          },
+          "PARTICIPACION_SUSCRIBIR": {
+            "N": "1"
+          }
+        },
+        "SequenceNumber": "5770100000000016666373280",
+        "SizeBytes": 628,
+        "StreamViewType": "NEW_IMAGE"
+      },
+      "eventSourceARN": "arn:aws:dynamodb:eu-west-1:123456789012:table/SAPC01-DynamoDB2ElasticSearch-Table-17AFPYU9OZ9C0/stream/2021-02-09T12:36:18.724"
+    }
+  ]
+}

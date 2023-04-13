@@ -1,0 +1,88 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  MgH2ME. Create Athena querries to get translet MgH inventory to MgE format
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "MigrationHub-MgH2ME"
+    Description: Create Athena querries to get translet MgH inventory to MgE format
+    Author: af090536
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "MigrationHub" ]
+    HomePageUrl: https://github.com/af090536
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/af090536
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to Athena
+        Parameters:
+          - AthenaDB
+
+Parameters:
+  AthenaDB:
+    Type: String
+    Description: The name of the DB where to store the log table
+    Default: "application_discovery_service_database"
+
+Resources:
+  CreateTableForS3AccessLogsAthenaNamedQuery:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database:
+        Ref: AthenaDB
+      Description: "A query to construct the view on Agregated data"
+      Name:
+        Fn::Sub: "00-Create View for aggregated data"
+      QueryString:
+        Fn::Sub: |
+          CREATE
+            OR REPLACE VIEW agr_agent AS
+          SELECT os.agent_id,
+            MAX(sys.total_cpu_usage_pct) AS max_cpu_usage_pct,
+            MAX( (sys.total_ram_in_mb - sys.free_ram_in_mb) * 100 / sys.total_ram_in_mb ) AS max_ram_usage_pct,
+            MAX(sys.total_num_cores) AS max_num_cores,
+            MAX(sys.total_ram_in_mb) AS max_ram_in_mb,
+            MAX(sys.total_disk_size_in_gb) AS max_disk_size_in_gb
+          FROM "application_discovery_service_database"."os_info_agent" os, "application_discovery_service_database"."sys_performance_agent" sys
+          WHERE os.agent_id = sys.agent_id
+          GROUP BY  os.agent_id;
+
+  CreateTableForS3AccessLogsAthenaNamedQuery:
+    Type: AWS::Athena::NamedQuery
+    Properties:
+      Database:
+        Ref: AthenaDB
+      Description: "A query to construct the view on Agregated data"
+      Name:
+        Fn::Sub: "00-Create View for aggregated data"
+      QueryString:
+        Fn::Sub: |
+          CREATE
+            OR REPLACE VIEW migration_evaluator AS
+          SELECT DISTINCT(id.agent_id),
+            os.host_name AS "Server Name",
+            agr.max_num_cores AS "CPU Cores",
+            agr.max_ram_in_mb AS "Memory (MB)",
+            agr.max_disk_size_in_gb "Provisioned Storage (GB)",
+            os.os_name AS "Operating System",
+            TRUE AS "Is Virtual?",
+            os.hypervisor AS "Hypervisor Name",
+            os.cpu_type AS "Cpu String",
+            'DEV/PRE' AS "Environment", 
+            'NA' AS "SQL Edition", 
+            'APPLICATION' AS "Application", 
+            agr.max_cpu_usage_pct AS "Cpu Utilization Peak (%)", 
+            agr.max_ram_usage_pct AS "Memory Utilization Peak (%)", 
+            100 AS "Time In-Use (%)"
+          FROM "application_discovery_service_database"."id_mapping_agent" id, 
+            "application_discovery_service_database"."os_info_agent" os, 
+            "application_discovery_service_database"."agr_agent" agr
+          WHERE id.agent_id = os.agent_id
+            AND id.timestamp = os.timestamp
+            AND id.agent_id = agr.agent_id
+            AND id.timestamp >= current_date - interval '1' day ;
+
+

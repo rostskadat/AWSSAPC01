@@ -1,0 +1,102 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  EC2Instance: This SAM Nested Application (c.f. https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-template-nested-applications.html)
+  create an EC2Instance.
+Metadata:
+
+  AWS::ServerlessRepo::Application:
+    Name: EC2Instance
+    Description: Launch a sensibly configured EC2Instance in the default VPC.
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ 'SAPC01' ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to VPC
+        Parameters:
+          - VpcId
+          - Subnets
+          - Port
+
+Parameters:
+
+  VpcId:
+    Description: "The VPC in which to put the load balancer"
+    Type: AWS::EC2::VPC::Id
+    Default: ''
+
+  Subnets:
+    Description: The Subnet Ids in which to deploy the ELB
+    Type: List<String>
+    Default: ''
+
+  InstanceId:
+    Description: The Instance Id
+    Type: String
+    Default: ''
+
+  Port:
+    Description: The Port on which to listen
+    Type: Number
+    Default: 80
+
+Resources:
+
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Subnets: !Ref Subnets
+      Type: application
+      Tags: 
+        - Key: PLATFORM
+          Value: SAPC01
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Port: !Ref Port
+      Protocol: HTTP
+      HealthCheckPath: /health
+      Matcher:
+        HttpCode: '200-299'
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+      TargetType: instance
+      Targets:
+        - Id: !Ref InstanceId
+          Port: !Ref Port
+      VpcId:
+        Ref: VpcId
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - TargetGroupArn: !Ref TargetGroup
+        Type: forward
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: !Ref Port
+      Protocol: HTTP
+
+Outputs:
+
+  LoadBalancerArn:
+    Description: The LoadBalancer Arn
+    Value: !Ref LoadBalancer
+
+  DNSName:
+    Description: The LoadBalancer.DNSName
+    Value: !GetAtt LoadBalancer.DNSName
+
+  CanonicalHostedZoneID:
+    Description: The LoadBalancer.CanonicalHostedZoneID
+    Value: !GetAtt LoadBalancer.CanonicalHostedZoneID

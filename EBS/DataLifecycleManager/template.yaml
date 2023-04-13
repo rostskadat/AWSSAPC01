@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  DataLifecycleManager. Showcases an EBS Data Lifecycle Manager Policy to automatically create EBS Snapshot of instances / volumes
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: EBS-DataLifecycleManager
+    Description: Showcases an EBS Data Lifecycle Manager Policy to automatically create EBS Snapshot of instances / volumes
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to EBS
+        Parameters:
+          - S3HostedZoneId
+
+Resources:
+
+  GitlabVolumeRootLifecyclePolicy:
+    Type: AWS::DLM::LifecyclePolicy
+    Properties:
+      Description: Lifecycle Policy using CloudFormation
+      ExecutionRoleArn: 
+        Fn::Sub: "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/AWSDataLifecycleManagerDefaultRole"
+      PolicyDetails:
+        ResourceTypes:
+          - "VOLUME"
+        Schedules:
+          - Name: "Daily Snapshots"
+            TagsToAdd:
+              - Key: "dlm:type"
+                Value: "DailySnapshot"
+            CreateRule:
+              Interval: 12
+              IntervalUnit: "HOURS"
+              Times:
+                - "13:00"
+            RetainRule:
+              Count: 10
+            CopyTags: true  
+        TargetTags:
+          # Name: BUILD-GITLAB-Main
+          - Key: Name
+            Value:  BUILD-GITLAB-VolumeRoot
+      State: DISABLED
+
+Outputs:
+  FunctionArn:
+    Description: "DataLifecycleManager Lambda Function ARN"
+    Value: 
+      Fn::GetAtt: "DataLifecycleManagerFunction.Arn"

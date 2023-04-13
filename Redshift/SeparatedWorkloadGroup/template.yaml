@@ -1,0 +1,159 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - Yaml2Json
+Description: >
+  SeparatedWorkloadGroup. Showcase the use of WorkloadGroup to avoid impacting 2 tasks
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "Redshift-SeparatedWorkloadGroup"
+    Description: Showcase the use of WorkloadGroup to avoid impacting 2 tasks
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: [ "SAPC01", "Redshift" ]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+Resources:
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Secret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Description: The Cluster MasterUserPassword
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "root"}'
+        GenerateStringKey: "password"
+        PasswordLength: 16
+        ExcludeCharacters: '"@/\'
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  SecretTargetAttachment:
+    Type: AWS::SecretsManager::SecretTargetAttachment
+    Properties:
+      SecretId: !Ref Secret
+      TargetId: !Ref Cluster
+      TargetType: AWS::Redshift::Cluster
+
+  ClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - redshift.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Description: Role to allow Redshift to access S3
+      Path: "/"
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref Bucket
+
+  ClusterParameterGroup: 
+    Type: AWS::Redshift::ClusterParameterGroup
+    Properties:
+      Description: The ClusterParameterGroup to define the 2 different queue
+      ParameterGroupFamily: redshift-1.0
+      Parameters:
+        - ParameterName: wlm_json_configuration
+          ParameterValue: 
+            Fn::Yaml2Json: 
+              - user_group: []
+                query_group:
+                  - EngineeringQueryGroup
+                name: EngineeringQueue
+                memory_percent_to_use: 25
+                query_concurrency: 1
+                rules:
+                - rule_name: HighRowEngineering
+                  action: log
+                  predicate:
+                  - metric_name: return_row_count
+                    operator: ">"
+                    value: 10
+              - user_group: []
+                query_group:
+                  - AccountingQueryGroup
+                name: AccountingQueue
+                memory_percent_to_use: 50
+                query_concurrency: 5
+                max_execution_time: 2000
+                rules:
+                - rule_name: HighRowAccounting
+                  action: log
+                  predicate:
+                  - metric_name: return_row_count
+                    operator: ">"
+                    value: 10
+              - user_group: []
+                query_group: []
+                name: Default queue
+                memory_percent_to_use: 25
+                query_concurrency: 1
+                max_execution_time: 2000
+                rules:
+                - rule_name: HighRow
+                  action: log
+                  predicate:
+                  - metric_name: return_row_count
+                    operator: ">"
+                    value: 10
+              - auto_wlm: false
+              - short_query_queue: false
+
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  Cluster: 
+    Type: AWS::Redshift::Cluster
+    Properties:
+      ClusterParameterGroupName: !Ref ClusterParameterGroup
+      ClusterType: single-node
+      DBName: dev
+      IamRoles: 
+        - !GetAtt ClusterRole.Arn
+      MasterUsername: !Sub '{{resolve:secretsmanager:${Secret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${Secret}:SecretString:password}}'
+      NodeType: dc2.large
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+Outputs:
+
+  Bucket:
+    Description: The Bucket
+    Value: !Ref Bucket
+
+  Cluster:
+    Description: The Cluster
+    Value: !Ref Cluster
+
+  ClusterEndpoint:
+    Description: The Cluster
+    Value: !Sub ${Cluster.Endpoint.Address}:${Cluster.Endpoint.Port}
+  
+  ClusterRole:
+    Description: The ClusterRole
+    Value: !GetAtt ClusterRole.Arn
+
+  Secret:
+    Description: The Secret
+    Value: !Ref Secret

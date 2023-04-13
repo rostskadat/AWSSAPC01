@@ -1,0 +1,148 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - LogGroupResourcePolicy
+Description: >
+  LocalBackup. Showcase the use of DataSync to backup your local HD
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: "DataSync-LocalBackup"
+    Description: Showcase the use of DataSync to backup your local HD
+    Author: rostskadat
+    SpdxLicenseId: Apache-2.0
+    ReadmeUrl: README.md
+    Labels: ["SAPC01", "DataSync"]
+    HomePageUrl: https://github.com/rostskadat
+    SemanticVersion: 0.0.1
+    SourceCodeUrl: https://github.com/rostskadat
+
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Parameters related to DataSync
+        Parameters:
+          - ActivationKey
+
+Parameters:
+  ActivationKey:
+    Description: The Agent ActivationKey
+    Type: String
+
+Resources:
+  SourceBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  DestinationBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  SourceLocationS3:
+    Type: AWS::DataSync::LocationS3
+    Properties:
+      S3BucketArn: !GetAtt SourceBucket.Arn
+      S3Config:
+        BucketAccessRoleArn: !GetAtt AgentRole.Arn
+      S3StorageClass: STANDARD
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  DestinationLocationS3:
+    Type: AWS::DataSync::LocationS3
+    Properties:
+      S3BucketArn: !GetAtt DestinationBucket.Arn
+      S3Config:
+        BucketAccessRoleArn: !GetAtt AgentRole.Arn
+      S3StorageClass: STANDARD
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  AgentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - datasync.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Description: Role created and associated with the DataSync Agent
+      Path: "/"
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref SourceBucket
+        - S3CrudPolicy:
+            BucketName: !Ref DestinationBucket
+
+  Agent:
+    Type: AWS::DataSync::Agent
+    Properties:
+      ActivationKey: !Ref ActivationKey
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+
+  LogGroup: 
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties: 
+      RetentionInDays: 7
+
+  LogGroupResourcePolicy:
+    Type: AWS::Logs::LogGroupResourcePolicy
+    Properties: 
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - datasync.amazonaws.com
+            Action:
+              - logs:PutLogEvents
+              - logs:CreateLogStream
+            Resource: 
+              - !GetAtt LogGroup.Arn
+
+  Task:
+    Type: AWS::DataSync::Task
+    Properties:
+      CloudWatchLogGroupArn: !GetAtt LogGroup.Arn
+      SourceLocationArn: !GetAtt SourceLocationS3.LocationArn
+      Options:
+        LogLevel: TRANSFER
+        OverwriteMode: ALWAYS
+        PreserveDeletedFiles: REMOVE
+        TransferMode: ALL
+        VerifyMode: POINT_IN_TIME_CONSISTENT
+      DestinationLocationArn: !GetAtt DestinationLocationS3.LocationArn
+      Tags:
+        - Key: PLATFORM
+          Value: SAPC01
+         
+Outputs:
+  SourceBucket:
+    Description: The SourceBucket
+    Value: !Ref SourceBucket
+
+  DestinationBucket:
+    Description: The DestinationBucket
+    Value: !Ref DestinationBucket
+
+  LogGroup:
+    Description: The LogGroup
+    Value: !Ref LogGroup

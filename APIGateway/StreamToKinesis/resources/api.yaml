@@ -1,0 +1,75 @@
+---
+swagger: '2.0'
+info:
+  version: 0.0.1
+  title: SmartMeter
+basePath: "/"
+schemes:
+- https
+paths:
+  "smart_meter":
+    post:
+      consumes:
+      - application/json
+      produces:
+      - application/json
+      parameters:
+      - in: body
+        name: SmartMeterPayload
+        required: true
+        schema:
+          "$ref": "#/definitions/SmartMeterPayload"
+      responses:
+        '200':
+          description: 200 response
+          schema:
+            "$ref": "#/definitions/Empty"
+      x-amazon-apigateway-request-validator: ValidateRequestBody
+      x-amazon-apigateway-integration:
+        credentials: arn:${AWS::Partition}:iam::${AWS::AccountId}:role/SAPC01-StreamToKinesis-ApiRole-${AWS::Region}
+        httpMethod: POST
+        passthroughBehavior: when_no_templates
+        responses:
+          default:
+            statusCode: '200'
+        requestParameters:
+          integration.request.header.Content-Type: "'application/x-amz-json-1.1'"
+        requestTemplates:
+          application/json: |-
+            #set($inputRoot = $input.path('$')) 
+            {
+              "StreamName": "${stageVariables.StreamName}",
+              "Records": [
+            #foreach($elem in $inputRoot.Records)
+                {
+                  "PartitionKey": "$inputRoot.SmartMeterId",
+                  "Data": "$util.base64Encode($elem)"
+                }#if($foreach.hasNext),#end
+            #end
+              ]
+            }
+        type: aws
+        uri: arn:${AWS::Partition}:apigateway:${AWS::Region}:kinesis:action/PutRecords
+
+definitions:
+  SmartMeterPayload:
+    description: This payload sent by the SmartMeter
+    type: object
+    required:
+    - SmartMeterId
+    - Records
+    properties:
+      SmartMeterId:
+        description: The SmartMeter Id
+        type: string
+      Records:
+        type: array
+        items:
+          type: string
+    title: SmartMeterPayload
+  Empty:
+    type: object
+x-amazon-apigateway-request-validators:
+  ValidateRequestBody:
+    validateRequestParameters: false
+    validateRequestBody: true
