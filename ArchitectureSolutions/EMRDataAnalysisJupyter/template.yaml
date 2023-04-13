@@ -1,0 +1,143 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - PolicyGenerator
+  - S3Objects
+Description: >
+  EMRDataAnalysisJupyter
+Parameters:
+  KeyName:
+    Description: Key used to login into the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: ARCHITECTURE_LABS
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+  VpcId:
+    Description: The VpcId
+    Type: AWS::EC2::VPC::Id
+    Default: "vpc-9e9b9ffa"
+  Subnets:
+    Description: The subnets in which to launch the ELB
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4, subnet-f76b6581, subnet-58421700"
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: ARCHITECTURE_LABS
+      WebsiteConfiguration:
+        IndexDocument: index.html
+
+  SourceObject:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket:
+          Ref: Bucket
+        Key: README.md
+        ContentType: text/markdown
+      Body: |
+        # EMRDataAnalysisJupyter
+        Upload the `notebook.ipynb` to this bucket and open in Amazon EMR
+
+  Cluster:
+    Type: AWS::EMR::Cluster
+    DependsOn: Bucket
+    Properties:
+      Applications:
+        - Name: Hadoop
+        - Name: Spark
+        - Name: Livy
+      Instances:
+        Ec2KeyName:
+          Ref: KeyName      
+        Ec2SubnetId:
+          Fn::Select:
+            - 0
+            - Ref: Subnets
+        MasterInstanceGroup:
+          InstanceCount: 1
+          InstanceType: m5.xlarge
+          Market: ON_DEMAND
+        CoreInstanceGroup:
+          InstanceCount: 1
+          InstanceType: m5.xlarge
+          Market: ON_DEMAND
+        TerminationProtected: false
+      JobFlowRole:
+        Ref: EMREc2InstanceProfile
+      LogUri:
+        Fn::Sub: 's3://${Bucket}/logs/'
+      Name: EMRDataAnalysisJupyterCluster
+      ReleaseLabel: 'emr-6.0.0'
+      ServiceRole:
+        Ref: EMRRole
+      VisibleToAllUsers: true
+      Tags:
+        - Key: PLATFORM
+          Value: ARCHITECTURE_LABS
+
+  EMRRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2008-10-17"
+        Statement:
+          - Sid: ""
+            Effect: Allow
+            Principal:
+              Service: "elasticmapreduce.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Path: /
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceRole"
+        - "arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceEditorsRole"
+      Policies:
+        - S3WritePolicy:
+            BucketName:
+              Ref: Bucket
+
+  EMREc2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2008-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: "ec2.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Path: /
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonElasticMapReduceforEC2Role"
+
+  EMREc2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - Ref: EMREc2Role
+
+Outputs:
+
+  Bucket:
+    Description: The S3 Bucket
+    Value:
+      Ref: Bucket
+
+  # Cluster:
+  #   Description: The Cluster
+  #   Value:
+  #     Ref: Cluster
+
+  # ClusterDNS:
+  #   Description: The Cluster DNS
+  #   Value:
+  #     Fn::GetAtt: Cluster.MasterPublicDNS
+

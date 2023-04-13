@@ -1,0 +1,101 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - S3Objects
+Description: >
+  EBSRaid: Create a Windows Instance with a Raid-10 array.
+  BEWARE: The ami is only valid for eu-west-1
+Parameters:
+  KeyName:
+    Description: "Key used to login into the instance"
+    Type: AWS::EC2::KeyPair::KeyName
+  SecurityGroupId:
+    Description: "The SecurityGroupId to associate with the instance"
+    Type: AWS::EC2::SecurityGroup::Id
+  SubnetId:
+    Description: "The SubnetId where to create the instance"
+    Type: AWS::EC2::Subnet::Id
+  EBSKmsKeyArn:
+    Description: "The KMS Key ARN used to encrypt the EBS volumes"
+    Type: String
+  InstanceProfileRole:
+    Description: "The Role to attach to that instance"
+    Type: String
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+Resources:
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+      - Ref: InstanceProfileRole
+
+  Ec2Instance: 
+    Type: AWS::EC2::Instance
+    Properties: 
+      BlockDeviceMappings: 
+        - DeviceName: /dev/sda1
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            KmsKeyId: 
+              Ref: EBSKmsKeyArn
+            VolumeSize: 30
+            VolumeType: gp2
+        - DeviceName: xvdb
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            KmsKeyId: 
+              Ref: EBSKmsKeyArn
+            VolumeSize: 8
+            VolumeType: gp2
+        - DeviceName: xvdc
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            KmsKeyId: 
+              Ref: EBSKmsKeyArn
+            VolumeSize: 8
+            VolumeType: gp2
+        - DeviceName: xvdd
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            KmsKeyId: 
+              Ref: EBSKmsKeyArn
+            VolumeSize: 8
+            VolumeType: gp2
+        - DeviceName: xvde
+          Ebs:
+            DeleteOnTermination: true
+            Encrypted: true
+            KmsKeyId: 
+              Ref: EBSKmsKeyArn
+            VolumeSize: 8
+            VolumeType: gp2
+      InstanceType: t2.micro
+      SecurityGroupIds:
+        - Ref: SecurityGroupId
+      DisableApiTermination: false
+      KeyName: 
+        Ref: KeyName
+      ImageId: 
+        Ref: ImageId
+      IamInstanceProfile:
+        Ref: InstanceProfile
+      Tags:
+        - Key: PLATFORM
+          Value: ARCHIECTURE_LABS
+
+Outputs:
+  Ec2Instance:
+    Description: The newly launched EC2Instance
+    Value:
+      Ref: Ec2Instance

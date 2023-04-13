@@ -1,0 +1,192 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - Yaml2Json
+  - ElasticTranscoderPreset
+  - ElasticTranscoderPipeline
+Description: >
+  ElasticTranscoder
+Resources:
+  InputBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: ARCHITECTURE_LABS
+
+  OutputBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: ARCHITECTURE_LABS
+
+  PipelineNotification:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: ElasticTranscoderPipeline-topic
+
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - elastictranscoder.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - S3ReadPolicy:
+            BucketName:
+              Ref: InputBucket
+        - S3CrudPolicy:
+            BucketName:
+              Ref: OutputBucket
+        - SNSPublishMessagePolicy:
+            TopicName:
+              Ref: PipelineNotification
+
+  SlidePresentationPipeline:
+    Type: AWS::ElasticTranscoder::Pipeline
+    Properties:
+      Name: SlidePresentationPipeline
+      Role:
+        Fn::GetAtt: PipelineRole.Arn
+      InputBucket:
+        Ref: InputBucket
+      OutputBucket:
+        Ref: OutputBucket
+      Notifications:
+        Completed:
+          Ref: PipelineNotification
+        Error:
+          Ref: PipelineNotification
+        Progressing:
+          Ref: PipelineNotification
+        Warning:
+          Ref: PipelineNotification
+
+  SlidePresentationPreset:
+    Type: AWS::ElasticTranscoder::Preset
+    Properties:
+      Name: SlidePresentation
+      Description: Video Capture from Slide Presentation based on MP4
+      Container: mp4
+      Audio:
+        Fn::Yaml2Json:
+          Codec: AAC
+          SampleRate: "44100"
+          BitRate: "64"
+          Channels: "1"
+          CodecOptions:
+            Profile: AAC-LC
+      Video:
+        Fn::Yaml2Json:
+          Codec: H.264
+          CodecOptions:
+            Profile: baseline
+            Level: "3.1"
+            MaxReferenceFrames: "3"
+          KeyframesMaxDist: "30"
+          FixedGOP: "true"
+          BitRate: "auto"
+          FrameRate: "auto"
+          MaxFrameRate: "10"
+          MaxWidth: "800"
+          MaxHeight: "600"
+          DisplayAspectRatio: auto
+          SizingPolicy: ShrinkToFit
+          PaddingPolicy: NoPad
+          Watermarks: []
+      Thumbnails:
+        Fn::Yaml2Json:
+          Format: "png"
+          Interval: "180"
+          MaxWidth: "192"
+          MaxHeight: "108"
+          SizingPolicy: "ShrinkToFit"
+          PaddingPolicy: "NoPad"
+
+  TriggerNewJob:
+    Type: AWS::Serverless::Function
+    Properties:
+      Description: This function triggers a new ElasticTranscoder job when a new Video appear in the S3 bucket
+      CodeUri: lambdas/TriggerNewJob
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      Policies: AmazonElasticTranscoder_JobsSubmitter
+      Events:
+        NewFile:
+          Type: S3
+          Properties:
+            Bucket:
+              Ref: InputBucket
+            Events: "s3:ObjectCreated:*"
+      Environment:
+        Variables:
+          PIPELINE_NAME: SlidePresentationPipeline
+          PRESET_ID:
+            Ref: SlidePresentationPreset
+
+  User:
+    Type: AWS::IAM::User
+    Properties:
+      UserName:
+        Fn::Sub: "batch-elastictranscoder-${AWS::Region}"
+      Policies:
+        - S3CrudPolicy:
+            BucketName:
+              Ref: InputBucket
+        - S3CrudPolicy:
+            BucketName:
+              Ref: OutputBucket
+
+  AccessKey:
+    Type: AWS::IAM::AccessKey
+    Properties:
+      UserName:
+        Fn::Sub: "batch-elastictranscoder-${AWS::Region}"
+    DependsOn: User
+
+Outputs:
+  InputBucket:
+    Description: The Input S3 bucket
+    Value:
+      Ref: InputBucket
+
+  OutputBucket:
+    Description: The Output S3 bucket
+    Value:
+      Ref: OutputBucket
+
+  PipelineId:
+    Description: The Id of the pipeline to use to create jobs
+    Value:
+      Ref: SlidePresentationPipeline
+
+  PresetId:
+    Description: The Id of the preset to use to create jobs
+    Value:
+      Ref: SlidePresentationPreset
+
+  User:
+    Description: The IAM User specifically created to use that stack
+    Value:
+      Ref: User
+  
+  AccessKeyId:
+    Description: The AccessKeyId
+    Value:
+      Ref: AccessKey
+
+  SecretAccessKey:
+    Description: The SecretAccessKey
+    Value:
+      Fn::GetAtt: AccessKey.SecretAccessKey

@@ -1,0 +1,54 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+Description: >
+  IAMQ09
+Parameters:
+
+  SecurityAccountId:
+    Description: The AccountId of the Security Team
+    Type: Number
+    Default: 260332547349
+
+Resources:
+
+  SecurityAuditRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: SecurityAuditRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              AWS:
+                Ref: SecurityAccountId
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      Policies:
+        - PolicyName: EC2DescribePolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "ec2:DescribeInstances"
+                Resource: "*"
+
+Outputs:
+  SecurityAuditRole:
+    Description: The SecurityAuditRole
+    Value:
+      Ref: SecurityAuditRole
+
+  SecurityAuditRoleArn:
+    Description: The SecurityAuditRole
+    Value:
+      Fn::GetAtt: SecurityAuditRole.Arn
+
+  SecurityAccountId:
+    Description: The SecurityAccountId
+    Value:
+      Ref: SecurityAccountId

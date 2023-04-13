@@ -1,0 +1,214 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Route53
+Parameters:
+  HostedZone:
+    Type: String
+    Description: The DNS of the HostedZone  
+    Default: afbaws.com
+  HostedZoneId:
+    Type: AWS::Route53::HostedZone::Id
+    Description: The Hosted Zone in which to showcase the routing policies
+    Default: Z4OAYE8GXTF5F
+  ELBDNSNameRegion1:
+    Description: "The ELB DNSName in Region #1"
+    Type: String
+  ELBCanonicalHostedZoneIdRegion1:
+    Description: "The ELB CanonicalHostedZoneId in Region #1"
+    Type: String
+  ELBDNSNameRegion2:
+    Description: "The ELB DNSName in Region #2"
+    Type: String
+  ELBCanonicalHostedZoneIdRegion2:
+    Description: "The ELB CanonicalHostedZoneId in Region #2"
+    Type: String
+
+Resources:
+  SimpleRecordSet:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId : 
+        Ref: HostedZoneId
+      Comment: "Simple DNS name for my ELB DNS in region #1"
+      Name: 
+        Fn::Sub: "route53-simple.${HostedZone}."
+      AliasTarget: 
+        DNSName: 
+          Ref: ELBDNSNameRegion1
+        EvaluateTargetHealth: true
+        HostedZoneId:
+          Ref: ELBCanonicalHostedZoneIdRegion1      
+      Type: A
+
+  WeightedRecordSet:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneId : 
+        Ref: HostedZoneId
+      Comment: "Weighted DNS name for ELB DNS in region #1 and #2"
+      RecordSets:
+        - Name: 
+            Fn::Sub: "route53-weighted.${HostedZone}."
+          AliasTarget: 
+            DNSName: 
+              Ref: ELBDNSNameRegion1
+            HostedZoneId: 
+              Ref: ELBCanonicalHostedZoneIdRegion1
+          SetIdentifier: "route53-weighted-1"
+          Type: A
+          Weight: 50
+        - Name: 
+            Fn::Sub: "route53-weighted.${HostedZone}."
+          AliasTarget: 
+            DNSName: 
+              Ref: ELBDNSNameRegion2
+            HostedZoneId: 
+              Ref: ELBCanonicalHostedZoneIdRegion2
+          SetIdentifier: "route53-weighted-2"
+          Type: A
+          Weight: 50
+
+  LatencyRecordSet:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneId : 
+        Ref: HostedZoneId
+      Comment: "Latency DNS name for ELB DNS in region #1 and #2"
+      RecordSets:
+        - Name: 
+            Fn::Sub: "route53-latency.${HostedZone}."
+          AliasTarget: 
+            DNSName: 
+              Ref: ELBDNSNameRegion1
+            HostedZoneId: 
+              Ref: ELBCanonicalHostedZoneIdRegion1
+          Region: "eu-west-1"
+          SetIdentifier: "route53-latency-1"
+          Type: A
+        - Name: 
+            Fn::Sub: "route53-latency.${HostedZone}."
+          AliasTarget: 
+            DNSName: 
+              Ref: ELBDNSNameRegion2
+            HostedZoneId: 
+              Ref: ELBCanonicalHostedZoneIdRegion2
+          Region: "ap-southeast-2"
+          SetIdentifier: "route53-latency-2"
+          Type: A
+
+  FailoverHealthCheck1: 
+    Type: AWS::Route53::HealthCheck
+    Properties: 
+      HealthCheckConfig: 
+        Port: 80
+        Type: HTTP
+        ResourcePath: /index.html
+        FullyQualifiedDomainName: 
+          Ref: ELBDNSNameRegion1
+        RequestInterval: 10
+        FailureThreshold: 1
+      HealthCheckTags: 
+        - Key: Name
+          Value: FailoverHealthCheck1
+
+  FailoverHealthCheck2: 
+    Type: AWS::Route53::HealthCheck
+    Properties: 
+      HealthCheckConfig: 
+        Port: 80
+        Type: HTTP
+        ResourcePath: /index.html
+        FullyQualifiedDomainName: 
+          Ref: ELBDNSNameRegion2
+        RequestInterval: 10
+        FailureThreshold: 1
+      HealthCheckTags: 
+        - Key: Name
+          Value: FailoverHealthCheck2
+
+  FailoverRecordSet:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneId : 
+        Ref: HostedZoneId
+      Comment: "Failover DNS name for ELB DNS in region #1 and #2"
+      RecordSets:
+        - Name: 
+            Fn::Sub: "route53-failover.${HostedZone}."
+          AliasTarget: 
+            EvaluateTargetHealth: true
+            DNSName: 
+              Ref: ELBDNSNameRegion1
+            HostedZoneId: 
+              Ref: ELBCanonicalHostedZoneIdRegion1
+          Failover: PRIMARY 
+          HealthCheckId:
+            Ref: FailoverHealthCheck1
+          SetIdentifier: "route53-failover-1"
+          Type: A
+        - Name: 
+            Fn::Sub: "route53-failover.${HostedZone}."
+          AliasTarget: 
+            EvaluateTargetHealth: true
+            DNSName: 
+              Ref: ELBDNSNameRegion2
+            HostedZoneId: 
+              Ref: ELBCanonicalHostedZoneIdRegion2
+          Failover: SECONDARY 
+          HealthCheckId:
+            Ref: FailoverHealthCheck2
+          SetIdentifier: "route53-failover-2"
+          Type: A
+
+  GeolocationRecordSet:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneId : 
+        Ref: HostedZoneId
+      Comment: "Geolocation DNS name for ELB DNS in region #1 and #2"
+      RecordSets:
+        - Name: 
+            Fn::Sub: "route53-geolocation.${HostedZone}."
+          AliasTarget: 
+            DNSName: 
+              Ref: ELBDNSNameRegion1
+            HostedZoneId: 
+              Ref: ELBCanonicalHostedZoneIdRegion1
+          GeoLocation:
+            ContinentCode: EU
+          SetIdentifier: "route53-geolocation-1"
+          Type: A
+        - Name: 
+            Fn::Sub: "route53-geolocation.${HostedZone}."
+          AliasTarget: 
+            DNSName: 
+              Ref: ELBDNSNameRegion2
+            HostedZoneId: 
+              Ref: ELBCanonicalHostedZoneIdRegion2
+          GeoLocation:
+            CountryCode: "*"
+          SetIdentifier: "route53-geolocation-2"
+          Type: A
+
+Outputs:
+  SimpleRecordSet:
+    Description: The DNS for SimpleRecordSet
+    Value:
+      Ref: SimpleRecordSet
+  WeightedRecordSet:
+    Description: The DNS for WeightedRecordSet
+    Value:
+      Fn::Sub: "route53-weighted.${HostedZone}"
+  LatencyRecordSet:
+    Description: The DNS for LatencyRecordSet
+    Value:
+      Fn::Sub: "route53-latency.${HostedZone}"
+  FailoverRecordSet:
+    Description: The DNS for FailoverRecordSet
+    Value:
+      Fn::Sub: "route53-failover.${HostedZone}"
+  GeolocationRecordSet:
+    Description: The DNS for GeolocationRecordSet
+    Value:
+      Fn::Sub: "route53-geolocation.${HostedZone}"

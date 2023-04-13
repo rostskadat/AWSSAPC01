@@ -1,0 +1,118 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+Description: >
+  EC2Q03
+Parameters:
+  Email:
+    Description: The SES Email to use
+    Type: String
+    Default: jfjmasnada@allfunds.com
+  KeyName:
+    Description: Key used to login into the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: ARCHITECTURE_LABS
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+Resources:
+
+  EC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service:
+                - 'ec2.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
+      Policies:
+        - SESCrudPolicy:
+            IdentityName:
+              Ref: Email
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: '/'
+      Roles: 
+        - Ref: EC2InstanceRole
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties: 
+      LaunchTemplateData: 
+        IamInstanceProfile: 
+          Arn: 
+            Fn::GetAtt: InstanceProfile.Arn
+        ImageId: 
+          Ref: ImageId
+        InstanceType: t2.micro
+        KeyName: 
+          Ref: KeyName
+        TagSpecifications: 
+          - ResourceType: instance
+            Tags: 
+              - Key: PLATFORM
+                Value: ARCHITECTURE_LABS
+              - Key: Name
+                Value: EC2Q03-Instance
+          - ResourceType: volume
+            Tags: 
+              - Key: PLATFORM
+                Value: ARCHITECTURE_LABS
+              - Key: Name
+                Value: EC2Q03-Instance-VolumeRoot
+        UserData: 
+          Fn::Base64: 
+            Fn::Sub: |
+              #!/bin/bash
+              yum update -y
+              aws --region ${AWS::Region} ses send-email \
+                --from "${Email}" \
+                --to "${Email}" \
+                --subject "Spot Instance online!" \
+                --text "This is a message from instance $(curl -s http://169.254.169.254/latest/meta-data/instance-id)"
+
+  SpotFleet:
+    Type: AWS::EC2::SpotFleet
+    Properties: 
+      SpotFleetRequestConfigData: 
+        IamFleetRole: 
+          Fn::Sub: arn:${AWS::Partition}:iam::${AWS::AccountId}:role/aws-ec2-spot-fleet-tagging-role
+        AllocationStrategy: lowestPrice
+        TargetCapacity: 5
+        ValidFrom: '2020-08-04T09:43:35Z'
+        ValidUntil: '2020-08-11T09:43:35Z'
+        TerminateInstancesWithExpiration: true
+        LaunchSpecifications: []
+        Type: request
+        LaunchTemplateConfigs:
+          - LaunchTemplateSpecification:
+              LaunchTemplateId: 
+                Ref: LaunchTemplate
+              Version: 
+                Fn::GetAtt: LaunchTemplate.LatestVersionNumber
+            Overrides:
+              - InstanceType: t2.micro
+                WeightedCapacity: 1
+                SubnetId: subnet-b09099d4
+              - InstanceType: t2.micro
+                WeightedCapacity: 1
+                SubnetId: subnet-f76b6581
+              - InstanceType: t2.micro
+                WeightedCapacity: 1
+                SubnetId: subnet-58421700
+
+Outputs:
+  SpotFleet:
+    Description: The spot fleet request
+    Value:
+      Ref: SpotFleet

@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - S3Objects
+Resources:
+
+  SourceBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: ARCHITECTURE_LABS
+      VersioningConfiguration:
+        Status: Enabled
+      WebsiteConfiguration:
+        IndexDocument: index.html
+
+  SourceObject:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket: 
+          Ref: SourceBucket
+        Key: index.html
+        ContentType: text/html
+      Body: |
+        <html>
+          <head><title>index.html</title></head>
+          <body><p>Hello World!</body>
+        <html>
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties: 
+      DistributionConfig: 
+        Enabled: True
+        DefaultCacheBehavior:
+          ForwardedValues: 
+            QueryString: false
+          TargetOriginId: 
+            Fn::Join: 
+              - ''
+              - - Ref: SourceBucket
+                - '-to-dist'
+          ViewerProtocolPolicy: redirect-to-https
+        Origins:
+          - Id: 
+              Fn::Join: 
+                - ''
+                - - Ref: SourceBucket
+                  - '-to-dist'
+            DomainName: 
+              Fn::GetAtt: SourceBucket.RegionalDomainName
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+      Tags:
+        - Key: PLATFORM
+          Value: ARCHITECTURE_LABS
+
+Outputs:
+  CloudFrontIndex:
+    Description: The CloudFront FQDN to use to access that distribution
+    Value:
+      Fn::Sub: https://${Distribution.DomainName}/index.html
+  S3Index:
+    Description: The CloudFront FQDN to use to access that distribution
+    Value:
+      Fn::Sub: https://${SourceBucket.RegionalDomainName}/index.html

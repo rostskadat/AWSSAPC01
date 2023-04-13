@@ -1,0 +1,42 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - S3Objects
+Description: >
+  S3WebsiteConfiguration
+Resources:
+  SourceBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: ARCHITECTURE_LABS
+      WebsiteConfiguration:
+        IndexDocument: index.html
+
+  SourceObject:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket: 
+          Ref: SourceBucket
+        Key: index.html
+        ContentType: text/html
+      Body: |
+        <html>
+          <head><title>index.html</title></head>
+          <body><p>Hello World!</body>
+        <html>
+
+Outputs:
+  BucketDomainName:
+    Value:
+      Fn::GetAtt: SourceBucket.DomainName
+  BucketRegionalDomainName:
+    Value:
+      Fn::GetAtt: SourceBucket.RegionalDomainName
+  BucketWebsiteURL:
+    Value:
+      Fn::GetAtt: SourceBucket.WebsiteURL
+            

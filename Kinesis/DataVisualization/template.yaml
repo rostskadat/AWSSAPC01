@@ -1,0 +1,232 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+Description: >
+  KinesisDataVisualization
+  The Amazon Kinesis Data Visualization Sample Application
+Parameters:
+  KeyName:
+    Description: >
+      (Optional) Name of an existing EC2 KeyPair to enable SSH access
+      to the instance. If this is not provided you will not be able to SSH on to the
+      EC2 instance.
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: "ARCHITECTURE_LABS"
+  SSHLocation:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    Type: String
+    Default: "85.61.197.112/32"
+  ApplicationArchive:
+    Description: >
+      A publicly accessible URL to the sample application archive as produced
+      by 'mvn package'
+    Type: String
+    Default: https://github.com/awslabs/amazon-kinesis-data-visualization-sample/releases/download/v1.1.2/amazon-kinesis-data-visualization-sample-1.1.2-assembly.zip
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+Resources:
+  KinesisStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      ShardCount: "2"
+
+  KCLDynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: leaseKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: leaseKey
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: "10"
+        WriteCapacityUnits: "5"
+
+  CountsDynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: resource
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: resource
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      ProvisionedThroughput:
+        ReadCapacityUnits: "10"
+        WriteCapacityUnits: "5"
+
+  Ec2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access and HTTP access on the inbound port
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: "22"
+          ToPort: "22"
+          CidrIp:
+            Ref: SSHLocation
+        - IpProtocol: tcp
+          FromPort: "80"
+          ToPort: "80"
+          CidrIp: 0.0.0.0/0
+
+  EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId:
+        Ref: Ec2Instance
+
+  RootRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: "/"
+      Policies:
+        - KinesisCrudPolicy:
+            StreamName:
+              Ref: KinesisStream
+        - DynamoDBCrudPolicy:
+            TableName:
+              Ref: KCLDynamoDBTable
+        - DynamoDBCrudPolicy:
+            TableName:
+              Ref: CountsDynamoDBTable
+        - CloudWatchPutMetricPolicy: {}
+
+  RootInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - Ref: RootRole
+
+  Ec2Instance:
+    Type: AWS::EC2::Instance
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              java-1.7.0-openjdk: []
+          files:
+            "/var/kinesis-data-vis-sample-app/watchdog.sh":
+              content:
+                Fn::Sub: |
+                  #!/bin/bash
+                  if ! ps aux | grep HttpReferrerCounterApplication | grep -v grep ; then
+                    # Launch the Kinesis application for counting HTTP referrer pairs
+                    java -cp /var/kinesis-data-vis-sample-app/lib/\\* \
+                      com.amazonaws.services.kinesis.samples.datavis.HttpReferrerCounterApplication \
+                      ${KCLDynamoDBTable} ${KinesisStream} ${CountsDynamoDBTable} ${AWS::Region} &>> \
+                      /home/ec2-user/kinesis-data-vis-sample-app-kcl.log &
+                  fi
+                  if ! ps aux | grep HttpReferrerStreamWriter | grep -v grep ; then
+                    # Launch our Kinesis stream writer to fill our stream with generated HTTP (resource, referrer) pairs.
+                    # This will create a writer with 5 threads to send records indefinitely.
+                    java -cp /var/kinesis-data-vis-sample-app/lib/\\* \
+                      com.amazonaws.services.kinesis.samples.datavis.HttpReferrerStreamWriter \
+                      5 ${KinesisStream} ${AWS::Region} &>> \
+                      /home/ec2-user/kinesis-data-vis-sample-app-publisher.log &
+                  fi
+                  if ! ps aux | grep WebServer | grep -v grep ; then
+                    # Launch the webserver\n"
+                    java -cp /var/kinesis-data-vis-sample-app/lib/\\* \
+                      com.amazonaws.services.kinesis.samples.datavis.WebServer \
+                      80 /var/kinesis-data-vis-sample-app/wwwroot \
+                      ${CountsDynamoDBTable} ${AWS::Region} &>> \
+                      /home/ec2-user/kinesis-data-vis-sample-app-www.log &
+                  fi
+              mode: "000755"
+              owner: ec2-user
+              group: ec2-user
+            "/var/kinesis-data-vis-sample-app/crontask":
+              content: |
+                * * * * * bash /var/kinesis-data-vis-sample-app/watchdog.sh
+              mode: "000644"
+              owner: ec2-user
+              group: ec2-user
+          sources:
+            "/var/kinesis-data-vis-sample-app":
+              Ref: ApplicationArchive
+    Properties:
+      KeyName:
+        Ref: KeyName
+      ImageId: 
+        Ref: ImageId
+      InstanceType: t2.micro
+      SecurityGroups:
+        - Ref: Ec2SecurityGroup
+      IamInstanceProfile:
+        Ref: RootInstanceProfile
+      UserData:
+        Fn::Base64:
+          Fn::Sub: |
+            #!/bin/bash
+            yum update -y
+            /opt/aws/bin/cfn-init -s ${AWS::StackId} -r Ec2Instance --region ${AWS::Region}
+            # Register watchdog script with cron
+            crontab /var/kinesis-data-vis-sample-app/crontask
+            # Launch watchdog script immediately so if it fails this stack fails to start
+            /var/kinesis-data-vis-sample-app/watchdog.sh
+            if [ $? -ne 0 ]; then
+              echo "watchdog.sh failed but still signaling WaitConditionHandle 'WaitConditionHandle'
+            fi
+            # /opt/aws/bin/cfn-signal -e 0 'WaitConditionHandle'
+
+  # WaitConditionHandle:
+  #   Type: AWS::CloudFormation::WaitConditionHandle
+  # WaitCondition:
+  #   Type: AWS::CloudFormation::WaitCondition
+  #   DependsOn: Ec2Instance
+  #   Properties:
+  #     Handle:
+  #       Ref: WaitHandle
+  #     Timeout: "600"
+Outputs:
+  URL:
+    Description: URL to the sample application's visualization
+    Value:
+      Fn::Sub: "http://${Ec2Instance.PublicDnsName}"
+  InstanceId:
+    Description: InstanceId of the newly created EC2 instance
+    Value:
+      Ref: Ec2Instance
+  AZ:
+    Description: Availability Zone of the newly created EC2 instance
+    Value:
+      Fn::Sub: "http://${Ec2Instance.AvailabilityZone}"
+  StreamName:
+    Description:
+      The name of the Kinesis Stream. This was autogenerated by the Kinesis
+      Resource named 'KinesisStream'
+    Value:
+      Ref: KinesisStream
+  ApplicationName:
+    Description:
+      The name of the Kinesis Client Application. This was autogenerated
+      by the DynamoDB Resource named 'KCLDynamoDBTable'
+    Value:
+      Ref: KCLDynamoDBTable
+  CountsTable:
+    Description:
+      The name of the DynamoDB table where counts are persisted. This was
+      autogenerated by the DynamoDB Resource named 'CountsDynamoDBTable'
+    Value:
+      Ref: CountsDynamoDBTable

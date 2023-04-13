@@ -1,0 +1,153 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+Description: >
+  Q12-MultiTackCopies
+Parameters:
+  VpcId:
+    Description: The VpcId
+    Type: AWS::EC2::VPC::Id
+    Default: "vpc-9e9b9ffa"
+  Subnets:
+    Description: The subnets in which to launch the ELB
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4, subnet-f76b6581, subnet-58421700"
+Resources:
+  Repository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Delete
+    Properties: {}
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties: {}
+
+  LoadBalancer:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      Scheme: internet-facing
+      Subnets:
+        Ref: Subnets
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckPath: /
+      Matcher:
+        HttpCode: "200"
+      Port: 8080
+      Protocol: HTTP
+      TargetType: ip
+      VpcId:
+        Ref: VpcId
+
+  ListenerHTTP:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn:
+            Ref: TargetGroup
+      LoadBalancerArn:
+        Ref: LoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: LoadBalancer
+    Properties:
+      Cluster:
+        Ref: Cluster
+      DesiredCount: 5
+      LaunchType: FARGATE
+      LoadBalancers:
+        - ContainerName: C8080
+          ContainerPort: 8080
+          TargetGroupArn:
+            Ref: TargetGroup
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          # cf. https://aws.amazon.com/premiumsupport/knowledge-center/ecs-pull-container-error/
+          AssignPublicIp: ENABLED
+          Subnets:
+            Ref: Subnets
+      TaskDefinition:
+        Ref: TaskDefinition
+
+  ExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ecs-tasks.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+      Path: "/"
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Fn::Sub: "/${AWS::AccountId}/ecs/${AWS::StackName}"
+      RetentionInDays: 1
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      ContainerDefinitions:
+        - Image:
+            Fn::Sub: "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${Repository}:latest"
+          Name: C8080
+          PortMappings:
+            - ContainerPort: 8080
+              HostPort: 8080
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region:
+                Fn::Sub: "${AWS::Region}"
+              awslogs-group: 
+                Ref: LogGroup
+              awslogs-stream-prefix: "/C8080"
+          Environment:
+            - Name: PORT
+              Value: 8080
+            - Name: CONTAINER_NAME
+              Value: C8080
+      ExecutionRoleArn:
+        Fn::GetAtt: ExecutionRole.Arn
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Family: "WebAppTaskDefinition"
+
+Outputs:
+  RepositoryUrl:
+    Description: The Repository Url
+    Value:
+      Fn::Sub: "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${Repository}"
+
+  Repository:
+    Description: The Repository
+    Value:
+      Ref: Repository
+
+  Cluster:
+    Description: The Cluster
+    Value:
+      Ref: Cluster
+
+  LoadBalancerDNSName:
+    Description: The LoadBalancer
+    Value:
+      Fn::GetAtt: LoadBalancer.DNSName

@@ -1,0 +1,237 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - Yaml2Json
+Description: >
+  PollyHelper. Simple stack to create a Note translator based on Polly.
+Globals:
+  Function:
+    Handler: app.lambda_handler
+    Runtime: python3.8
+    Timeout: 3
+    Tracing: Active
+    Environment:
+      Variables:
+        TABLE_NAME:
+          Ref: NoteTable
+        BUCKET_NAME:
+          Ref: Mp3Bucket
+        SNS_TOPIC:
+          Ref: Topic
+        CORS_ALLOW_ORIGIN:
+          Fn::Sub: "https://${Distribution.DomainName}"
+
+    Layers:
+      - Ref: LambdaLayer01
+    Tags:
+      PLATFORM: ARCHITECTURE_LABS
+  
+Resources:
+
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: ARCHITECTURE_LABS
+      WebsiteConfiguration: 
+        IndexDocument: index.html
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties: 
+      DistributionConfig: 
+        Enabled: True
+        DefaultCacheBehavior:
+          ForwardedValues: 
+            QueryString: false
+          TargetOriginId: 
+            Fn::Sub: '${WebsiteBucket}-to-dist'
+          ViewerProtocolPolicy: redirect-to-https
+        Origins:
+          - Id: 
+              Fn::Sub: '${WebsiteBucket}-to-dist'
+            DomainName: 
+              Fn::GetAtt: WebsiteBucket.RegionalDomainName
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+      Tags:
+        - Key: PLATFORM
+          Value: ARCHITECTURE_LABS
+
+  Mp3Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: ARCHITECTURE_LABS
+
+  NoteTable:
+    Type: AWS::DynamoDB::Table
+    Properties: 
+      AttributeDefinitions: 
+        - AttributeName: "id"
+          AttributeType: "S"
+      KeySchema: 
+        - AttributeName: "id"
+          KeyType: "HASH"
+      BillingMode: PAY_PER_REQUEST 
+      Tags:
+        - Key: PLATFORM
+          Value: ARCHITECTURE_LABS
+
+  Topic:
+    Type: AWS::SNS::Topic
+    Properties: 
+      Tags: 
+        - Key: PLATFORM
+          Value: ARCHITECTURE_LABS
+
+  LambdaLayer01:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: python3.8
+    Properties:
+      ContentUri: layers/PollyHelper01
+      CompatibleRuntimes:
+        - python3.8
+      RetentionPolicy: Delete
+
+  # By Default it is called ServerlessRestApi
+  Api:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors: 
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowMethods: "'GET, POST'"
+        AllowOrigin: 
+          Fn::Sub: "'https://${Distribution.DomainName}'"
+      Models:
+        InputNote:
+          type: object
+          required: 
+            - voice
+            - text
+          properties:
+            voice:
+              type: string
+            text:
+              type: string
+        Note:
+          type: object
+          required: 
+            - id
+            - voice
+            - text
+          properties:
+            id:
+              type: string
+            voice:
+              type: string
+            text:
+              type: string
+            status:
+              type: string
+      TracingEnabled: true
+
+  AddNoteValidator:
+    Type: AWS::ApiGateway::RequestValidator
+    Properties: 
+      Name: String
+      RestApiId: 
+        Ref: Api
+      ValidateRequestBody: true
+      ValidateRequestParameters: true
+
+  AddNoteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/add_note
+      Description: Create a new Note 
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - DynamoDBCrudPolicy:
+            TableName:
+              Ref: NoteTable
+        - SNSPublishMessagePolicy:
+            TopicName:
+              Fn::GetAtt: Topic.TopicName
+      Events:
+        AddNote:
+          Type: Api
+          Properties:
+            Method: post
+            Path: /notes
+            RequestModel:
+              Model: InputNote
+              Required: true
+            RestApiId: 
+              Ref: Api
+
+  GetNoteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/get_note
+      Description: Get all existing (or just one) Note 
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - DynamoDBReadPolicy:
+            TableName:
+              Ref: NoteTable
+      Events:
+        GetNote:
+          Type: Api
+          Properties:
+            Method: get
+            Path: /notes
+            RequestParameters:
+              - method.request.querystring.noteId:
+                  Caching: false
+                  Required: false
+            RestApiId: 
+              Ref: Api
+
+  ConvertNoteFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/convert_note
+      Description: Convert a Note's text to an audio file using Polly
+      Policies:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+        - "arn:aws:iam::aws:policy/AmazonPollyReadOnlyAccess"
+        - DynamoDBCrudPolicy:
+            TableName:
+              Ref: NoteTable
+        - S3CrudPolicy:
+            BucketName:
+              Ref: Mp3Bucket
+      Events:
+        ConvertNote:
+          Type: SNS
+          Properties:
+            Topic:
+              Ref: Topic
+      Timeout: 300
+
+Outputs:
+
+  CloudFrontIndex:
+    Description: The CloudFront FQDN to use to access that distribution
+    Value:
+      Fn::Sub: https://${Distribution.DomainName}/index.html
+
+  WebsiteURL:
+    Value: 
+      Fn::GetAtt: WebsiteBucket.WebsiteURL
+
+  WebsiteBucket:
+    Value: 
+      Ref: WebsiteBucket
+
+  APIEndpoint:
+    Value:
+      Fn::Sub: "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/Prod/notes/"

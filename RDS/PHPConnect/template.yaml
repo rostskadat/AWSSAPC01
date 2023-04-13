@@ -1,0 +1,138 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  SAAC02RDS
+Parameters:
+  SecurityGroupId:
+    Description: The SG for which to allow connection to the DB
+    Type: String
+    Default: sg-e1435287
+  DBName:
+    Default: mydb
+    Description: My database
+    Type: String
+  DBUsername:
+    Description: Username for MySQL database access
+    Type: String
+    Default: 'administrator'
+  DBPassword:
+    Description: Password MySQL database access
+    Type: String
+    Default: 'password'
+  InstanceProfileRole:
+    Description: "The Role to attach to that instance"
+    Type: String
+    Default: AFBArchitectureLabs
+  KeyName:
+    Description: "Key used to login into the instance"
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: ARCHITECTURE_LABS
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+
+Resources:
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+      - Ref: InstanceProfileRole
+
+  RDSInstanceTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties: 
+      LaunchTemplateData: 
+        IamInstanceProfile: 
+          Arn: 
+            Fn::GetAtt: InstanceProfile.Arn
+        ImageId: 
+          Ref: ImageId
+        InstanceType: t2.micro
+        KeyName: 
+          Ref: KeyName
+        SecurityGroupIds: 
+          - Ref: SecurityGroupId
+        TagSpecifications: 
+          - ResourceType: instance
+            Tags: 
+              - Key: PLATFORM
+                Value: ARCHITECTURE_LABS
+              - Key: Name
+                Value: RDS-Instance
+          - ResourceType: volume
+            Tags: 
+              - Key: PLATFORM
+                Value: ARCHITECTURE_LABS
+              - Key: Name
+                Value: RDS-Instance-VolumeRoot
+        UserData: 
+          Fn::Base64: 
+            Fn::Sub: |
+              #!/bin/bash
+              yum update -y
+              yum install httpd php php-mysql -y
+              echo "<?php phpinfo();?>" > /var/www/html/index.php
+              systemctl start httpd
+              systemctl enable httpd
+              cat > /var/www/html/connect.php <<EOF
+              <?php 
+              \$username = "${DBUsername}"; 
+              \$password = "${DBPassword}"; 
+              \$hostname = "${DBInstance.Endpoint.Address}:${DBInstance.Endpoint.Port}"; 
+              \$dbname = "${DBName}";
+              \$dbhandle = mysql_connect(\$hostname, \$username, \$password) or die("Unable to connect to MySQL"); 
+              echo "Connected to MySQL using  \$username:\$password@\$hostname"; 
+              \$selected = mysql_select_db("\$dbname", \$dbhandle) or die("Unable to connect to MySQL DB - check the database name and try again."); 
+              ?>
+              EOF
+              systemctl status httpd
+
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties: 
+      LaunchTemplate: 
+        LaunchTemplateId: 
+          Ref: RDSInstanceTemplate
+        Version: 
+          Fn::GetAtt: RDSInstanceTemplate.LatestVersionNumber
+
+  DBSecurityGroup: 
+    Type: AWS::RDS::DBSecurityGroup
+    Properties: 
+      GroupDescription: "Ingress for Amazon EC2 security group"
+      DBSecurityGroupIngress: 
+        - EC2SecurityGroupId: 
+            Ref: SecurityGroupId
+          EC2SecurityGroupOwnerId:
+            Fn::Sub: "${AWS::AccountId}"
+      Tags: 
+        - Key: PLATFORM
+          Value: ARCHITECTURE_LABS
+
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBName: 
+        Ref: DBName
+      DBInstanceClass: db.m4.large
+      DBSecurityGroups: 
+        - Ref: DBSecurityGroup      
+      AllocatedStorage: 8
+      Engine: MySQL
+      EngineVersion: 8.0.16
+      MasterUsername: 
+        Ref: DBUsername
+      MasterUserPassword: 
+        Ref: DBPassword
+    DeletionPolicy: Delete
+
+Outputs:
+  DBEndpoint:
+    Value: 
+      Fn::Sub: "${DBInstance.Endpoint.Address}:${DBInstance.Endpoint.Port}"
+  EC2InstancePublicDnsName:
+    Value:
+      Fn::GetAtt: EC2Instance.PublicDnsName

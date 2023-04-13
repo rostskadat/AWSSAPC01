@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - S3Objects
+Description: >
+  ServerlessWebpage
+Globals:
+  Function:
+    Timeout: 3
+
+Resources:
+
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    Properties:
+      Tags:
+        - Key: PLATFORM
+          Value: ARCHITECTURE_LABS
+      WebsiteConfiguration:
+        ErrorDocument: error.html
+        IndexDocument: index.html
+
+  IndexWebpage:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket: 
+          Ref: Bucket
+        Key: index.html
+        ContentType: text/html
+        ACL: public-read
+      Body: |
+        <html>
+        <script>
+          function myFunction() {
+            var xhttp = new XMLHttpRequest();
+            xhttp.onreadystatechange = function() {
+              if (this.readyState == 4 && this.status == 200) {
+                document.getElementById("message").innerHTML = this.responseText;
+              }
+            }
+            xhttp.open("GET", "https://yz8muv1yv9.execute-api.eu-west-1.amazonaws.com/Prod/hello/", true);
+            xhttp.send();
+          }
+        </script>
+        <body>
+          <div align="center"><br><br><br><br>
+          <h1><span id="message">Hello </span></h1>
+          <button onclick="myFunction()">Click me</button><br>
+          <img src="https://s3.amazonaws.com/acloudguru-opsworkslab-donotdelete/ACG_Austin.JPG"></div>
+        </body>
+        </html>
+
+        
+  ErrorWebpage:
+    Type: AWS::S3::Object
+    Properties:
+      Target:
+        Bucket: 
+          Ref: Bucket
+        Key: error.html
+        ContentType: text/html
+        ACL: public-read
+      Body: |
+        <html><body><h1>Sorry, there has been an error!</h1></body></html>
+
+  HelloWorldFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/hello_world/
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /hello
+            Method: get
+
+Outputs:
+  BucketWebsiteURL:
+    Description: "The domain of the S3 bucket"
+    Value: 
+      Fn::GetAtt: Bucket.WebsiteURL
+
+  HelloWorldApi:
+    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+    Value: 
+      Fn::Sub: "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/hello/"
+  # HelloWorldFunction:
+  #   Description: "Hello World Lambda Function ARN"
+  #   Value: 
+  #     Fn::GetAtt: HelloWorldFunction.Arn
+  # HelloWorldFunctionIamRole:
+  #   Description: "Implicit IAM Role created for Hello World function"
+  #   Value: 
+  #     Fn::GetAtt: HelloWorldFunctionRole.Arn

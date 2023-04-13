@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - PolicyGenerator
+  - S3Objects
+Description: >
+  Q14-WindowsShare
+Parameters:
+  VpcId:
+    Description: The VpcId
+    Type: AWS::EC2::VPC::Id
+    Default: "vpc-9e9b9ffa"
+  Subnets:
+    Description: The subnets in which to launch the ELB
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4, subnet-f76b6581"
+  MicrosoftADPassword:
+    Type: String
+    Description: The Simple AD Password
+    Default: "Nd82Ej2EYz67N2Bd"
+Resources:
+
+  MicrosoftAD : 
+    Type: AWS::DirectoryService::MicrosoftAD
+    Properties: 
+      Edition: Standard 
+      Name: ad.afbaws.com
+      Password: 
+        Ref: MicrosoftADPassword
+      VpcSettings: 
+        VpcId: 
+          Ref: VpcId
+        SubnetIds: 
+          Ref: Subnets
+
+  FileSystem:
+    Type: AWS::FSx::FileSystem
+    Properties: 
+      FileSystemType: WINDOWS
+      StorageCapacity: 32
+      StorageType: SSD
+      SubnetIds:
+        Ref: Subnets
+      Tags:
+        - Key: PLATFORM
+          Value: ARCHITECTURE_LABS
+      WindowsConfiguration:
+        ActiveDirectoryId: 
+          Ref: MicrosoftAD 
+        ThroughputCapacity: 8
+        WeeklyMaintenanceStartTime: '4:16:30'
+        DailyAutomaticBackupStartTime: '01:00'
+        AutomaticBackupRetentionDays: 90
+        DeploymentType: MULTI_AZ_1
+        PreferredSubnetId: 
+          Fn::Select:
+            - 0 
+            - Ref: Subnets
+        CopyTagsToBackups: false      
+
+  # WindowsClient:
+  #   Type: AWS::WorkSpaces::Workspace
+  #   Properties: 
+  #     BundleId: wsb-8vbljg4r6
+  #     DirectoryId: 
+  #       Ref: MicrosoftAD 
+  #     Tags: 
+  #       - Key: PLATFORM
+  #         Value: ARCHITECTURE_LABS
+  #     UserName: AF090536
+
+Outputs:
+  FileSystem:
+    Description: The FSx volume 
+    Value:
+      Ref: FileSystem

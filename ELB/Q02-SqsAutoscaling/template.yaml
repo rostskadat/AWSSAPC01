@@ -1,0 +1,210 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform:
+  - AWS::Serverless-2016-10-31
+  - SamPolicyTemplateTranslator
+  - PolicyGenerator
+Description: >
+  Q02-SqsAutoscaling
+Parameters:
+  KeyName:
+    Description: Key used to login into the instance
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: ARCHITECTURE_LABS
+  ImageId:
+    Description: "The Image Id (AMI) to use"
+    Type: "AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>"
+    Default: "/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2"
+  VpcId:
+    Description: The VpcId
+    Type: AWS::EC2::VPC::Id
+    Default: "vpc-9e9b9ffa"
+  Subnets:
+    Description: The subnets in which to launch the ELB
+    Type: List<AWS::EC2::Subnet::Id>
+    Default: "subnet-b09099d4, subnet-f76b6581, subnet-58421700"
+  AlarmEmail:
+    Type: String
+    Description: The email to send larms to
+    Default: "rostskadat@gmail.com"
+Resources:
+
+  Queue:
+    Type: AWS::SQS::Queue
+    Properties: {}
+
+  QueueSpikeTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName:
+        Fn::Sub: "${AWS::StackName} - Queue Spike Notification"
+      Subscription:
+        - Endpoint:
+            Ref: AlarmEmail
+          Protocol: email
+
+  QueueSpikeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Sets an alarm if the number of messages in the Queue spikes
+      AlarmActions:
+        - Ref: QueueSpikeTopic
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: QueueName
+          Value:
+            Fn::GetAtt: Queue.QueueName
+      EvaluationPeriods: 1
+      Period: 60
+      Statistic: Average
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Threshold: 100
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      HealthCheckGracePeriod: 120
+      HealthCheckType: EC2
+      LaunchTemplate:
+        LaunchTemplateId:
+          Ref: LaunchTemplate
+        Version:
+          Fn::GetAtt: LaunchTemplate.LatestVersionNumber
+      MinSize: 1
+      MaxSize: 4
+      DesiredCapacity: 1
+      VPCZoneIdentifier:
+        Ref: Subnets
+
+  MessageSpikePolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: 
+        Ref: AutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        CustomizedMetricSpecification:
+          Dimensions:
+          - Name: QueueName
+            Value:
+              Fn::GetAtt: Queue.QueueName
+          MetricName: ApproximateNumberOfMessagesVisible
+          Namespace: AWS/SQS
+          Statistic: Average
+        TargetValue: "1"
+
+  ManagedPolicyEC2AllowDescribeAndSignal:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      Description: 'Allow an EC2 instance to describe the stack to which it belongs and signal the waiting AutoScalingGroup'
+      PolicyDocument:
+         Version: '2012-10-17'
+         Statement:
+            - Effect: 'Allow'
+              Action:
+                  - 'cloudformation:DescribeStacks'
+                  - 'cloudformation:SignalResource'
+                  - 'cloudformation:DescribeStackResource'
+                  - 'cloudformation:DescribeStackResources'
+              Resource: '*'
+
+  EC2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: "/"
+      ManagedPolicyArns:
+        - Ref: ManagedPolicyEC2AllowDescribeAndSignal
+      Policies:
+        - SQSPollerPolicy:
+            QueueName: 
+              Fn::GetAtt: Queue.QueueName
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - Ref: EC2InstanceRole
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Metadata:
+      AWS::CloudFormation::Init:
+        configSets: 
+          default: [ Install ] 
+        Install: 
+          packages: 
+            yum:
+              jq: []
+          files:
+            '/root/consume_message.sh':
+              content: |
+                #!/bin/bash
+                Region={{Region}}
+                QueueUrl={{QueueUrl}}
+                while (true); do
+                  echo "$(date +'%H:%M:%S') Reading message from ${QueueUrl} ..." | tee -a /var/log/consume_message.log
+                  ReceiptHandle=$(aws --region ${Region} sqs receive-message --queue-url ${QueueUrl} --wait-time-seconds 20 --max-number-of-messages 1|jq -r '.Messages[0].ReceiptHandle')
+                  if [ ! -z "${ReceiptHandle}" ]; then
+                    echo "$(date +'%H:%M:%S') Deleting message ${ReceiptHandle} ..." | tee -a /var/log/consume_message.log
+                    aws --region ${Region} sqs delete-message --queue-url ${QueueUrl} --receipt-handle ${ReceiptHandle}
+                  fi
+                  sleep 60
+                done
+              mode: '000700'
+              owner: root
+              group: root
+              context:
+                Region:
+                  Fn::Sub: '${AWS::Region}'
+                QueueUrl: 
+                  Ref: Queue
+    Properties:
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Arn:
+            Fn::GetAtt: InstanceProfile.Arn
+        ImageId:
+          Ref: ImageId
+        InstanceType: t2.micro
+        KeyName:
+          Ref: KeyName
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: PLATFORM
+                Value: ARCHITECTURE_LABS
+              - Key: Name
+                Value: Q02-SqsAutoscaling-Instance
+          - ResourceType: volume
+            Tags:
+              - Key: PLATFORM
+                Value: ARCHITECTURE_LABS
+              - Key: Name
+                Value: Q02-SqsAutoscaling-VolumeRoot
+        UserData:
+          Fn::Base64:
+            Fn::Sub: 
+              - |
+                #!/bin/bash
+                yum update -y
+                /opt/aws/bin/cfn-init --verbose --region ${AWS::Region} --stack ${AWS::StackName} --resource LaunchTemplate --role ${EC2InstanceRole}
+                /root/consume_message.sh &
+                echo "Finished"
+              - EC2InstanceRole: 
+                  Ref: EC2InstanceRole
+              
+Outputs:
+  QueueUrl:
+    Description: "The Queue URL"
+    Value:
+      Ref: Queue
